@@ -1,75 +1,32 @@
 /* ============================================================
-   Santa Lucia — estilos base
+   Santa Lucia — capa de marca sobre Bootstrap 5.3
    ============================================================ */
 
 :root {
-    --primary: #1f6feb;
-    --primary-dark: #1a5fcf;
-    --bg: #f5f6f8;
-    --surface: #ffffff;
-    --text: #1c1e21;
-    --muted: #6b7280;
-    --border: #e5e7eb;
-    --ok: #16a34a;
-    --warn: #d97706;
-    --danger: #dc2626;
-    --radius: 12px;
-    --shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-}
-
-* {
-    box-sizing: border-box;
+    --bs-primary: #1f6feb;
+    --bs-primary-rgb: 31, 111, 235;
+    --bs-primary-dark: #1a5fcf;
+    --bs-link-color: #1f6feb;
+    --bs-link-hover-color: #1a5fcf;
+    --bs-body-bg: #f5f6f8;
+    --bs-body-color: #1c1e21;
 }
 
 body {
-    margin: 0;
     font-family: "Segoe UI", system-ui, Arial, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    line-height: 1.5;
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
 }
 
-.container {
-    width: 100%;
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 0 20px;
-}
-
-main.container {
-    flex: 1;
-    padding-top: 24px;
-    padding-bottom: 48px;
-}
-
-/* ---------- Navbar ---------- */
-
-.navbar {
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    position: sticky;
-    top: 0;
-    z-index: 10;
-}
-
-.nav-inner {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: 64px;
-}
+/* ---------- Navbar / marca ---------- */
 
 .brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    text-decoration: none;
-    color: var(--text);
     font-weight: 700;
-    font-size: 1.2rem;
+    font-size: 1.15rem;
+    color: var(--bs-body-color);
+}
+
+.navbar-dark .brand,
+.navbar-brand.brand:hover {
+    color: var(--bs-body-color);
 }
 
 .brand-logo {
@@ -78,328 +35,33 @@ main.container {
     object-fit: contain;
 }
 
-.nav-links {
-    display: flex;
-    align-items: center;
-    gap: 18px;
-}
-
-.nav-links a {
-    text-decoration: none;
-    color: var(--text);
-    font-weight: 500;
-}
-
-.nav-links a:hover {
-    color: var(--primary);
-}
-
-.nav-user {
-    color: var(--muted);
-    font-size: 0.9rem;
-}
-
-/* ---------- Botones ---------- */
-
-.btn {
-    display: inline-block;
-    padding: 9px 18px;
-    border-radius: 8px;
-    border: none;
-    font-weight: 600;
-    text-decoration: none;
-    cursor: pointer;
-    font-size: 0.95rem;
-}
+/* ---------- Botón primario ---------- */
 
 .btn-primary {
-    background: var(--primary);
-    color: #fff;
+    --bs-btn-bg: var(--bs-primary);
+    --bs-btn-border-color: var(--bs-primary);
+    --bs-btn-hover-bg: var(--bs-primary-dark);
+    --bs-btn-hover-border-color: var(--bs-primary-dark);
+    --bs-btn-active-bg: var(--bs-primary-dark);
+    --bs-btn-active-border-color: var(--bs-primary-dark);
 }
 
-.btn-primary:hover {
-    background: var(--primary-dark);
+.btn-outline-primary {
+    --bs-btn-color: var(--bs-primary);
+    --bs-btn-border-color: var(--bs-primary);
+    --bs-btn-hover-bg: var(--bs-primary);
+    --bs-btn-hover-border-color: var(--bs-primary);
 }
 
-.btn-outline {
-    background: transparent;
-    border: 1px solid var(--border);
-    color: var(--text);
-}
-
-.btn-outline:hover {
-    border-color: var(--primary);
-    color: var(--primary);
-}
-
-.btn-block {
-    width: 100%;
-}
-
-/* ---------- Hero ---------- */
-
-.hero {
-    text-align: center;
-    padding: 56px 0 40px;
-}
-
-.hero h1 {
-    font-size: 2.2rem;
-    margin: 0 0 12px;
-}
-
-.hero p {
-    color: var(--muted);
-    max-width: 520px;
-    margin: 0 auto 24px;
-}
-
-/* ---------- Tarjetas ---------- */
-
-.cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 16px;
-    margin-bottom: 24px;
-}
-
-.card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    padding: 20px;
-}
-
-.card h3 {
-    margin: 10px 0 6px;
-}
-
-.card p {
-    color: var(--muted);
-    margin: 0 0 12px;
-    font-size: 0.95rem;
-}
-
-.card-icon {
-    font-size: 1.8rem;
-}
-
-.stat-card {
-    text-align: center;
-}
+/* ---------- Tarjetas de estadísticas ---------- */
 
 .stat-icon {
-    font-size: 1.6rem;
+    font-size: 2.2rem;
 }
 
-.stat-value {
-    font-size: 1.8rem;
-    font-weight: 700;
-    margin: 4px 0 2px;
-}
-
-.stat-label {
-    color: var(--muted);
-    font-size: 0.9rem;
-}
-
-/* ---------- Encabezado de panel ---------- */
-
-.panel-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 20px;
-}
-
-.panel-head h1 {
-    margin: 0 0 4px;
-    font-size: 1.6rem;
-}
-
-.panel-head p {
-    color: var(--muted);
-    margin: 0;
-}
-
-.section-title {
-    margin: 28px 0 14px;
-    font-size: 1.15rem;
-}
-
-/* ---------- Tablas ---------- */
-
-.table-wrap {
-    overflow-x: auto;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-}
-
-.table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.95rem;
-}
-
-.table th,
-.table td {
-    text-align: left;
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border);
-}
-
-.table th {
-    background: #fafbfc;
-    color: var(--muted);
-    font-weight: 600;
-    font-size: 0.85rem;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-}
-
-.table tr:last-child td {
-    border-bottom: none;
-}
-
-.table tbody tr:hover {
-    background: #fafbfc;
-}
-
-/* ---------- Badges ---------- */
-
-.badge {
-    display: inline-block;
-    padding: 3px 10px;
-    border-radius: 999px;
-    font-size: 0.8rem;
-    font-weight: 600;
-}
-
-.badge-ok {
-    background: #dcfce7;
-    color: var(--ok);
-}
-
-.badge-warn {
-    background: #fef3c7;
-    color: var(--warn);
-}
-
-.badge-muted {
-    background: #f3f4f6;
-    color: var(--muted);
-}
-
-/* ---------- Formularios ---------- */
-
-.auth-box {
-    max-width: 380px;
-    margin: 40px auto;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    padding: 28px;
-}
-
-.auth-box h1 {
-    margin: 0 0 16px;
-    font-size: 1.4rem;
-}
-
-.auth-box label {
-    display: block;
-    margin: 12px 0 6px;
-    font-weight: 600;
-    font-size: 0.9rem;
-}
-
-.auth-box input {
-    width: 100%;
-    padding: 10px 12px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    font-size: 0.95rem;
-}
-
-.auth-box input:focus {
-    outline: none;
-    border-color: var(--primary);
-}
-
-.auth-box .btn {
-    margin-top: 18px;
-}
-
-.hint {
-    margin-top: 18px;
-    font-size: 0.85rem;
-    color: var(--muted);
-    text-align: center;
-}
-
-.hint code {
-    background: #f3f4f6;
-    padding: 1px 6px;
-    border-radius: 4px;
-}
-
-/* ---------- Flash ---------- */
-
-.flash {
-    padding: 12px 16px;
-    border-radius: 8px;
-    margin-bottom: 16px;
-    font-weight: 500;
-}
-
-.flash-error {
-    background: #fef2f2;
-    color: var(--danger);
-    border: 1px solid #fecaca;
-}
-
-/* ---------- Estado vacío ---------- */
-
-.empty-state {
-    text-align: center;
-    padding: 80px 0;
-}
-
-.empty-state h1 {
-    font-size: 4rem;
-    margin: 0;
-    color: var(--muted);
-}
-
-.empty-state p {
-    color: var(--muted);
-    margin-bottom: 20px;
-}
-
-/* ---------- Tienda (grid de productos) ---------- */
-
-.shop-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-    gap: 18px;
-}
-
-.product-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    box-shadow: var(--shadow);
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-}
+/* ---------- Tienda ---------- */
 
 .product-img {
-    position: relative;
     background: #fafbfc;
     text-align: center;
     padding: 18px;
@@ -411,84 +73,13 @@ main.container {
     object-fit: contain;
 }
 
-.offer-badge {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    background: var(--danger);
-    color: #fff;
-    font-size: 0.75rem;
-    font-weight: 700;
-    padding: 3px 10px;
-    border-radius: 999px;
-}
-
-.product-body {
-    padding: 14px 16px 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    flex: 1;
-}
-
-.product-name {
-    margin: 0;
-    font-size: 1rem;
-}
-
-.product-meta {
-    margin: 0;
-    font-size: 0.8rem;
-    color: var(--muted);
-    text-transform: capitalize;
-}
-
 .product-desc {
-    margin: 0;
     font-size: 0.85rem;
-    color: var(--muted);
+    color: var(--bs-secondary-color);
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
-}
-
-.price-box {
-    margin-top: auto;
-    padding-top: 8px;
-    display: flex;
-    align-items: baseline;
-    gap: 8px;
-}
-
-.price-now {
-    font-size: 1.25rem;
-    font-weight: 700;
-}
-
-.price-original {
-    color: var(--muted);
-    text-decoration: line-through;
-    font-size: 0.9rem;
-}
-
-.product-body .btn-block {
-    margin-top: 8px;
-}
-
-.cart-badge {
-    display: inline-block;
-    min-width: 18px;
-    height: 18px;
-    padding: 0 5px;
-    margin-left: 4px;
-    border-radius: 999px;
-    background: var(--primary);
-    color: #fff;
-    font-size: 0.75rem;
-    font-weight: 700;
-    line-height: 18px;
-    text-align: center;
 }
 
 /* ---------- Footer ---------- */
@@ -498,18 +89,10 @@ main.container {
     background-size: cover;
     background-position: center;
     color: #e5e7eb;
-    padding: 32px 0;
+    background-image: url("../img/fondo-footer.svg");
 }
 
-.footer-inner {
-    text-align: center;
-}
-
-.footer p {
-    margin: 4px 0;
-}
-
-.footer-muted {
+.footer .footer-muted {
     color: #9ca3af;
     font-size: 0.85rem;
 }

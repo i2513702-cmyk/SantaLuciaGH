@@ -3,36 +3,47 @@
 {% block title %}Usuarios del sistema — {{ app_name }}{% endblock %}
 
 {% block content %}
-<h1>Usuarios del sistema</h1>
+<section class="d-flex flex-wrap align-items-center justify-content-between mb-4">
+    <h1 class="h3 fw-semibold mb-0">Usuarios del sistema</h1>
+    <a class="btn btn-primary" href="{{ url_for('auth.usuarios_sistema_nuevo') }}">+ Nuevo usuario</a>
+</section>
 
-<a class="btn btn-primary" href="{{ url_for('auth.usuarios_sistema_nuevo') }}">+ Nuevo usuario</a>
-
-<table class="table">
-    <thead>
-        <tr>
-            <th>ID</th>
-            <th>Usuario</th>
-            <th>Correo</th>
-            <th>Rol</th>
-            <th>Empleado</th>
-            <th>Activo</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for u in usuarios %}
-        <tr>
-            <td>{{ u.id }}</td>
-            <td>{{ u.nombre_usuario }}</td>
-            <td>{{ u.correo }}</td>
-            <td>{{ u.rol }}</td>
-            <td>{{ u.empleado_id }}</td>
-            <td>{{ "Sí" if u.activo else "No" }}</td>
-        </tr>
-        {% else %}
-        <tr>
-            <td colspan="6" class="flash flash-error">No hay usuarios todavía.</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Usuario</th>
+                    <th>Correo</th>
+                    <th>Rol</th>
+                    <th>Empleado</th>
+                    <th>Activo</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in usuarios %}
+                <tr>
+                    <td>{{ u.id }}</td>
+                    <td>{{ u.nombre_usuario }}</td>
+                    <td>{{ u.correo }}</td>
+                    <td>{{ u.rol }}</td>
+                    <td>{{ u.empleado_id }}</td>
+                    <td>
+                        {% if u.activo %}
+                            <span class="badge text-bg-success">Sí</span>
+                        {% else %}
+                            <span class="badge text-bg-danger">No</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="text-center text-secondary py-4">No hay usuarios todavía.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
 {% endblock %}

@@ -3,32 +3,46 @@
 {% block title %}Inicio — {{ app_name }}{% endblock %}
 
 {% block content %}
-<section class="hero">
-    <h1>Bienvenido a {{ app_name }}</h1>
-    <p>{{ app_tagline }}. Tienda, servicio técnico y gestión de pedidos en un solo lugar.</p>
+<section class="text-center py-5 bg-white border rounded-3 shadow-sm mb-4">
+    <h1 class="display-5 fw-semibold">Bienvenido a {{ app_name }}</h1>
+    <p class="text-secondary mx-auto" style="max-width: 560px;">
+        {{ app_tagline }}. Tienda, servicio técnico y gestión de pedidos en un solo lugar.
+    </p>
     {% if rol %}
-        <a class="btn btn-primary" href="{{ url_for('auth.panel', rol=rol) }}">Ir a mi panel</a>
+        <a class="btn btn-primary btn-lg" href="{{ url_for('auth.panel', rol=rol) }}">Ir a mi panel</a>
     {% else %}
-        <a class="btn btn-primary" href="{{ url_for('auth.login') }}">Iniciar sesión</a>
+        <a class="btn btn-primary btn-lg" href="{{ url_for('auth.login') }}">Iniciar sesión</a>
     {% endif %}
 </section>
 
-<section class="cards">
-    <div class="card">
-        <div class="card-icon">🏷️</div>
-        <h3>Productos</h3>
-        <p>Catálogo de productos con precios desde la base de datos.</p>
-        <a class="btn btn-primary" href="{{ url_for('main.tienda') }}">Ver tienda</a>
+<section class="row row-cols-1 row-cols-md-3 g-4">
+    <div class="col">
+        <div class="card h-100 shadow-sm text-center">
+            <div class="card-body d-flex flex-column">
+                <div class="card-icon display-5">🏷️</div>
+                <h3 class="card-title h5 mt-2">Productos</h3>
+                <p class="card-text text-secondary flex-grow-1">Catálogo de productos con precios desde la base de datos.</p>
+                <a class="btn btn-primary" href="{{ url_for('main.tienda') }}">Ver tienda</a>
+            </div>
+        </div>
     </div>
-    <div class="card">
-        <div class="card-icon">🛠️</div>
-        <h3>Servicio técnico</h3>
-        <p>Reparación y mantenimiento de electrodomésticos (próximamente).</p>
+    <div class="col">
+        <div class="card h-100 shadow-sm text-center">
+            <div class="card-body d-flex flex-column">
+                <div class="card-icon display-5">🛠️</div>
+                <h3 class="card-title h5 mt-2">Servicio técnico</h3>
+                <p class="card-text text-secondary flex-grow-1">Reparación y mantenimiento de electrodomésticos (próximamente).</p>
+            </div>
+        </div>
     </div>
-    <div class="card">
-        <div class="card-icon">📦</div>
-        <h3>Pedidos</h3>
-        <p>Compra en línea y seguimiento de tus pedidos (próximamente).</p>
+    <div class="col">
+        <div class="card h-100 shadow-sm text-center">
+            <div class="card-body d-flex flex-column">
+                <div class="card-icon display-5">📦</div>
+                <h3 class="card-title h5 mt-2">Pedidos</h3>
+                <p class="card-text text-secondary flex-grow-1">Compra en línea y seguimiento de tus pedidos (próximamente).</p>
+            </div>
+        </div>
     </div>
 </section>
 {% endblock %}

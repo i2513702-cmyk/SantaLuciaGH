@@ -3,30 +3,33 @@
 {% block title %}Iniciar sesión — {{ app_name }}{% endblock %}
 
 {% block content %}
-<div class="auth-box">
-    <h1>Iniciar sesión</h1>
+<div class="card shadow-sm mx-auto" style="max-width: 400px;">
+    <div class="card-body p-4">
+        <h1 class="h4 fw-semibold mb-4">Iniciar sesión</h1>
 
-    {% if error %}
-        <div class="flash flash-error">{{ error }}</div>
-    {% endif %}
+        {% if error %}
+            <div class="alert alert-danger py-2">{{ error }}</div>
+        {% endif %}
 
-    <form method="POST" action="{{ url_for('auth.login') }}">
-        <label for="username">Usuario</label>
-        <input type="text" id="username" name="username" required autofocus placeholder="Ej: admin">
+        <form method="POST" action="{{ url_for('auth.login') }}">
+            <div class="mb-3">
+                <label for="username" class="form-label">Usuario</label>
+                <input type="text" class="form-control" id="username" name="username" required autofocus placeholder="Ej: admin">
+            </div>
+            <div class="mb-3">
+                <label for="password" class="form-label">Contraseña</label>
+                <input type="password" class="form-control" id="password" name="password" required placeholder="••••••••">
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Entrar</button>
+        </form>
 
-        <label for="password">Contraseña</label>
-        <input type="password" id="password" name="password" required placeholder="••••••••">
-
-        <button type="submit" class="btn btn-primary btn-block">Entrar</button>
-    </form>
-
-    <p class="hint">
-        ¿No tienes cuenta? <a href="{{ url_for('auth.registrarse') }}">Regístrate</a>
-    </p>
-
-    <p class="hint">
-        Pie: el acceso se valida contra la tabla <code>usuarios</code> de Supabase
+        <p class="text-center small text-secondary mt-3 mb-0">
+            ¿No tienes cuenta? <a href="{{ url_for('auth.registrarse') }}">Regístrate</a>
+        </p>
+        <p class="text-center small text-secondary mt-3 mb-0">
+            Pie: el acceso se valida contra la tabla <code>usuarios</code> de Supabase
         (contraseñas con bcrypt).
-    </p>
+        </p>
+    </div>
 </div>
 {% endblock %}
