@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Carrito — {{ app_name }}{% endblock %}
+
+{% block content %}
+<section class="panel-head">
+    <div>
+        <h1>Carrito de compras</h1>
+        <p>Productos agregados desde la tienda.</p>
+    </div>
+    <a class="btn btn-outline" href="{{ url_for('main.tienda') }}">Seguir comprando</a>
+</section>
+
+{% if items %}
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th>Precio</th>
+                    <th>Cantidad</th>
+                    <th>Subtotal</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in items %}
+                    <tr>
+                        <td>
+                            {{ item.nombre }}
+                            {% if item.marca %}<span class="badge badge-muted">{{ item.marca }}</span>{% endif %}
+                        </td>
+                        <td>{{ item.precio_unitario }}</td>
+                        <td>
+                            <a class="btn btn-outline" href="{{ url_for('carrito.disminuir', producto_id=item.id) }}">−</a>
+                            <strong>{{ item.cantidad }}</strong>
+                            <a class="btn btn-outline" href="{{ url_for('carrito.aumentar', producto_id=item.id) }}">+</a>
+                        </td>
+                        <td><strong>{{ item.subtotal }}</strong></td>
+                        <td>
+                            <a class="btn btn-outline" href="{{ url_for('carrito.disminuir', producto_id=item.id) }}">Quitar</a>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div style="margin: 20px 0; display: flex; align-items: center; gap: 16px; justify-content: space-between;">
+        <h2 style="font-size: 1.3rem; margin: 0;">Total: <strong>{{ total }}</strong></h2>
+        <form method="POST" action="{{ url_for('carrito.vaciar') }}">
+            <button type="submit" class="btn btn-outline">Vaciar carrito</button>
+        </form>
+    </div>
+{% else %}
+    <div class="empty-state">
+        <h1>🛒</h1>
+        <p>Tu carrito está vacío.</p>
+        <a class="btn btn-primary" href="{{ url_for('main.tienda') }}">Ir a la tienda</a>
+    </div>
+{% endif %}
+{% endblock %}

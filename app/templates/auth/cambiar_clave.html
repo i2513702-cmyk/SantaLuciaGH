@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}Cambiar contraseña — {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="auth-box">
+    <h1>Cambiar contraseña</h1>
+
+    {% if error %}
+        <div class="flash flash-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('auth.cambiar_clave') }}">
+        <label for="nueva">Nueva contraseña</label>
+        <input type="password" id="nueva" name="nueva" required minlength="8" placeholder="Mínimo 8 caracteres">
+
+        <button type="submit" class="btn btn-primary btn-block">Guardar</button>
+    </form>
+
+    <p class="hint">
+        <a href="{{ url_for('auth.panel') }}">← Volver al panel</a>
+    </p>
+</div>
+{% endblock %}

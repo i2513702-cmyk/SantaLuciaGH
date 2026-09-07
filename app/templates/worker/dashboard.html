@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}Panel Técnico — {{ app_name }}{% endblock %}
+
+{% block content %}
+<section class="panel-head">
+    <div>
+        <h1>Panel del Técnico</h1>
+        <p>Bienvenido, <strong>{{ nombre }}</strong>. Estado real de las reparaciones en la base de datos.</p>
+    </div>
+</section>
+
+<section class="cards">
+    {% for stat in stats %}
+        <div class="card stat-card">
+            <div class="stat-icon">{{ stat.icon }}</div>
+            <div class="stat-value">{{ stat.value }}</div>
+            <div class="stat-label">{{ stat.label }}</div>
+        </div>
+    {% endfor %}
+</section>
+
+<h2 class="section-title">Últimas reparaciones</h2>
+<div class="table-wrap">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Código</th>
+                <th>Problema</th>
+                <th>Atención</th>
+                <th>Ingreso</th>
+                <th>Estado</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for orden in ordenes %}
+                <tr>
+                    <td>{{ orden.codigo }}</td>
+                    <td>{{ orden.problema }}</td>
+                    <td>{{ orden.tipo }}</td>
+                    <td>{{ orden.ingreso }}</td>
+                    <td><span class="badge {{ orden.badge_class }}">{{ orden.estado }}</span></td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="5">No hay reparaciones registradas todavía.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

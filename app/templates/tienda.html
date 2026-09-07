@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Tienda — {{ app_name }}{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <h1>Nuestros productos</h1>
+    <p>Catálogo real de {{ app_name }}. Precios y stock desde la base de datos.</p>
+</section>
+
+{% if productos %}
+    <section class="shop-grid">
+        {% for p in productos %}
+            <article class="product-card">
+                <div class="product-img">
+                    {% if p.oferta %}
+                        <span class="offer-badge">¡Oferta!</span>
+                    {% endif %}
+                    <img src="{{ url_for('static', filename='img/producto-default.svg') }}" alt="{{ p.nombre }}">
+                </div>
+                <div class="product-body">
+                    <h3 class="product-name">{{ p.nombre }}</h3>
+                    {% if p.marca or p.categoria %}
+                        <p class="product-meta">
+                            {{ p.marca }}{% if p.marca and p.categoria %} · {% endif %}{{ p.categoria }}
+                        </p>
+                    {% endif %}
+                    {% if p.descripcion %}
+                        <p class="product-desc">{{ p.descripcion }}</p>
+                    {% endif %}
+                    <div class="price-box">
+                        {% if p.precio_antes %}
+                            <span class="price-original">{{ p.precio_antes }}</span>
+                        {% endif %}
+                        <span class="price-now">{{ p.precio_ahora }}</span>
+                    </div>
+                    <form method="POST" action="{{ url_for('carrito.agregar', producto_id=p.id) }}">
+                        <button type="submit" class="btn btn-primary btn-block">Agregar al carrito</button>
+                    </form>
+                </div>
+            </article>
+        {% endfor %}
+    </section>
+{% else %}
+    <div class="empty-state">
+        <h1>🛒</h1>
+        <p>Aún no hay productos publicados en la base de datos.</p>
+    </div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}Panel Administrador — {{ app_name }}{% endblock %}
+
+{% block content %}
+<section class="panel-head">
+    <div>
+        <h1>Panel de Administración</h1>
+        <p>Bienvenido, <strong>{{ nombre }}</strong>. Resumen general del negocio (datos reales de la base de datos).</p>
+    </div>
+    <a class="btn btn-outline" href="{{ url_for('main.home') }}">Ver tienda</a>
+</section>
+
+<section class="cards">
+    {% for stat in stats %}
+        <div class="card stat-card">
+            <div class="stat-icon">{{ stat.icon }}</div>
+            <div class="stat-value">{{ stat.value }}</div>
+            <div class="stat-label">{{ stat.label }}</div>
+        </div>
+    {% endfor %}
+</section>
+
+<h2 class="section-title">Módulos del sistema</h2>
+<section class="cards">
+    {% for modulo in modulos %}
+        <div class="card">
+            <div class="card-icon">{{ modulo.icon }}</div>
+            <h3>{{ modulo.nombre }}</h3>
+            <p>{{ modulo.descripcion }}</p>
+            <a class="btn btn-primary" href="{{ url_for(modulo.url) }}">Abrir</a>
+        </div>
+    {% endfor %}
+</section>
+{% endblock %}

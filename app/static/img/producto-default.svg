@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300">
+  <rect width="300" height="300" fill="#eef1f5"/>
+  <circle cx="150" cy="150" r="58" fill="none" stroke="#c3cad4" stroke-width="6"/>
+  <line x1="150" y1="150" x2="150" y2="98" stroke="#c3cad4" stroke-width="6" stroke-linecap="round"/>
+  <line x1="150" y1="150" x2="190" y2="178" stroke="#c3cad4" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="150" cy="150" r="8" fill="#9aa4b1"/>
+  <text x="150" y="248" font-family="Segoe UI, Arial, sans-serif" font-size="16" fill="#9aa4b1" text-anchor="middle">Imagen del producto</text>
+</svg>

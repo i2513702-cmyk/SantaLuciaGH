@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Inicio — {{ app_name }}{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <h1>Bienvenido a {{ app_name }}</h1>
+    <p>{{ app_tagline }}. Tienda, servicio técnico y gestión de pedidos en un solo lugar.</p>
+    {% if rol %}
+        <a class="btn btn-primary" href="{{ url_for('auth.panel', rol=rol) }}">Ir a mi panel</a>
+    {% else %}
+        <a class="btn btn-primary" href="{{ url_for('auth.login') }}">Iniciar sesión</a>
+    {% endif %}
+</section>
+
+<section class="cards">
+    <div class="card">
+        <div class="card-icon">🏷️</div>
+        <h3>Productos</h3>
+        <p>Catálogo de productos con precios desde la base de datos.</p>
+        <a class="btn btn-primary" href="{{ url_for('main.tienda') }}">Ver tienda</a>
+    </div>
+    <div class="card">
+        <div class="card-icon">🛠️</div>
+        <h3>Servicio técnico</h3>
+        <p>Reparación y mantenimiento de electrodomésticos (próximamente).</p>
+    </div>
+    <div class="card">
+        <div class="card-icon">📦</div>
+        <h3>Pedidos</h3>
+        <p>Compra en línea y seguimiento de tus pedidos (próximamente).</p>
+    </div>
+</section>
+{% endblock %}
