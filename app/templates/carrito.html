@@ -3,28 +3,19 @@
 {% block title %}Carrito — {{ app_name }}{% endblock %}
 
 {% block content %}
-<section class="panel-head">
+<section class="d-flex flex-wrap align-items-center justify-content-between mb-4">
     <div>
-        <h1>Carrito de compras</h1>
-        <p>Productos agregados desde la tienda.</p>
+        <h1 class="h3 fw-semibold mb-1">Carrito de compras</h1>
+        <p class="text-secondary mb-0">Productos agregados desde la tienda.</p>
     </div>
-    <a class="btn btn-outline" href="{{ url_for('main.tienda') }}">Seguir comprando</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('main.tienda') }}">Seguir comprando</a>
 </section>
 
 {% if items %}
-    <div class="table-wrap">
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>Producto</th>
-                    <th>Precio</th>
-                    <th>Cantidad</th>
-                    <th>Subtotal</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for item in items %}
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead>
                     <tr>
                         <td>
                             <div style="font-weight:600;">{{ item.nombre }}</div>
@@ -96,9 +87,9 @@
         </div>
     </div>
 {% else %}
-    <div class="empty-state">
-        <h1>🛒</h1>
-        <p>Tu carrito está vacío.</p>
+    <div class="text-center py-5">
+        <p class="display-6 text-secondary mb-1">🛒</p>
+        <p class="text-secondary">Tu carrito está vacío.</p>
         <a class="btn btn-primary" href="{{ url_for('main.tienda') }}">Ir a la tienda</a>
     </div>
 {% endif %}

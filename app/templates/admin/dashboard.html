@@ -3,32 +3,42 @@
 {% block title %}Panel Administrador — {{ app_name }}{% endblock %}
 
 {% block content %}
-<section class="panel-head">
+<section class="d-flex flex-wrap align-items-center justify-content-between mb-4">
     <div>
-        <h1>Panel de Administración</h1>
-        <p>Bienvenido, <strong>{{ nombre }}</strong>. Resumen general del negocio (datos reales de la base de datos).</p>
+        <h1 class="h3 fw-semibold mb-1">Panel de Administración</h1>
+        <p class="text-secondary mb-0">Bienvenido, <strong>{{ nombre }}</strong>. Resumen general del negocio (datos reales de la base de datos).</p>
     </div>
-    <a class="btn btn-outline" href="{{ url_for('main.home') }}">Ver tienda</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('main.home') }}">Ver tienda</a>
 </section>
 
-<section class="cards">
+<section class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-4 mb-4">
     {% for stat in stats %}
-        <div class="card stat-card">
-            <div class="stat-icon">{{ stat.icon }}</div>
-            <div class="stat-value">{{ stat.value }}</div>
-            <div class="stat-label">{{ stat.label }}</div>
+        <div class="col">
+            <div class="card h-100 shadow-sm text-center">
+                <div class="card-body">
+                    <div class="stat-icon">{{ stat.icon }}</div>
+                    <div class="display-6 fw-bold">{{ stat.value }}</div>
+                    <div class="text-secondary small">{{ stat.label }}</div>
+                </div>
+            </div>
         </div>
     {% endfor %}
 </section>
 
-<h2 class="section-title">Módulos del sistema</h2>
-<section class="cards">
+<h2 class="h5 fw-semibold mb-3">Módulos del sistema</h2>
+<section class="row row-cols-1 row-cols-md-3 g-4">
     {% for modulo in modulos %}
-        <div class="card">
-            <div class="card-icon">{{ modulo.icon }}</div>
-            <h3>{{ modulo.nombre }}</h3>
-            <p>{{ modulo.descripcion }}</p>
-            <a class="btn btn-primary" href="{{ url_for(modulo.url) }}">Abrir</a>
+        <div class="col">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="display-6">{{ modulo.icon }}</div>
+                    <h3 class="card-title h6 mt-2 mb-1">{{ modulo.nombre }}</h3>
+                    <p class="card-text text-secondary small">{{ modulo.descripcion }}</p>
+                </div>
+                <div class="card-footer bg-transparent border-0 pt-0">
+                    <a class="btn btn-primary" href="{{ url_for(modulo.url) }}">Abrir</a>
+                </div>
+            </div>
         </div>
     {% endfor %}
 </section>

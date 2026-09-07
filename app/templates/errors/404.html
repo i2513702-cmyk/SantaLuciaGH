@@ -3,9 +3,9 @@
 {% block title %}No encontrado — {{ app_name }}{% endblock %}
 
 {% block content %}
-<section class="empty-state">
-    <h1>404</h1>
-    <p>La página que buscas no existe.</p>
+<div class="text-center py-5">
+    <p class="display-1 fw-bold text-secondary">404</p>
+    <p class="text-secondary mb-3">La página que buscas no existe.</p>
     <a class="btn btn-primary" href="{{ url_for('main.home') }}">Volver al inicio</a>
-</section>
+</div>
 {% endblock %}
