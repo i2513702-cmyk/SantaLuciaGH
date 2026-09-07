@@ -160,3 +160,69 @@ def usuarios_sistema_nuevo():
             error = exc.message if isinstance(exc, AppError) else str(exc)
             return render_template("auth/usuarios_sistema_form.html", error=error)
     return render_template("auth/usuarios_sistema_form.html")
+
+
+@bp.route("/sistema/usuarios/<int:usuario_id>/editar", methods=["GET", "POST"])
+@login_required
+@admin_required
+def usuario_editar(usuario_id):
+    """Edita los datos de un usuario: nombre, correo, rol, empleado y estado."""
+    error = None
+    valores = None
+
+    if request.method == "POST":
+        activo = request.form.get("activo") == "on"
+        if usuario_id == session.get("usuario_id") and not activo:
+            error = "No puedes desactivar tu propia cuenta."
+        else:
+            try:
+                rest_auth_service.actualizar_usuario(
+                    usuario_id=usuario_id,
+                    nombre_usuario=request.form.get("nombre_usuario", "").strip(),
+                    correo=request.form.get("correo", "").strip(),
+                    rol=request.form.get("rol", "").strip(),
+                    activo=activo,
+                    empleado_id=request.form.get("empleado_id", 0),
+                )
+                flash("Usuario actualizado correctamente.", "success")
+                return redirect(url_for("auth.usuarios_sistema"))
+            except (AppError, ValidationError) as exc:
+                error = exc.message if isinstance(exc, AppError) else str(exc)
+            except Exception:  # noqa: BLE001
+                error = "No se pudo actualizar el usuario. Revisa los datos e inténtalo de nuevo."
+        valores = dict(request.form)
+        valores["id"] = usuario_id
+    else:
+        try:
+            valores = rest_auth_service.obtener_usuario(usuario_id)
+        except (AppError, ValidationError) as exc:
+            flash(exc.message if isinstance(exc, AppError) else str(exc), "error")
+            return redirect(url_for("auth.usuarios_sistema"))
+
+    return render_template(
+        "auth/usuarios_sistema_editar.html",
+        error=error,
+        usuario=valores,
+        es_mismo=usuario_id == session.get("usuario_id"),
+    )
+
+
+@bp.post("/sistema/usuarios/<int:usuario_id>/cambiar_estado")
+@login_required
+@admin_required
+def usuario_cambiar_estado(usuario_id):
+    """Activa/desactiva un usuario (evita desactivar la propia cuenta)."""
+    if usuario_id == session.get("usuario_id"):
+        flash("No puedes desactivar tu propia cuenta.", "error")
+        return redirect(url_for("auth.usuarios_sistema"))
+    try:
+        nuevo = rest_auth_service.cambiar_estado(usuario_id)
+        flash(
+            "Usuario activado correctamente." if nuevo else "Usuario desactivado correctamente.",
+            "success",
+        )
+    except (AppError, ValidationError) as exc:
+        flash(exc.message if isinstance(exc, AppError) else str(exc), "error")
+    except Exception:  # noqa: BLE001
+        flash("No se pudo cambiar el estado del usuario.", "error")
+    return redirect(url_for("auth.usuarios_sistema"))
