@@ -12,78 +12,97 @@
 </section>
 
 {% if items %}
-    <div class="card shadow-sm">
-        <div class="table-responsive">
-            <table class="table align-middle mb-0">
-                <thead>
-                    <tr>
-                        <td>
-                            <div style="font-weight:600;">{{ item.nombre }}</div>
-                            <div style="display:flex; gap:6px; align-items:center; margin-top:4px; flex-wrap:wrap;">
-                                {% if item.sku %}
-                                    <span class="badge badge-muted">SKU {{ item.sku }}</span>
-                                {% endif %}
-                                {% if item.marca %}
-                                    <span class="badge badge-muted">{{ item.marca }}</span>
-                                {% endif %}
-                            </div>
-                            {% if item.compatibilidad %}
-                                <div style="font-size:0.82rem; color:#8A909C; margin-top:4px;">
-                                    Compatible: {{ item.compatibilidad }}
-                                </div>
-                            {% endif %}
-                            {% if item.stock is defined %}
-                                {% if item.stock <= 5 %}
-                                    <span class="badge" style="background:#FDF1E6; color:#F2994A; margin-top:6px; display:inline-block;">
-                                        Últimas {{ item.stock }} unidades
-                                    </span>
-                                {% else %}
-                                    <span class="badge" style="background:#E9F8EF; color:#2FAE6A; margin-top:6px; display:inline-block;">
-                                        En stock
-                                    </span>
-                                {% endif %}
-                            {% endif %}
-                        </td>
-                        <td>{{ item.precio_unitario }}</td>
-                        <td>
-                            <a class="btn btn-outline" href="{{ url_for('carrito.disminuir', producto_id=item.id) }}">−</a>
-                            <strong>{{ item.cantidad }}</strong>
-                            <a class="btn btn-outline" href="{{ url_for('carrito.aumentar', producto_id=item.id) }}">+</a>
-                        </td>
-                        <td><strong>{{ item.subtotal }}</strong></td>
-                        <td>
-                            <a class="btn btn-outline" href="{{ url_for('carrito.disminuir', producto_id=item.id) }}">Quitar</a>
-                        </td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-
-    <div style="margin: 20px 0; display: flex; align-items: flex-start; justify-content: flex-end;">
-        <div style="min-width: 300px; border: 1px solid #E4E6EB; border-radius: 12px; padding: 20px;">
-            <div style="display:flex; justify-content:space-between; margin-bottom:10px; color:#4A5160;">
-                <span>Subtotal</span>
-                <span>{{ total }}</span>
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>Precio</th>
+                                <th>Cantidad</th>
+                                <th>Subtotal</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in items %}
+                                <tr>
+                                    <td>
+                                        <div style="font-weight:600;">{{ item.nombre }}</div>
+                                        <div style="display:flex; gap:6px; align-items:center; margin-top:4px; flex-wrap:wrap;">
+                                            {% if item.sku %}
+                                                <span class="badge text-bg-secondary">SKU {{ item.sku }}</span>
+                                            {% endif %}
+                                            {% if item.marca %}
+                                                <span class="badge text-bg-secondary">{{ item.marca }}</span>
+                                            {% endif %}
+                                        </div>
+                                        {% if item.compatibilidad %}
+                                            <div style="font-size:0.82rem; color:#8A909C; margin-top:4px;">
+                                                Compatible: {{ item.compatibilidad }}
+                                            </div>
+                                        {% endif %}
+                                        {% if item.stock is defined %}
+                                            {% if item.stock <= 5 %}
+                                                <span class="badge" style="background:#FDF1E6; color:#F2994A; margin-top:6px; display:inline-block;">
+                                                    Últimas {{ item.stock }} unidades
+                                                </span>
+                                            {% else %}
+                                                <span class="badge" style="background:#E9F8EF; color:#2FAE6A; margin-top:6px; display:inline-block;">
+                                                    En stock
+                                                </span>
+                                            {% endif %}
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ item.precio_unitario }}</td>
+                                    <td>
+                                        <div class="d-inline-flex align-items-center gap-2">
+                                            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('carrito.disminuir', producto_id=item.id) }}">−</a>
+                                            <strong>{{ item.cantidad }}</strong>
+                                            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('carrito.aumentar', producto_id=item.id) }}">+</a>
+                                        </div>
+                                    </td>
+                                    <td><strong>{{ item.subtotal }}</strong></td>
+                                    <td>
+                                        <a class="btn btn-outline-danger btn-sm" href="{{ url_for('carrito.disminuir', producto_id=item.id) }}">Quitar</a>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
-            {% if envio is defined %}
-            <div style="display:flex; justify-content:space-between; margin-bottom:10px; color:#4A5160;">
-                <span>Envío</span>
-                <span>{{ envio }}</span>
-            </div>
-            {% endif %}
-            <div style="display:flex; justify-content:space-between; border-top:1px solid #E4E6EB; padding-top:12px; font-weight:700; font-size:1.1rem;">
-                <span>Total</span>
-                <span>{{ total }}</span>
-            </div>
+        </div>
 
-            <a class="btn btn-primary" style="display:block; text-align:center; margin-top:16px;" href="#">
-                Proceder al pago
-            </a>
+        <div class="col-lg-4">
+            <div class="card shadow-sm" style="min-width: 300px;">
+                <div class="card-body">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:10px; color:#4A5160;">
+                        <span>Subtotal</span>
+                        <span>{{ total }}</span>
+                    </div>
+                    {% if envio is defined %}
+                    <div style="display:flex; justify-content:space-between; margin-bottom:10px; color:#4A5160;">
+                        <span>Envío</span>
+                        <span>{{ envio }}</span>
+                    </div>
+                    {% endif %}
+                    <div style="display:flex; justify-content:space-between; border-top:1px solid #E4E6EB; padding-top:12px; font-weight:700; font-size:1.1rem;">
+                        <span>Total</span>
+                        <span>{{ total }}</span>
+                    </div>
 
-            <form method="POST" action="{{ url_for('carrito.vaciar') }}" style="margin-top:10px;">
-                <button type="submit" class="btn btn-outline" style="width:100%;">Vaciar carrito</button>
-            </form>
+                    <a class="btn btn-primary d-block text-center mt-3" href="#">
+                        Proceder al pago
+                    </a>
+
+                    <form method="POST" action="{{ url_for('carrito.vaciar') }}" class="mt-2">
+                        <button type="submit" class="btn btn-outline-danger w-100">Vaciar carrito</button>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
 {% else %}
