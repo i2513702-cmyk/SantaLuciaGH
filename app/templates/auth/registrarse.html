@@ -3,68 +3,84 @@
 {% block title %}Registrarse — {{ app_name }}{% endblock %}
 
 {% block content %}
-<div class="auth-box">
-    <h1>Crear cuenta</h1>
+<div class="card shadow-sm mx-auto" style="max-width: 560px;">
+    <div class="card-body p-4">
+        <h1 class="h4 fw-semibold mb-4">Crear cuenta</h1>
 
-    {% if error %}
-        <div class="flash flash-error">{{ error }}</div>
-    {% endif %}
+        {% if error %}
+            <div class="alert alert-danger py-2">{{ error }}</div>
+        {% endif %}
 
-    <form method="POST" action="{{ url_for('auth.registrarse') }}" class="register-form">
-        <fieldset>
-            <legend>Datos personales</legend>
+        <form method="POST" action="{{ url_for('auth.registrarse') }}" class="needs-validation">
+            <fieldset class="border rounded-3 p-3 mb-3">
+                <legend class="w-auto px-2 small fw-semibold text-secondary">Datos personales</legend>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="nombres" class="form-label">Nombres</label>
+                        <input type="text" class="form-control" id="nombres" name="nombres" required autofocus>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="apellidos" class="form-label">Apellidos</label>
+                        <input type="text" class="form-control" id="apellidos" name="apellidos" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="tipo_documento_id" class="form-label">Tipo de documento</label>
+                        <select class="form-select" id="tipo_documento_id" name="tipo_documento_id">
+                            {% for t in tipos_documento %}
+                                <option value="{{ t.id }}">{{ t.codigo }} — {{ t.nombre }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="numero_documento" class="form-label">Número de documento</label>
+                        <input type="text" class="form-control" id="numero_documento" name="numero_documento" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="telefono" class="form-label">Teléfono</label>
+                        <input type="tel" class="form-control" id="telefono" name="telefono">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="cargo" class="form-label">Cargo</label>
+                        <input type="text" class="form-control" id="cargo" name="cargo" value="Empleado">
+                    </div>
+                </div>
+            </fieldset>
 
-            <label for="nombres">Nombres</label>
-            <input type="text" id="nombres" name="nombres" required autofocus>
+            <fieldset class="border rounded-3 p-3 mb-3">
+                <legend class="w-auto px-2 small fw-semibold text-secondary">Credenciales</legend>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="nombre_usuario" class="form-label">Nombre de usuario</label>
+                        <input type="text" class="form-control" id="nombre_usuario" name="nombre_usuario" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="correo" class="form-label">Correo</label>
+                        <input type="email" class="form-control" id="correo" name="correo" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="rol" class="form-label">Rol</label>
+                        <select class="form-select" id="rol" name="rol">
+                            <option value="RECEPCIONISTA" selected>Recepcionista</option>
+                            <option value="TECNICO">Técnico</option>
+                            <option value="VENDEDOR">Vendedor</option>
+                            <option value="ALMACENERO">Almacenero</option>
+                            <option value="SUPERVISOR">Supervisor</option>
+                            <option value="ADMINISTRADOR">Administrador</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="password" class="form-label">Contraseña (mínimo 8 caracteres)</label>
+                        <input type="password" class="form-control" id="password" name="password" required minlength="8">
+                    </div>
+                </div>
+            </fieldset>
 
-            <label for="apellidos">Apellidos</label>
-            <input type="text" id="apellidos" name="apellidos" required>
+            <button type="submit" class="btn btn-primary w-100">Crear cuenta</button>
+        </form>
 
-            <label for="tipo_documento_id">Tipo de documento</label>
-            <select id="tipo_documento_id" name="tipo_documento_id">
-                {% for t in tipos_documento %}
-                    <option value="{{ t.id }}">{{ t.codigo }} — {{ t.nombre }}</option>
-                {% endfor %}
-            </select>
-
-            <label for="numero_documento">Número de documento</label>
-            <input type="text" id="numero_documento" name="numero_documento" required>
-
-            <label for="telefono">Teléfono</label>
-            <input type="tel" id="telefono" name="telefono">
-
-            <label for="cargo">Cargo</label>
-            <input type="text" id="cargo" name="cargo" value="Empleado">
-        </fieldset>
-
-        <fieldset>
-            <legend>Credenciales</legend>
-
-            <label for="nombre_usuario">Nombre de usuario</label>
-            <input type="text" id="nombre_usuario" name="nombre_usuario" required>
-
-            <label for="correo">Correo</label>
-            <input type="email" id="correo" name="correo" required>
-
-            <label for="rol">Rol</label>
-            <select id="rol" name="rol">
-                <option value="RECEPCIONISTA" selected>Recepcionista</option>
-                <option value="TECNICO">Técnico</option>
-                <option value="VENDEDOR">Vendedor</option>
-                <option value="ALMACENERO">Almacenero</option>
-                <option value="SUPERVISOR">Supervisor</option>
-                <option value="ADMINISTRADOR">Administrador</option>
-            </select>
-
-            <label for="password">Contraseña (mínimo 8 caracteres)</label>
-            <input type="password" id="password" name="password" required minlength="8">
-        </fieldset>
-
-        <button type="submit" class="btn btn-primary btn-block">Crear cuenta</button>
-    </form>
-
-    <p class="hint">
-        ¿Ya tienes cuenta? <a href="{{ url_for('auth.login') }}">Inicia sesión</a>
-    </p>
+        <p class="text-center small text-secondary mt-3 mb-0">
+            ¿Ya tienes cuenta? <a href="{{ url_for('auth.login') }}">Inicia sesión</a>
+        </p>
+    </div>
 </div>
 {% endblock %}
