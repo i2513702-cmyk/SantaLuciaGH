@@ -27,8 +27,31 @@
                 {% for item in items %}
                     <tr>
                         <td>
-                            {{ item.nombre }}
-                            {% if item.marca %}<span class="badge badge-muted">{{ item.marca }}</span>{% endif %}
+                            <div style="font-weight:600;">{{ item.nombre }}</div>
+                            <div style="display:flex; gap:6px; align-items:center; margin-top:4px; flex-wrap:wrap;">
+                                {% if item.sku %}
+                                    <span class="badge badge-muted">SKU {{ item.sku }}</span>
+                                {% endif %}
+                                {% if item.marca %}
+                                    <span class="badge badge-muted">{{ item.marca }}</span>
+                                {% endif %}
+                            </div>
+                            {% if item.compatibilidad %}
+                                <div style="font-size:0.82rem; color:#8A909C; margin-top:4px;">
+                                    Compatible: {{ item.compatibilidad }}
+                                </div>
+                            {% endif %}
+                            {% if item.stock is defined %}
+                                {% if item.stock <= 5 %}
+                                    <span class="badge" style="background:#FDF1E6; color:#F2994A; margin-top:6px; display:inline-block;">
+                                        Últimas {{ item.stock }} unidades
+                                    </span>
+                                {% else %}
+                                    <span class="badge" style="background:#E9F8EF; color:#2FAE6A; margin-top:6px; display:inline-block;">
+                                        En stock
+                                    </span>
+                                {% endif %}
+                            {% endif %}
                         </td>
                         <td>{{ item.precio_unitario }}</td>
                         <td>
@@ -46,11 +69,31 @@
         </table>
     </div>
 
-    <div style="margin: 20px 0; display: flex; align-items: center; gap: 16px; justify-content: space-between;">
-        <h2 style="font-size: 1.3rem; margin: 0;">Total: <strong>{{ total }}</strong></h2>
-        <form method="POST" action="{{ url_for('carrito.vaciar') }}">
-            <button type="submit" class="btn btn-outline">Vaciar carrito</button>
-        </form>
+    <div style="margin: 20px 0; display: flex; align-items: flex-start; justify-content: flex-end;">
+        <div style="min-width: 300px; border: 1px solid #E4E6EB; border-radius: 12px; padding: 20px;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:10px; color:#4A5160;">
+                <span>Subtotal</span>
+                <span>{{ total }}</span>
+            </div>
+            {% if envio is defined %}
+            <div style="display:flex; justify-content:space-between; margin-bottom:10px; color:#4A5160;">
+                <span>Envío</span>
+                <span>{{ envio }}</span>
+            </div>
+            {% endif %}
+            <div style="display:flex; justify-content:space-between; border-top:1px solid #E4E6EB; padding-top:12px; font-weight:700; font-size:1.1rem;">
+                <span>Total</span>
+                <span>{{ total }}</span>
+            </div>
+
+            <a class="btn btn-primary" style="display:block; text-align:center; margin-top:16px;" href="#">
+                Proceder al pago
+            </a>
+
+            <form method="POST" action="{{ url_for('carrito.vaciar') }}" style="margin-top:10px;">
+                <button type="submit" class="btn btn-outline" style="width:100%;">Vaciar carrito</button>
+            </form>
+        </div>
     </div>
 {% else %}
     <div class="empty-state">
