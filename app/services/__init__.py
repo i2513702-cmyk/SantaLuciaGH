@@ -1,3 +1,3 @@
-from app.services import rest_auth_service
+from app.services import producto_service, rest_auth_service
 
-__all__ = ["rest_auth_service"]
+__all__ = ["producto_service", "rest_auth_service"]
