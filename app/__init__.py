@@ -39,12 +39,18 @@ def create_app() -> Flask:
 
     calentar()
 
+    # --- Limpiar carritos vencidos en segundo plano al arrancar ---
+    from app.services.carrito_service import iniciar_purga
+
+    iniciar_purga()
+
     # --- Contexto global para las plantillas ---
     @app.context_processor
     def inject_globals():
         from flask import session
 
         from app.decorators import map_rol
+        from app.security import get_csrf
 
         return {
             "app_name": app.config["APP_NAME"],
@@ -54,8 +60,29 @@ def create_app() -> Flask:
             "rol": session.get("rol"),
             "rol_panel": map_rol(session.get("rol")),
             "nombre": session.get("nombre"),
-            "carrito_n": sum(session.get("carrito", {}).values()),
+            "carrito_n": session.get("carrito_n", 0),
+            "csrf_token": get_csrf(),
         }
+
+    # --- Protección CSRF en todas las peticiones POST ---
+    @app.before_request
+    def proteger_csrf():
+        from flask import flash, redirect, request, url_for
+
+        from app.security import csrf_valido
+
+        if request.method != "POST":
+            return None
+
+        token = request.form.get("csrf_token", "") or request.headers.get("X-CSRF-Token", "")
+        if csrf_valido(token):
+            return None
+
+        flash("Tu sesión expiró o el formulario no es válido. Vuelve a intentarlo.", "error")
+        destino = request.referrer
+        if not destino or not destino.startswith(request.host_url):
+            destino = url_for("main.home")
+        return redirect(destino)
 
     # --- Manejadores de errores ---
     @app.errorhandler(403)

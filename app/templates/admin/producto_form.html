@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% set editando = true if producto.get('id') else false %}
+{% block title %}{{ 'Editar' if editando else 'Nuevo' }} producto — {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between mb-4">
+    <div>
+        <h1 class="h3 fw-semibold mb-1">{{ 'Editar producto' if editando else 'Nuevo producto' }}</h1>
+        <p class="text-secondary mb-0">Los cambios se guardan directamente en la base de datos.</p>
+    </div>
+    <a class="btn btn-outline-primary" href="{{ url_for('admin.productos') }}">← Volver al listado</a>
+</div>
+
+<div class="card shadow-sm mx-auto" style="max-width: 760px;">
+    <div class="card-body p-4">
+        {% if error %}
+            <div class="alert alert-danger py-2">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST"
+              action="{{ url_for('admin.producto_editar', producto_id=producto.id) if editando else url_for('admin.producto_nuevo') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label for="codigo" class="form-label">Código</label>
+                    <input type="text" class="form-control" id="codigo" name="codigo"
+                           value="{{ producto.get('codigo', '') }}" placeholder="Auto si se deja vacío">
+                </div>
+                <div class="col-md-8">
+                    <label for="nombre" class="form-label">Nombre *</label>
+                    <input type="text" class="form-control" id="nombre" name="nombre" required
+                           value="{{ producto.get('nombre', '') }}">
+                </div>
+
+                <div class="col-12">
+                    <label for="descripcion" class="form-label">Descripción</label>
+                    <textarea class="form-control" id="descripcion" name="descripcion" rows="2">{{ producto.get('descripcion', '') }}</textarea>
+                </div>
+
+                <div class="col-md-4">
+                    <label for="tipo_producto" class="form-label">Tipo</label>
+                    <select class="form-select" id="tipo_producto" name="tipo_producto">
+                        {% for opt in ['REPUESTO', 'PRODUCTO'] %}
+                            <option value="{{ opt }}" {% if (producto.get('tipo_producto') or 'REPUESTO') == opt %}selected{% endif %}>{{ opt }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="marca_id" class="form-label">Marca *</label>
+                    <select class="form-select" id="marca_id" name="marca_id" required>
+                        <option value="" {% if not producto.get('marca_id') %}selected{% endif %} disabled>Selecciona…</option>
+                        {% for m in marcas %}
+                            <option value="{{ m.id }}" {% if producto.get('marca_id') == m.id %}selected{% endif %}>{{ m.nombre }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="categoria_id" class="form-label">Categoría *</label>
+                    <select class="form-select" id="categoria_id" name="categoria_id" required>
+                        <option value="" {% if not producto.get('categoria_id') %}selected{% endif %} disabled>Selecciona…</option>
+                        {% for m in categorias %}
+                            <option value="{{ m.id }}" {% if producto.get('categoria_id') == m.id %}selected{% endif %}>{{ m.nombre }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="col-md-4">
+                    <label for="modelo" class="form-label">Modelo</label>
+                    <input type="text" class="form-control" id="modelo" name="modelo"
+                           value="{{ producto.get('modelo', '') }}">
+                </div>
+                <div class="col-md-4">
+                    <label for="unidad_medida" class="form-label">Unidad de medida</label>
+                    <input type="text" class="form-control" id="unidad_medida" name="unidad_medida"
+                           value="{{ producto.get('unidad_medida', 'UNIDAD') }}">
+                </div>
+                <div class="col-md-4">
+                    <label for="activo" class="form-label d-block">&nbsp;</label>
+                    <div class="form-check form-switch mt-2">
+                        <input class="form-check-input" type="checkbox" role="switch"
+                               id="activo" name="activo" {% if producto.get('activo') %}checked{% endif %}>
+                        <label class="form-check-label" for="activo">Producto activo</label>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <label for="precio_compra" class="form-label">Precio compra (S/)</label>
+                    <input type="number" class="form-control" id="precio_compra" name="precio_compra"
+                           step="0.01" min="0" value="{{ producto.get('precio_compra', '') }}">
+                </div>
+                <div class="col-md-4">
+                    <label for="precio_venta" class="form-label">Precio venta (S/) *</label>
+                    <input type="number" class="form-control" id="precio_venta" name="precio_venta"
+                           step="0.01" min="0" required value="{{ producto.get('precio_venta', '') }}">
+                </div>
+                <div class="col-md-4">
+                    <label for="precio_promocional" class="form-label">Precio promocional (S/)</label>
+                    <input type="number" class="form-control" id="precio_promocional" name="precio_promocional"
+                           step="0.01" min="0" value="{{ producto.get('precio_promocional', '') }}">
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-between mt-4">
+                <a class="btn btn-outline-secondary" href="{{ url_for('admin.productos') }}">Cancelar</a>
+                <button type="submit" class="btn btn-primary">{{ 'Guardar cambios' if editando else 'Crear producto' }}</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

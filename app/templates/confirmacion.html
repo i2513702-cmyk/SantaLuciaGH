@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Pedido confirmado — {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="alert alert-success d-flex align-items-center gap-2">
+    <span>✅</span>
+    <span><strong>¡Pago simulado exitoso!</strong> Tu pedido quedó registrado (demo, no se cobró nada).</span>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white fw-semibold">
+        Comprobante {{ resumen.tipo_comprobante }} {{ resumen.serie }}
+    </div>
+    <div class="card-body">
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <p class="mb-1"><strong>Pedido:</strong> {{ resumen.codigo_pedido }}</p>
+                <p class="mb-1"><strong>Cliente:</strong> {{ resumen.cliente_nombre }}</p>
+                <p class="mb-1"><strong>Documento:</strong> {{ resumen.cliente_documento }}</p>
+                <p class="mb-0"><strong>Forma de pago:</strong> {{ resumen.metodo_pago }}</p>
+            </div>
+            <div class="col-md-6 text-md-end">
+                <p class="mb-1"><strong>Estado:</strong> <span class="badge text-bg-success">{{ resumen.estado_pago }}</span></p>
+                <p class="mb-1"><strong>Transacción:</strong> <small class="text-muted">{{ resumen.transaction_id }}</small></p>
+                <p class="mb-0"><strong>Fecha:</strong> {{ resumen.fecha_emision }}</p>
+            </div>
+        </div>
+
+        <table class="table align-middle">
+            <thead>
+                <tr>
+                    <th>Producto</th>
+                    <th class="text-end">Precio</th>
+                    <th class="text-center">Cant.</th>
+                    <th class="text-end">Subtotal</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in resumen.lineas %}
+                    <tr>
+                        <td>{{ item.nombre }}</td>
+                        <td class="text-end">{{ item.precio_unitario }}</td>
+                        <td class="text-center">{{ item.cantidad }}</td>
+                        <td class="text-end fw-semibold">{{ item.subtotal }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <div class="d-flex flex-column align-items-end">
+            <div class="d-flex justify-content-between" style="width: 240px;">
+                <span>Subtotal:</span><strong>S/ {{ "%.2f"|format(resumen.subtotal) }}</strong>
+            </div>
+            <div class="d-flex justify-content-between" style="width: 240px;">
+                <span>IGV (18%):</span><strong>S/ {{ "%.2f"|format(resumen.igv) }}</strong>
+            </div>
+            <hr class="w-100 my-1">
+            <div class="d-flex justify-content-between" style="width: 240px;">
+                <span class="h6 mb-0">Total:</span><span class="h5 mb-0 text-primary"><strong>S/ {{ "%.2f"|format(resumen.total) }}</strong></span>
+            </div>
+        </div>
+
+        <div class="d-flex gap-2 mt-4">
+            <a class="btn btn-primary" href="{{ url_for('checkout.pdf') }}">📄 Descargar PDF</a>
+            <a class="btn btn-outline-primary" href="{{ url_for('main.tienda') }}">Seguir comprando</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

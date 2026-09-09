@@ -3,9 +3,9 @@
 {% block title %}Acceso denegado — {{ app_name }}{% endblock %}
 
 {% block content %}
-<section class="empty-state">
-    <h1>403</h1>
-    <p>No tienes permiso para ver esta página.</p>
+<div class="text-center py-5">
+    <p class="display-1 fw-bold text-secondary">403</p>
+    <p class="text-secondary mb-3">No tienes permiso para ver esta página.</p>
     <a class="btn btn-primary" href="{{ url_for('main.home') }}">Volver al inicio</a>
-</section>
+</div>
 {% endblock %}

@@ -624,7 +624,6 @@ h4 { font-size: 1rem; font-weight: 600; }
 }
 
 .product-desc {
-    margin: 0;
     font-size: 0.85rem;
     color: var(--text-secondary);
     display: -webkit-box;

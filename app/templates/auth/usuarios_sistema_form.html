@@ -3,36 +3,42 @@
 {% block title %}Nuevo usuario — {{ app_name }}{% endblock %}
 
 {% block content %}
-<div class="auth-box">
-    <h1>Nuevo usuario del sistema</h1>
+<div class="card shadow-sm mx-auto" style="max-width: 440px;">
+    <div class="card-body p-4">
+        <h1 class="h4 fw-semibold mb-4">Nuevo usuario del sistema</h1>
 
-    {% if error %}
-        <div class="flash flash-error">{{ error }}</div>
-    {% endif %}
+        {% if error %}
+            <div class="alert alert-danger py-2">{{ error }}</div>
+        {% endif %}
 
-    <form method="POST" action="{{ url_for('auth.usuarios_sistema_nuevo') }}">
-        <label for="nombre_usuario">Nombre de usuario</label>
-        <input type="text" id="nombre_usuario" name="nombre_usuario" required>
-
-        <label for="correo">Correo</label>
-        <input type="email" id="correo" name="correo" required>
-
-        <label for="rol">Rol</label>
-        <select id="rol" name="rol">
-            <option value="ADMINISTRADOR">Administrador</option>
-            <option value="SUPERVISOR">Supervisor</option>
-            <option value="TECNICO">Técnico</option>
-            <option value="RECEPCIONISTA" selected>Recepcionista</option>
-            <option value="VENDEDOR">Vendedor</option>
-            <option value="ALMACENERO">Almacenero</option>
-        </select>
-
-        <label for="empleado_id">ID de empleado (existente)</label>
-        <input type="number" id="empleado_id" name="empleado_id" required placeholder="Ej: 1">
-
-        <p class="hint">La contraseña por defecto será <code>123456</code> (bcrypt).</p>
-
-        <button type="submit" class="btn btn-primary btn-block">Crear usuario</button>
-    </form>
+        <form method="POST" action="{{ url_for('auth.usuarios_sistema_nuevo') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="mb-3">
+                <label for="nombre_usuario" class="form-label">Nombre de usuario</label>
+                <input type="text" class="form-control" id="nombre_usuario" name="nombre_usuario" required>
+            </div>
+            <div class="mb-3">
+                <label for="correo" class="form-label">Correo</label>
+                <input type="email" class="form-control" id="correo" name="correo" required>
+            </div>
+            <div class="mb-3">
+                <label for="rol" class="form-label">Rol</label>
+                <select class="form-select" id="rol" name="rol">
+                    <option value="ADMINISTRADOR">Administrador</option>
+                    <option value="SUPERVISOR">Supervisor</option>
+                    <option value="TECNICO">Técnico</option>
+                    <option value="RECEPCIONISTA" selected>Recepcionista</option>
+                    <option value="VENDEDOR">Vendedor</option>
+                    <option value="ALMACENERO">Almacenero</option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label for="empleado_id" class="form-label">ID de empleado (existente)</label>
+                <input type="number" class="form-control" id="empleado_id" name="empleado_id" required placeholder="Ej: 1">
+            </div>
+            <p class="small text-secondary mb-3">La contraseña por defecto será <code>123456</code> (bcrypt).</p>
+            <button type="submit" class="btn btn-primary w-100">Crear usuario</button>
+        </form>
+    </div>
 </div>
 {% endblock %}

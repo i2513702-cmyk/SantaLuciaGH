@@ -3,22 +3,26 @@
 {% block title %}Cambiar contraseña — {{ app_name }}{% endblock %}
 
 {% block content %}
-<div class="auth-box">
-    <h1>Cambiar contraseña</h1>
+<div class="card shadow-sm mx-auto" style="max-width: 400px;">
+    <div class="card-body p-4">
+        <h1 class="h4 fw-semibold mb-4">Cambiar contraseña</h1>
 
-    {% if error %}
-        <div class="flash flash-error">{{ error }}</div>
-    {% endif %}
+        {% if error %}
+            <div class="alert alert-danger py-2">{{ error }}</div>
+        {% endif %}
 
-    <form method="POST" action="{{ url_for('auth.cambiar_clave') }}">
-        <label for="nueva">Nueva contraseña</label>
-        <input type="password" id="nueva" name="nueva" required minlength="8" placeholder="Mínimo 8 caracteres">
+        <form method="POST" action="{{ url_for('auth.cambiar_clave') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="mb-3">
+                <label for="nueva" class="form-label">Nueva contraseña</label>
+                <input type="password" class="form-control" id="nueva" name="nueva" required minlength="8" placeholder="Mínimo 8 caracteres">
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Guardar</button>
+        </form>
 
-        <button type="submit" class="btn btn-primary btn-block">Guardar</button>
-    </form>
-
-    <p class="hint">
-        <a href="{{ url_for('auth.panel') }}">← Volver al panel</a>
-    </p>
+        <p class="text-center small text-secondary mt-3 mb-0">
+            <a href="{{ url_for('auth.panel') }}">← Volver al panel</a>
+        </p>
+    </div>
 </div>
 {% endblock %}

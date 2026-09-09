@@ -5,59 +5,86 @@
 {% block main_class %}content-narrow{% endblock %}
 
 {% block content %}
-<section class="panel-head">
+<section class="d-flex flex-wrap align-items-center justify-content-between mb-4">
     <div>
-        <h1>Carrito de compras</h1>
-        <p>Productos agregados desde la tienda.</p>
+        <h1 class="h3 fw-semibold mb-1">Carrito de compras</h1>
+        <p class="text-secondary mb-0">Productos agregados desde la tienda.</p>
     </div>
-    <a class="btn btn-outline" href="{{ url_for('main.tienda') }}">Seguir comprando</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('main.tienda') }}">Seguir comprando</a>
 </section>
 
-{% if items %}
-    <div class="table-wrap">
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>Producto</th>
-                    <th>Precio</th>
-                    <th>Cantidad</th>
-                    <th>Subtotal</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for item in items %}
-                    <tr>
-                        <td>
-                            {{ item.nombre }}
-                            {% if item.marca %}<span class="badge badge-muted">{{ item.marca }}</span>{% endif %}
-                        </td>
-                        <td>{{ item.precio_unitario }}</td>
-                        <td>
-                            <a class="btn btn-outline" href="{{ url_for('carrito.disminuir', producto_id=item.id) }}">−</a>
-                            <strong>{{ item.cantidad }}</strong>
-                            <a class="btn btn-outline" href="{{ url_for('carrito.aumentar', producto_id=item.id) }}">+</a>
-                        </td>
-                        <td><strong>{{ item.subtotal }}</strong></td>
-                        <td>
-                            <a class="btn btn-outline" href="{{ url_for('carrito.disminuir', producto_id=item.id) }}">Quitar</a>
-                        </td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+<div class="alert alert-info d-flex align-items-center gap-2">
+    <span>💾</span>
+    <span>
+        Tu carrito se guarda automáticamente en la base de datos y te esperará por
+        <strong>{{ vigencia_horas }} horas</strong> desde su creación; luego se elimina
+        solo. Si vuelves, tus productos seguirán ahí.
+    </span>
+</div>
 
-    <div style="margin: 20px 0; display: flex; align-items: center; gap: 16px; justify-content: space-between;">
-        <h2 style="font-size: 1.3rem; margin: 0;">Total: <strong>{{ total }}</strong></h2>
-        <form method="POST" action="{{ url_for('carrito.vaciar') }}">
-            <button type="submit" class="btn btn-outline">Vaciar carrito</button>
-        </form>
+{% if items %}
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Producto</th>
+                        <th>Precio</th>
+                        <th>Cantidad</th>
+                        <th>Subtotal</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in items %}
+                        <tr>
+                            <td>
+                                {{ item.nombre }}
+                                {% if item.marca %}<span class="badge text-bg-secondary">{{ item.marca }}</span>{% endif %}
+                            </td>
+                            <td>{{ item.precio_unitario }}</td>
+                            <td>
+                                <div class="d-inline-flex align-items-center gap-2">
+                                    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('carrito.disminuir', producto_id=item.producto_id) }}">−</a>
+                                    <span class="fw-semibold">{{ item.cantidad }}</span>
+                                    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('carrito.aumentar', producto_id=item.producto_id) }}">+</a>
+                                </div>
+                            </td>
+                            <td class="fw-semibold">{{ item.subtotal }}</td>
+                            <td>
+                                <a class="btn btn-outline-danger btn-sm" href="{{ url_for('carrito.disminuir', producto_id=item.producto_id) }}">Quitar</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-3 py-3">
+            <div class="d-flex flex-column align-items-end">
+                <div class="d-flex justify-content-between gap-4">
+                    <span>Subtotal:</span><strong>{{ subtotal }}</strong>
+                </div>
+                <div class="d-flex justify-content-between gap-4">
+                    <span>IGV (18%):</span><strong>{{ igv }}</strong>
+                </div>
+                <hr class="w-100 my-1">
+                <div class="d-flex justify-content-between gap-4">
+                    <span class="h6 mb-0">Total:</span><span class="h5 mb-0 text-primary"><strong>{{ total }}</strong></span>
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <form method="POST" action="{{ url_for('carrito.vaciar') }}" class="mb-0">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-outline-danger">Vaciar carrito</button>
+                </form>
+                <a class="btn btn-primary btn-lg" href="{{ url_for('checkout.checkout') }}">Ir a pagar</a>
+            </div>
+        </div>
     </div>
 {% else %}
-    <div class="empty-state">
-        <h1>🛒</h1>
-        <p>Tu carrito está vacío.</p>
+    <div class="text-center py-5">
+        <p class="display-6 text-secondary mb-1">🛒</p>
+        <p class="text-secondary">Tu carrito está vacío.</p>
         <a class="btn btn-primary" href="{{ url_for('main.tienda') }}">Ir a la tienda</a>
     </div>
 {% endif %}

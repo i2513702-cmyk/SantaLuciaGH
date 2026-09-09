@@ -3,48 +3,51 @@
 {% block title %}Tienda — {{ app_name }}{% endblock %}
 
 {% block content %}
-<section class="hero">
-    <h1>Nuestros productos</h1>
-    <p>Catálogo real de {{ app_name }}. Precios y stock desde la base de datos.</p>
+<section class="text-center py-4 bg-white border rounded-3 shadow-sm mb-4">
+    <h1 class="h2 fw-semibold mb-1">Nuestros productos</h1>
+    <p class="text-secondary mb-0">Catálogo real de {{ app_name }}. Precios y stock desde la base de datos.</p>
 </section>
 
 {% if productos %}
-    <section class="shop-grid">
+    <section class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-4">
         {% for p in productos %}
-            <article class="product-card">
-                <div class="product-img">
-                    {% if p.oferta %}
-                        <span class="offer-badge">¡Oferta!</span>
-                    {% endif %}
-                    <img src="{{ url_for('static', filename='img/producto-default.svg') }}" alt="{{ p.nombre }}">
-                </div>
-                <div class="product-body">
-                    <h3 class="product-name">{{ p.nombre }}</h3>
-                    {% if p.marca or p.categoria %}
-                        <p class="product-meta">
-                            {{ p.marca }}{% if p.marca and p.categoria %} · {% endif %}{{ p.categoria }}
-                        </p>
-                    {% endif %}
-                    {% if p.descripcion %}
-                        <p class="product-desc">{{ p.descripcion }}</p>
-                    {% endif %}
-                    <div class="price-box">
-                        {% if p.precio_antes %}
-                            <span class="price-original">{{ p.precio_antes }}</span>
+            <div class="col">
+                <div class="card h-100 shadow-sm">
+                    <div class="product-img position-relative">
+                        {% if p.oferta %}
+                            <span class="badge text-bg-danger position-absolute top-0 start-0 m-2">¡Oferta!</span>
                         {% endif %}
-                        <span class="price-now">{{ p.precio_ahora }}</span>
+                        <img src="{{ url_for('static', filename='img/producto-default.svg') }}" alt="{{ p.nombre }}">
                     </div>
-                    <form method="POST" action="{{ url_for('carrito.agregar', producto_id=p.id) }}">
-                        <button type="submit" class="btn btn-primary btn-block">Agregar al carrito</button>
-                    </form>
+                    <div class="card-body d-flex flex-column">
+                        <h3 class="card-title h6 mb-1">{{ p.nombre }}</h3>
+                        {% if p.marca or p.categoria %}
+                            <p class="product-meta text-secondary small text-capitalize mb-1">
+                                {{ p.marca }}{% if p.marca and p.categoria %} · {% endif %}{{ p.categoria }}
+                            </p>
+                        {% endif %}
+                        {% if p.descripcion %}
+                            <p class="product-desc mb-2">{{ p.descripcion }}</p>
+                        {% endif %}
+                        <div class="d-flex align-items-baseline gap-2 mb-3 mt-auto">
+                            {% if p.precio_antes %}
+                                <span class="text-secondary text-decoration-line-through">{{ p.precio_antes }}</span>
+                            {% endif %}
+                            <span class="fs-5 fw-bold">{{ p.precio_ahora }}</span>
+                        </div>
+                        <form method="POST" action="{{ url_for('carrito.agregar', producto_id=p.id) }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn btn-primary w-100">Agregar al carrito</button>
+                        </form>
+                    </div>
                 </div>
-            </article>
+            </div>
         {% endfor %}
     </section>
 {% else %}
-    <div class="empty-state">
-        <h1>🛒</h1>
-        <p>Aún no hay productos publicados en la base de datos.</p>
+    <div class="text-center py-5">
+        <p class="display-6 text-secondary mb-1">🛒</p>
+        <p class="text-secondary">Aún no hay productos publicados en la base de datos.</p>
     </div>
 {% endif %}
 {% endblock %}
