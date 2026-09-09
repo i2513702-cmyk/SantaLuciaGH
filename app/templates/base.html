@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}{{ app_name }}{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
@@ -11,28 +14,34 @@
         <div class="container nav-inner">
             <a class="brand" href="{{ url_for('main.home') }}">
                 <img src="{{ url_for('static', filename=logo_path) }}" alt="Logo {{ app_name }}" class="brand-logo">
-                <span class="brand-name">{{ app_name }}</span>
+                <span class="brand-name">Santa Lucía <span>Servicio Técnico</span></span>
             </a>
             <nav class="nav-links">
                 <a href="{{ url_for('main.home') }}">Inicio</a>
-                <a href="{{ url_for('main.tienda') }}">Tienda</a>
-                <a href="{{ url_for('carrito.ver') }}">Carrito{% if carrito_n %}<span class="cart-badge">{{ carrito_n }}</span>{% endif %}</a>
+                <a href="{{ url_for('main.tienda') }}">Catálogo</a>
+                <a href="{{ url_for('citas.agendar_form') }}">Agendar cita</a>
+                <a href="{{ url_for('main.home') }}#nosotros">Nosotros</a>
+                <a class="nav-cart" href="{{ url_for('carrito.ver') }}">
+                    🛒{% if carrito_n %}<span class="badge">{{ carrito_n }}</span>{% endif %}
+                </a>
                 {% if rol_panel == 'admin' %}
                     <a href="{{ url_for('admin.dashboard') }}">Panel</a>
                 {% elif rol_panel == 'worker' %}
                     <a href="{{ url_for('worker.dashboard') }}">Panel</a>
                 {% endif %}
                 {% if rol %}
-                    <span class="nav-user">👤 {{ nombre }}</span>
-                    <a class="btn btn-outline" href="{{ url_for('auth.logout') }}">Salir</a>
+                    <div class="nav-user">
+                        <span class="nav-user-name">{{ nombre }}</span>
+                        <a class="btn btn-outline btn-sm" href="{{ url_for('auth.logout') }}">Salir</a>
+                    </div>
                 {% else %}
-                    <a class="btn btn-primary" href="{{ url_for('auth.login') }}">Iniciar sesión</a>
+                    <a class="btn btn-primary btn-sm" href="{{ url_for('auth.login') }}">Iniciar sesión</a>
                 {% endif %}
             </nav>
         </div>
     </header>
 
-    <main class="container">
+    <main class="container {% block main_class %}{% endblock %}">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
@@ -43,10 +52,35 @@
         {% block content %}{% endblock %}
     </main>
 
-    <footer class="footer" style="background-image: url('{{ url_for('static', filename=footer_bg) }}');">
-        <div class="container footer-inner">
-            <p><strong>{{ app_name }}</strong> — {{ app_tagline }}</p>
-            <p class="footer-muted">© 2026 {{ app_name }}. Todos los derechos reservados.</p>
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-brand-col">
+                    <div class="footer-brand">
+                        <img src="{{ url_for('static', filename=logo_path) }}" alt="Logo {{ app_name }}" class="footer-brand-logo">
+                        <span class="footer-brand-name">{{ app_name }} Servicio Técnico</span>
+                    </div>
+                    <p class="footer-desc">Diagnóstico honesto, garantía de 90 días y atención a domicilio o en taller. Todo para tu hogar y más.</p>
+                </div>
+                <div class="footer-col">
+                    <h4>Contacto</h4>
+                    <span class="footer-info">Av. Los Talleres 245, Lima</span>
+                    <a href="tel:+51987654321">+51 987 654 321</a>
+                    <a href="mailto:contacto@santalucia.pe">contacto@santalucia.pe</a>
+                    <span class="footer-info">Lun a Sáb · 9:00 – 19:00</span>
+                </div>
+                <div class="footer-col">
+                    <h4>Enlaces</h4>
+                    <a href="{{ url_for('main.tienda') }}">Catálogo y repuestos</a>
+                    <a href="{{ url_for('citas.agendar_form') }}">Agendar una cita</a>
+                    <a href="{{ url_for('auth.cambiar_clave') }}">Cambiar contraseña</a>
+                    <a href="{{ url_for('auth.panel') }}">Paneles por rol</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <span>© 2011–2026 {{ app_name }}. Todos los derechos reservados.</span>
+                <span>Prototipo de demostración con datos reales de la base de datos.</span>
+            </div>
         </div>
     </footer>
 </body>
