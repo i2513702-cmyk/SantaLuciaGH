@@ -38,6 +38,11 @@ def create_app() -> Flask:
 
     calentar()
 
+    # --- Limpiar carritos vencidos en segundo plano al arrancar ---
+    from app.services.carrito_service import iniciar_purga
+
+    iniciar_purga()
+
     # --- Contexto global para las plantillas ---
     @app.context_processor
     def inject_globals():
@@ -53,7 +58,7 @@ def create_app() -> Flask:
             "rol": session.get("rol"),
             "rol_panel": map_rol(session.get("rol")),
             "nombre": session.get("nombre"),
-            "carrito_n": sum(session.get("carrito", {}).values()),
+            "carrito_n": session.get("carrito_n", 0),
         }
 
     # --- Manejadores de errores ---

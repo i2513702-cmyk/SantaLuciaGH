@@ -22,6 +22,19 @@ from app.services import rest_auth_service
 bp = Blueprint("auth", __name__)
 
 
+def _sincronizar_carrito():
+    """Reclama el carrito anónimo (si existe) y refresca el contador al usuario."""
+    from app.services import carrito_service
+
+    token = session.get("carrito_sesion")
+    carrito_id = session.get("carrito_id")
+    user_key = f"user:{session['usuario_id']}"
+    if carrito_id and token:
+        carrito_service.reclamar(carrito_id, token, user_key)
+    session["carrito_n"] = carrito_service.contar_por_usuario(user_key)
+    session.pop("carrito_id", None)
+
+
 @bp.route("/login", methods=["GET", "POST"])
 def login():
     if "usuario_id" in session:
@@ -38,6 +51,7 @@ def login():
             session["username"] = usuario["nombre_usuario"]
             session["nombre"] = usuario["nombre_usuario"]
             session["rol"] = usuario["rol"]
+            _sincronizar_carrito()
             import threading
 
             threading.Thread(
@@ -93,6 +107,7 @@ def registrarse():
             session["username"] = usuario["nombre_usuario"]
             session["nombre"] = usuario["nombre_usuario"]
             session["rol"] = usuario["rol"]
+            _sincronizar_carrito()
             flash("Cuenta creada correctamente. ¡Bienvenido!", "success")
             return redirect(url_for("auth.panel"))
         except (AppError, ValidationError) as exc:
