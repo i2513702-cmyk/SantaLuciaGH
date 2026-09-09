@@ -32,6 +32,8 @@ COMPROBANTE_TIPO = "BOLETA"
 COMPROBANTE_SERIE = "B001"
 COMPROBANTE_ESTADO = "EMITIDO"
 
+IGV_TASA = 0.18
+
 HORAS_VIGENCIA = int(getattr(Config, "CART_TTL_HOURS", 3))
 
 
@@ -90,7 +92,8 @@ def nueva_sesion() -> str:
     return uuid.uuid4().hex
 
 
-def _buscar_activo(usuario_sesion: str) -> dict | None:
+def _activos(usuario_sesion: str) -> list:
+    """Todos los carritos ACTIVO de la sesión/usuario (ordenados por id)."""
     try:
         resp = (
             get_reader()
@@ -98,12 +101,42 @@ def _buscar_activo(usuario_sesion: str) -> dict | None:
             .select("*")
             .eq("usuario_sesion", usuario_sesion)
             .eq("estado", ESTADO_ACTIVO)
-            .limit(1)
+            .order("id")
             .execute()
         )
     except Exception:  # noqa: BLE001
-        return None
-    return resp.data[0] if resp.data else None
+        return []
+    return resp.data or []
+
+
+def _consolidar(carritos: list) -> dict | None:
+    """Deja un único carrito activo agrupando los detalles de todos en el último."""
+    if len(carritos) <= 1:
+        return carritos[0] if carritos else None
+
+    objetivo = carritos[-1]
+    origen_ids = [c["id"] for c in carritos[:-1]]
+    try:
+        resp = (
+            get_reader()
+            .table("detalle_carrito")
+            .select("carrito_id,producto_id,cantidad")
+            .in_("carrito_id", origen_ids)
+            .execute()
+        )
+    except Exception:  # noqa: BLE001
+        resp = None
+
+    for fila in (resp.data if resp and resp.data else []):
+        try:
+            agregar(objetivo["id"], fila["producto_id"], int(fila["cantidad"] or 0))
+        except Exception:  # noqa: BLE001
+            continue
+
+    for carrito_id in origen_ids:
+        _borrar(carrito_id)
+
+    return objetivo
 
 
 def crear(usuario_sesion: str) -> int:
@@ -140,20 +173,26 @@ def obtener_carrito_vigente(usuario_sesion: str) -> tuple[int, bool, bool]:
     """Devuelve (carrito_id, es_nuevo, hubo_expiracion).
 
     Reutiliza el carrito activo del usuario si sigue vigente; si venció, lo
-    elimina y crea uno nuevo. El frontend puede usar las banderas para avisar
-    al usuario con un mensaje flash.
+    elimina y crea uno nuevo. Si existen varios carritos activos para la misma
+    sesión (por errores o pruebas), los consolida en uno solo con todos sus
+    items. El frontend puede usar las banderas para avisar al usuario.
     """
-    carrito = _buscar_activo(usuario_sesion)
+    carritos = _activos(usuario_sesion)
     expirado = False
 
-    if carrito and _expirado(carrito):
-        _borrar(carrito["id"])
+    vencidos = [c for c in carritos if _expirado(c)]
+    for c in vencidos:
+        _borrar(c["id"])
         expirado = True
-        carrito = None
+    if vencidos:
+        carritos = [c for c in carritos if c not in vencidos]
 
-    if carrito is None:
-        return crear(usuario_sesion), True, expirado
-    return carrito["id"], False, expirado
+    if carritos:
+        carrito = _consolidar(carritos)
+        if carrito:
+            return carrito["id"], False, expirado
+
+    return crear(usuario_sesion), True, expirado
 
 
 def purgar_expirados() -> int:
@@ -219,11 +258,13 @@ def cantidad(carrito_id: int, producto_id: int) -> int:
 
 
 def contar_por_usuario(usuario_sesion: str) -> int:
-    """Contador de items del carrito activo de un usuario sin crearlo."""
-    carrito = _buscar_activo(usuario_sesion)
-    if not carrito or _expirado(carrito):
-        return 0
-    return contar(carrito["id"])
+    """Contador de items de los carritos activos de un usuario sin crearlos."""
+    total = 0
+    for carrito in _activos(usuario_sesion):
+        if _expirado(carrito):
+            continue
+        total += contar(carrito["id"])
+    return total
 
 
 def reclamar(carrito_id: int, token_anon: str, usuario_sesion: str) -> bool:
@@ -232,7 +273,7 @@ def reclamar(carrito_id: int, token_anon: str, usuario_sesion: str) -> bool:
     Solo si el usuario aún no tiene un carrito activo y el carrito realmente
     pertenece a la sesión anónima (token). Devuelve True si se reclamó.
     """
-    if _buscar_activo(usuario_sesion):
+    if _activos(usuario_sesion):
         return False
     try:
         resp = (
@@ -266,6 +307,37 @@ def _producto(producto_id: int) -> dict | None:
     except Exception as exc:  # noqa: BLE001
         raise ValidationError(error_postgrest(exc)) from exc
     return resp.data[0] if resp.data else None
+
+
+def _metodo_pago(metodo_pago_id: int) -> dict | None:
+    try:
+        resp = (
+            get_reader()
+            .table("metodos_pago")
+            .select("*")
+            .eq("id", metodo_pago_id)
+            .limit(1)
+            .execute()
+        )
+    except Exception:  # noqa: BLE001
+        return None
+    return resp.data[0] if resp.data else None
+
+
+def listar_metodos_pago() -> list:
+    """Formas de pago activas de la base de datos (para el checkout)."""
+    try:
+        resp = (
+            get_reader()
+            .table("metodos_pago")
+            .select("*")
+            .eq("activo", True)
+            .order("id")
+            .execute()
+        )
+    except Exception:  # noqa: BLE001
+        return []
+    return resp.data or []
 
 
 def agregar(carrito_id: int, producto_id: int, cantidad: int) -> dict:
@@ -443,9 +515,11 @@ def finalizar(carrito_id: int, usuario_id: int | None = None) -> dict:
             "venta_id": venta_id,
             "tipo_comprobante": COMPROBANTE_TIPO,
             "serie": COMPROBANTE_SERIE,
-            "numero": f"{venta_id:08d}",
-            "total": total,
+            "numero": int(venta_id),
+            "fecha_emision": _ahora(),
+            "subtotal": subtotal,
             "igv": 0.0,
+            "total": total,
             "estado": COMPROBANTE_ESTADO,
         }).execute()
     except Exception:  # noqa: BLE001
@@ -463,5 +537,169 @@ def finalizar(carrito_id: int, usuario_id: int | None = None) -> dict:
         "venta_id": venta_id,
         "codigo_pedido": codigo,
         "n_items": sum(i["cantidad"] for i in items),
+        "total": f"S/ {total:,.2f}",
+    }
+
+
+def _correlativo_comprobante(tipo: str, serie: str) -> int:
+    """Siguiente número de comprobante (bigint) para ese tipo+serie."""
+    try:
+        resp = (
+            get_reader()
+            .table("comprobantes")
+            .select("numero")
+            .eq("tipo_comprobante", tipo)
+            .eq("serie", serie)
+            .order("numero", desc=True)
+            .limit(1)
+            .execute()
+        )
+        return (int(resp.data[0]["numero"]) + 1) if resp.data else 1
+    except Exception:  # noqa: BLE001
+        try:
+            resp = (
+                get_reader()
+                .table("comprobantes")
+                .select("numero")
+                .order("numero", desc=True)
+                .limit(1)
+                .execute()
+            )
+            return (int(resp.data[0]["numero"]) + 1) if resp.data else 1
+        except Exception:  # noqa: BLE001
+            return 1
+
+
+def _marcar_abandonado(carrito_id: int) -> None:
+    try:
+        get_admin_client().table("carritos").update(
+            {"estado": "ABANDONADO", "fecha_actualizacion": _ahora()}
+        ).eq("id", carrito_id).execute()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def pagar(
+    carrito_id: int,
+    metodo_pago_id: int,
+    usuario_id: int | None = None,
+    tipo_comprobante: str = "BOLETA",
+    cliente_id: int | None = None,
+) -> dict:
+    """Convierte el carrito en una venta pagada (pago simulado).
+
+    Registra: venta (CONFIRMADA) + detalle_venta + comprobante (BOLETA/FACTURA)
+    + pago (PAGADO con códigos de transacción sintéticos). El carrito queda
+    ABANDONADO. Devuelve el resumen del pedido.
+    """
+    metodo = _metodo_pago(metodo_pago_id)
+    if not metodo:
+        raise ValidationError("La forma de pago seleccionada no existe.")
+    if not metodo.get("activo"):
+        raise ValidationError("La forma de pago seleccionada no está disponible.")
+
+    tipo = (tipo_comprobante or "BOLETA").strip().upper()
+    if tipo not in ("BOLETA", "FACTURA"):
+        tipo = "BOLETA"
+    serie = "B001" if tipo == "BOLETA" else "F001"
+
+    items = listar(carrito_id)
+    if not items:
+        raise ValidationError("El carrito está vacío. Agrega productos para continuar.")
+
+    subtotal = round(sum(i["subtotal_num"] for i in items), 2)
+    igv = round(subtotal * IGV_TASA, 2)
+    total = round(subtotal + igv, 2)
+
+    codigo = _codigo_pedido()
+    try:
+        venta = get_admin_client().table("ventas").insert({
+            "cliente_id": cliente_id,
+            "usuario_id": usuario_id,
+            "carrito_id": carrito_id,
+            "codigo_pedido": codigo,
+            "canal_venta": CANAL_VENTA,
+            "tipo_entrega": TIPO_ENTREGA,
+            "fecha_venta": _ahora(),
+            "subtotal": subtotal,
+            "descuento": 0.0,
+            "costo_envio": 0.0,
+            "total": total,
+            "estado": ESTADO_VENTA,
+            "observaciones": f"Pago simulado ({metodo['nombre']})",
+        }).execute()
+    except Exception as exc:  # noqa: BLE001
+        raise ValidationError(
+            f"No se pudo registrar el pedido: {error_postgrest(exc)}"
+        ) from exc
+    venta_id = venta.data[0]["id"]
+
+    try:
+        get_admin_client().table("detalle_venta").insert([
+            {
+                "venta_id": venta_id,
+                "producto_id": i["producto_id"],
+                "cantidad": i["cantidad"],
+                "precio_unitario": i["precio_num"],
+                "subtotal": i["subtotal_num"],
+                "descuento": 0.0,
+            }
+            for i in items
+        ]).execute()
+    except Exception as exc:  # noqa: BLE001
+        raise ValidationError(
+            f"No se pudo registrar el detalle: {error_postgrest(exc)}"
+        ) from exc
+
+    numero = _correlativo_comprobante(tipo, serie)
+    try:
+        get_admin_client().table("comprobantes").insert({
+            "venta_id": venta_id,
+            "tipo_comprobante": tipo,
+            "serie": serie,
+            "numero": numero,
+            "fecha_emision": _ahora(),
+            "subtotal": subtotal,
+            "igv": igv,
+            "total": total,
+            "estado": COMPROBANTE_ESTADO,
+        }).execute()
+    except Exception as exc:  # noqa: BLE001
+        raise ValidationError(
+            f"No se pudo emitir el comprobante: {error_postgrest(exc)}"
+        ) from exc
+
+    try:
+        get_admin_client().table("pagos").insert({
+            "venta_id": venta_id,
+            "metodo_pago_id": metodo_pago_id,
+            "usuario_id": usuario_id,
+            "canal_pago": CANAL_VENTA,
+            "monto": total,
+            "estado": "PAGADO",
+            "pasarela": metodo.get("codigo") or None,
+            "transaction_id": f"SIM-{venta_id}-{str(uuid.uuid4().hex)[:8].upper()}",
+            "order_id": f"SIM-ORD-{venta_id}",
+            "authorization_code": f"{uuid.uuid4().hex[:6].upper()}",
+            "response_code": "0000",
+            "fecha_pago": _ahora(),
+            "observaciones": "Pago simulado por el sistema (demo).",
+        }).execute()
+    except Exception as exc:  # noqa: BLE001
+        raise ValidationError(
+            f"No se pudo registrar el pago: {error_postgrest(exc)}"
+        ) from exc
+
+    _marcar_abandonado(carrito_id)
+
+    return {
+        "venta_id": venta_id,
+        "codigo_pedido": codigo,
+        "tipo_comprobante": tipo,
+        "serie": f"{serie}-{numero:08d}",
+        "metodo_pago": metodo["nombre"],
+        "n_items": sum(i["cantidad"] for i in items),
+        "subtotal": f"S/ {subtotal:,.2f}",
+        "igv": f"S/ {igv:,.2f}",
         "total": f"S/ {total:,.2f}",
     }

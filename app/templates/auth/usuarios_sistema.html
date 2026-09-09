@@ -55,6 +55,7 @@
                         <a class="btn btn-sm btn-outline-primary" href="{{ url_for('auth.usuario_editar', usuario_id=u.id) }}">Editar</a>
                         {% if u.id != session.get('usuario_id') %}
                             <form method="POST" action="{{ url_for('auth.usuario_cambiar_estado', usuario_id=u.id) }}" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                 {% if u.activo %}
                                     <button type="submit" class="btn btn-sm btn-outline-secondary">Desactivar</button>
                                 {% else %}

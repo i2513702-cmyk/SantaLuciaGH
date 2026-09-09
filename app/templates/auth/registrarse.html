@@ -12,6 +12,7 @@
         {% endif %}
 
         <form method="POST" action="{{ url_for('auth.registrarse') }}" class="needs-validation">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <fieldset class="border rounded-3 p-3 mb-3">
                 <legend class="w-auto px-2 small fw-semibold text-secondary">Datos personales</legend>
                 <div class="row g-3">
@@ -64,8 +65,6 @@
                             <option value="TECNICO">Técnico</option>
                             <option value="VENDEDOR">Vendedor</option>
                             <option value="ALMACENERO">Almacenero</option>
-                            <option value="SUPERVISOR">Supervisor</option>
-                            <option value="ADMINISTRADOR">Administrador</option>
                         </select>
                     </div>
                     <div class="col-md-6">

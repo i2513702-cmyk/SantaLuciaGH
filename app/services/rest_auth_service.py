@@ -30,6 +30,15 @@ ROLES_VALIDOS = (
     "ALMACENERO",
 )
 
+# Roles que un usuario puede elegir registrándose por su cuenta (sin escalar
+# a administración). SUPERVISOR/ADMINISTRADOR se asignan solo desde el panel.
+ROLES_REGISTRO_PUBLICO = (
+    "TECNICO",
+    "RECEPCIONISTA",
+    "VENDEDOR",
+    "ALMACENERO",
+)
+
 
 def _leer_usuario(campo: str, valor: str):
     """Consulta la tabla usuarios por un campo y devuelve la fila o None."""
@@ -263,6 +272,10 @@ def register(
     """
     if not password or len(password) < 8:
         raise ValidationError("La contraseña debe tener al menos 8 caracteres")
+
+    rol = (rol or "").strip().upper()
+    if rol not in ROLES_REGISTRO_PUBLICO:
+        raise ValidationError("El rol seleccionado no es válido para un registro público.")
 
     if _leer_usuario("nombre_usuario", nombre_usuario):
         raise ValidationError(f"El nombre de usuario '{nombre_usuario}' ya existe.")

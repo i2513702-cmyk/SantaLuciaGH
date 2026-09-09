@@ -67,10 +67,14 @@ def _preparar_carrito() -> int:
 def ver():
     carrito_id = _preparar_carrito()
     items = carrito_service.listar(carrito_id)
-    total = sum(i["subtotal_num"] for i in items)
+    subtotal = sum(i["subtotal_num"] for i in items)
+    igv = round(subtotal * carrito_service.IGV_TASA, 2)
+    total = round(subtotal + igv, 2)
     return render_template(
         "carrito.html",
         items=items,
+        subtotal=f"S/ {subtotal:,.2f}",
+        igv=f"S/ {igv:,.2f}",
         total=f"S/ {total:,.2f}",
         n_items=session.get("carrito_n", 0),
         vigencia_horas=carrito_service.HORAS_VIGENCIA,

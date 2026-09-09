@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+
+{% block title %}Pagar — {{ app_name }}{% endblock %}
+
+{% block content %}
+<section class="d-flex flex-wrap align-items-center justify-content-between mb-4">
+    <div>
+        <h1 class="h3 fw-semibold mb-1">Finalizar compra</h1>
+        <p class="text-secondary mb-0">Revisa tu pedido, elige la forma de pago y simula el pago.</p>
+    </div>
+    <a class="btn btn-outline-primary" href="{{ url_for('carrito.ver') }}">Volver al carrito</a>
+</section>
+
+<div class="alert alert-warning d-flex align-items-center gap-2">
+    <span>🧪</span>
+    <span><strong>Modo simulación:</strong> el pago es una demo, no se cobra nada real.</span>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <div class="card shadow-sm mb-4">
+            <div class="card-header fw-semibold">Tu pedido</div>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th class="text-end">Precio</th>
+                            <th class="text-center">Cant.</th>
+                            <th class="text-end">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in items %}
+                            <tr>
+                                <td>{{ item.nombre }}{% if item.marca %} <span class="badge text-bg-secondary">{{ item.marca }}</span>{% endif %}</td>
+                                <td class="text-end">{{ item.precio_unitario }}</td>
+                                <td class="text-center">{{ item.cantidad }}</td>
+                                <td class="text-end fw-semibold">{{ item.subtotal }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-footer d-flex flex-column align-items-end gap-1">
+                <div class="d-flex justify-content-between" style="width: 260px;">
+                    <span>Subtotal:</span><strong>{{ subtotal }}</strong>
+                </div>
+                <div class="d-flex justify-content-between" style="width: 260px;">
+                    <span>IGV (18%):</span><strong>{{ igv }}</strong>
+                </div>
+                <hr class="w-100 my-1">
+                <div class="d-flex justify-content-between" style="width: 260px;">
+                    <span class="h6 mb-0">Total:</span><span class="h5 mb-0 text-primary"><strong>{{ total }}</strong></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-header fw-semibold">Datos del cliente <small class="text-muted">(opcional para boleta/factura)</small></div>
+            <div class="card-body">
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="usarCliente" name="usar_cliente" form="formPago" value="1">
+                    <label class="form-check-label" for="usarCliente">Comprar como invitado (mostrador)</label>
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Tipo de documento</label>
+                        <select class="form-select" name="tipo_documento_id" form="formPago">
+                            <option value="1">DNI</option>
+                            <option value="6">RUC</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">N° documento</label>
+                        <input type="text" class="form-control" name="numero_documento" form="formPago">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Teléfono</label>
+                        <input type="text" class="form-control" name="telefono" form="formPago">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Nombres</label>
+                        <input type="text" class="form-control" name="nombres" form="formPago">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Apellidos</label>
+                        <input type="text" class="form-control" name="apellidos" form="formPago">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Correo</label>
+                        <input type="email" class="form-control" name="correo" form="formPago">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card shadow-sm border-primary mb-4">
+            <div class="card-header bg-primary text-white fw-semibold d-flex align-items-center justify-content-between">
+                <span>Resumen del pedido</span>
+                <span class="badge bg-light text-dark">{{ items|length }} producto(s)</span>
+            </div>
+            <div class="card-body">
+                <table class="table table-sm mb-0">
+                    <tbody>
+                        {% for item in items %}
+                            <tr>
+                                <td>{{ item.nombre }} <span class="text-muted">× {{ item.cantidad }}</span></td>
+                                <td class="text-end">{{ item.subtotal }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <hr class="my-3">
+                <div class="d-flex justify-content-between mb-1">
+                    <span class="text-muted">Subtotal</span><strong>{{ subtotal }}</strong>
+                </div>
+                <div class="d-flex justify-content-between mb-1">
+                    <span class="text-muted">IGV (18%)</span><strong>{{ igv }}</strong>
+                </div>
+                <div class="d-flex justify-content-between border-top pt-2 mt-2">
+                    <span class="h6 mb-0">TOTAL A PAGAR</span>
+                    <span class="h4 mb-0 text-primary"><strong>{{ total }}</strong></span>
+                </div>
+            </div>
+        </div>
+
+        <form method="POST" action="{{ url_for('checkout.procesar') }}" id="formPago">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="usar_cliente" value="0">
+            <div class="card shadow-sm">
+                <div class="card-header fw-semibold">Forma de pago (simulada)</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de comprobante</label>
+                        <select class="form-select" name="tipo_comprobante">
+                            <option value="BOLETA" selected>Boleta</option>
+                            <option value="FACTURA">Factura</option>
+                        </select>
+                    </div>
+                    <label class="form-label">Método de pago</label>
+                    {% for mp in metodos_pago %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="metodo_pago_id"
+                                   id="mp{{ mp.id }}" value="{{ mp.id }}"
+                                   {% if loop.first %}checked{% endif %}>
+                            <label class="form-check-label d-flex justify-content-between w-100" for="mp{{ mp.id }}">
+                                <span>{{ mp.nombre }}</span>
+                                {% if mp.requiere_pasarela %}<span class="badge text-bg-secondary">Pasarela</span>{% endif %}
+                            </label>
+                        </div>
+                    {% endfor %}
+                </div>
+                <div class="card-footer d-grid">
+                    <button type="submit" class="btn btn-primary btn-lg">💳 Pagar {{ total }} (simular)</button>
+                    <small class="text-muted text-center mt-2">Pago 100% simulado: no se registra nada en la base de datos todavía.</small>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

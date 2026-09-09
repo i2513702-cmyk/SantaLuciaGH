@@ -7,7 +7,13 @@ Inspirado en el patrón del proyecto de referencia (flask-bcrypt):
 Nota: los hashes generados con werkzeug (pbkdf2) aún pueden verificarse
 cambiando a la función correspondiente, pero el estándar del proyecto
 a partir de ahora es bcrypt.
+
+También genera y valida el token CSRF de los formularios.
 """
+
+import secrets
+
+from flask import session
 
 from app.extensions import bcrypt
 
@@ -24,3 +30,18 @@ def check_password(clave_en_hash: str, clave_plana: str) -> bool:
     if not clave_en_hash or not clave_plana:
         return False
     return bcrypt.check_password_hash(clave_en_hash, clave_plana)
+
+
+def get_csrf() -> str:
+    """Devuelve (y crea si hace falta) el token CSRF de la sesión."""
+    token = session.get("csrf_token")
+    if not token:
+        token = secrets.token_hex(16)
+        session["csrf_token"] = token
+    return token
+
+
+def csrf_valido(token) -> bool:
+    """True si el token coincide con el de la sesión (comparación segura)."""
+    esperado = session.get("csrf_token") or ""
+    return bool(token and esperado and secrets.compare_digest(token, esperado))

@@ -9,7 +9,7 @@ from app.supabase_client import get_reader
 
 bp = Blueprint("admin", __name__)
 
-TABLAS_CONTEO = ("clientes", "productos","Tecnicos", "reparaciones", "usuarios")
+TABLAS_CONTEO = ("clientes", "productos", "tecnicos", "reparaciones", "usuarios")
 
 
 def _contar(tabla: str):

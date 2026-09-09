@@ -20,6 +20,7 @@
 
         <form method="POST"
               action="{{ url_for('admin.producto_editar', producto_id=producto.id) if editando else url_for('admin.producto_nuevo') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="row g-3">
                 <div class="col-md-4">
                     <label for="codigo" class="form-label">Código</label>
