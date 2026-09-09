@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block title %}Agendar cita — {{ app_name }}{% endblock %}
+
+{% block main_class %}content-narrow{% endblock %}
+
+{% block content %}
+<section class="panel-head">
+    <div>
+        <h1>Agenda tu cita de servicio técnico</h1>
+        <p>Lleva tu equipo a nuestro taller o solicita atención a domicilio.</p>
+    </div>
+</section>
+
+{% if error %}
+    <div class="flash flash-error">{{ error }}</div>
+{% endif %}
+
+<form class="cita-form" method="POST" action="{{ url_for('citas.agendar_cita') }}">
+    <div class="cita-grid">
+        <!-- ── Tus datos ── -->
+        <section class="cita-col">
+            <h3 class="cita-col-title">🧑 &nbsp;Tus datos</h3>
+            <label for="tipo_documento_id">Tipo de documento</label>
+            <select id="tipo_documento_id" name="tipo_documento_id">
+                {% for doc in documentos %}
+                    <option value="{{ doc.id }}" {% if form and form.tipo_documento_id|int == doc.id %}selected{% endif %}>{{ doc.codigo }} — {{ doc.nombre }}</option>
+                {% endfor %}
+            </select>
+
+            <label for="numero_documento">Número de documento *</label>
+            <input type="text" id="numero_documento" name="numero_documento" required
+                   placeholder="Ej: 12345678" value="{{ form.numero_documento if form else '' }}">
+
+            <label for="nombres">Nombres *</label>
+            <input type="text" id="nombres" name="nombres" required
+                   placeholder="Tus nombres" value="{{ form.nombres if form else '' }}">
+
+            <label for="apellidos">Apellidos *</label>
+            <input type="text" id="apellidos" name="apellidos" required
+                   placeholder="Tus apellidos" value="{{ form.apellidos if form else '' }}">
+
+            <label for="telefono">Teléfono / WhatsApp *</label>
+            <input type="tel" id="telefono" name="telefono" required
+                   placeholder="Ej: 987654321" value="{{ form.telefono if form else '' }}">
+
+            <label for="correo">Correo electrónico</label>
+            <input type="email" id="correo" name="correo"
+                   placeholder="opcional" value="{{ form.correo if form else '' }}">
+        </section>
+
+        <!-- ── Tu equipo ── -->
+        <section class="cita-col">
+            <h3 class="cita-col-title">🔧 &nbsp;Tu electrodoméstico</h3>
+            <label for="tipo_id">Tipo de equipo *</label>
+            <select id="tipo_id" name="tipo_id" required>
+                <option value="">Selecciona el tipo</option>
+                {% for t in tipos %}
+                    <option value="{{ t.id }}" {% if form and form.tipo_id|int == t.id %}selected{% endif %}>{{ t.nombre }}</option>
+                {% endfor %}
+            </select>
+
+            <label for="marca_id">Marca *</label>
+            <select id="marca_id" name="marca_id" required>
+                <option value="">Selecciona la marca</option>
+                {% for m in marcas %}
+                    <option value="{{ m.id }}" {% if form and form.marca_id|int == m.id %}selected{% endif %}>{{ m.nombre }}</option>
+                {% endfor %}
+            </select>
+
+            <label for="modelo">Modelo</label>
+            <input type="text" id="modelo" name="modelo" placeholder="Ej: GC-206"
+                   value="{{ form.modelo if form else '' }}">
+
+            <label for="numero_serie">Número de serie</label>
+            <input type="text" id="numero_serie" name="numero_serie"
+                   placeholder="Opcional" value="{{ form.numero_serie if form else '' }}">
+
+            <label for="color">Color</label>
+            <input type="text" id="color" name="color" placeholder="Opcional"
+                   value="{{ form.color if form else '' }}">
+        </section>
+    </div>
+
+    <!-- ── La cita ── -->
+    <section class="cita-block">
+        <h3 class="cita-col-title">📅 &nbsp;Fecha y hora de la cita</h3>
+        <div class="cita-form-row">
+            <div>
+                <label for="tipo_atencion">Tipo de atención *</label>
+                <select id="tipo_atencion" name="tipo_atencion" required>
+                    {% for valor, etiqueta in tipo_atenciones.items() %}
+                        <option value="{{ valor }}" {% if form and form.tipo_atencion == valor %}selected{% endif %}>{{ etiqueta }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="fecha_reserva">Fecha *</label>
+                <input type="date" id="fecha_reserva" name="fecha_reserva" required
+                       min="{{ today }}" value="{{ form.fecha_reserva if form else '' }}">
+            </div>
+            <div>
+                <label for="hora_inicio">Hora *</label>
+                <select id="hora_inicio" name="hora_inicio" required>
+                    <option value="">Selecciona la hora</option>
+                    {% for h in horarios %}
+                        <option value="{{ h }}" {% if form and form.hora_inicio == h %}selected{% endif %}>{{ h }} hrs</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div id="domicilio-box" class="cita-form-row" style="display:none;">
+            <div style="flex:1;">
+                <label for="calle">Dirección de atención *</label>
+                <input type="text" id="calle" name="calle" placeholder="Av/Calle/Jr, número, distrito"
+                       value="{{ form.calle if form else '' }}">
+            </div>
+        </div>
+    </section>
+
+    <!-- ── Motivo ── -->
+    <section class="cita-block">
+        <h3 class="cita-col-title">📝 &nbsp;Descripción del problema</h3>
+        <label for="motivo">¿Qué le ocurre a tu equipo? *</label>
+        <textarea id="motivo" name="motivo" rows="3"
+                  placeholder="Ej: No enfría, hace ruido, no enciende...">{{ form.motivo if form else '' }}</textarea>
+        <label for="observaciones">Otras observaciones</label>
+        <textarea id="observaciones" name="observaciones" rows="2"
+                  placeholder="Opcional">{{ form.observaciones if form else '' }}</textarea>
+    </section>
+
+    <div class="cita-actions">
+        <button type="submit" class="btn btn-primary btn-lg">Confirmar mi cita</button>
+        <p style="color: var(--muted); font-size: 0.82rem; margin: 0;">* Campos obligatorios. Te contactaremos para confirmar.</p>
+    </div>
+</form>
+
+<script>
+document.addEventListener('input', function () {
+    var tipo = document.getElementById('tipo_atencion').value;
+    var box = document.getElementById('domicilio-box');
+    box.style.display = tipo === 'DOMICILIO' ? '' : 'none';
+});
+</script>
+{% endblock %}

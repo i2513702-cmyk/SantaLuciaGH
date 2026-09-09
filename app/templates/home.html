@@ -1,48 +1,252 @@
 {% extends "base.html" %}
 
-{% block title %}Inicio — {{ app_name }}{% endblock %}
+{% block title %}Inicio — {{ app_name }} Servicio Técnico{% endblock %}
 
 {% block content %}
-<section class="text-center py-5 bg-white border rounded-3 shadow-sm mb-4">
-    <h1 class="display-5 fw-semibold">Bienvenido a {{ app_name }}</h1>
-    <p class="text-secondary mx-auto" style="max-width: 560px;">
-        {{ app_tagline }}. Tienda, servicio técnico y gestión de pedidos en un solo lugar.
-    </p>
-    {% if rol %}
-        <a class="btn btn-primary btn-lg" href="{{ url_for('auth.panel', rol=rol) }}">Ir a mi panel</a>
-    {% else %}
-        <a class="btn btn-primary btn-lg" href="{{ url_for('auth.login') }}">Iniciar sesión</a>
-    {% endif %}
+
+<!-- ─── Hero ──────────────────────────────────────────── -->
+<section class="hero hero-split">
+    <div class="hero-inner">
+        <div class="hero-text">
+            <span class="hero-eyebrow">Especialistas en línea blanca · desde 2011 en Lima</span>
+            <h1>Tu lavadora, refrigeradora o cocina, <span class="accent">reparada el mismo día</span></h1>
+            <p class="hero-sub">Reparación, mantenimiento e instalación de lavadoras, secadoras, refrigeradoras, congeladoras y cocinas. Repuestos originales, garantía de 90 días y atención a domicilio o en taller.</p>
+            <div class="hero-actions">
+                <a class="btn btn-accent btn-lg" href="{{ url_for('citas.agendar_form') }}">Agendar una cita</a>
+                <a class="btn btn-outline-white btn-lg" href="{{ url_for('main.tienda') }}">Ver catálogo</a>
+            </div>
+        </div>
+        <div class="hero-visual">
+            <img src="{{ url_for('static', filename='img/hero-tecnico.svg') }}" alt="Servicio técnico Santa Lucía">
+        </div>
+    </div>
 </section>
 
-<section class="row row-cols-1 row-cols-md-3 g-4">
-    <div class="col">
-        <div class="card h-100 shadow-sm text-center">
-            <div class="card-body d-flex flex-column">
-                <div class="card-icon display-5">🏷️</div>
-                <h3 class="card-title h5 mt-2">Productos</h3>
-                <p class="card-text text-secondary flex-grow-1">Catálogo de productos con precios desde la base de datos.</p>
-                <a class="btn btn-primary" href="{{ url_for('main.tienda') }}">Ver tienda</a>
-            </div>
+<!-- ─── Stats ─────────────────────────────────────────── -->
+<section class="stats-bar">
+    <div class="stat-item">
+        <div class="stat-value">15+</div>
+        <div class="stat-label">Años en línea blanca</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-value">4.5k</div>
+        <div class="stat-label">Electrodomésticos reparados</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-value">12</div>
+        <div class="stat-label">Técnicos especializados</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-value">90d</div>
+        <div class="stat-label">Garantía incluida</div>
+    </div>
+</section>
+
+<!-- ─── Marcas ────────────────────────────────────────── -->
+{% if marcas %}
+<section class="section">
+    <div class="section-header">
+        <h2>Marcas que confían en nosotros</h2>
+        <p>Trabajamos con las principales marcas del mercado</p>
+        <div class="section-divider"></div>
+    </div>
+    <div class="marcas-viewport">
+        <div class="marcas-track">
+            {% for marca in marcas %}
+                <div class="marca-card">{{ marca.nombre }}</div>
+            {% endfor %}
+            {% for marca in marcas %}
+                <div class="marca-card">{{ marca.nombre }}</div>
+            {% endfor %}
         </div>
     </div>
-    <div class="col">
-        <div class="card h-100 shadow-sm text-center">
-            <div class="card-body d-flex flex-column">
-                <div class="card-icon display-5">🛠️</div>
-                <h3 class="card-title h5 mt-2">Servicio técnico</h3>
-                <p class="card-text text-secondary flex-grow-1">Reparación y mantenimiento de electrodomésticos (próximamente).</p>
-            </div>
+</section>
+{% endif %}
+
+<!-- ─── Categorías ────────────────────────────────────── -->
+{% if categorias %}
+<section class="section" style="background: var(--surface-alt);">
+    <div class="section-header">
+        <h2>Encuentra lo que necesitas</h2>
+        <p>Repuestos y accesorios organizados por categoría</p>
+        <div class="section-divider"></div>
+    </div>
+    <div class="container">
+        <div class="categorias-grid">
+            {% set iconos = {
+                "MOTORES": "⚙️",
+                "BOMBAS": "💧",
+                "TARJETAS ELECTRÓNICAS": "🔌",
+                "SENSORES": "📡",
+                "COMPONENTES ELÉCTRICOS": "⚡",
+                "ACCESORIOS": "🔧",
+                "ELECTRODOMÉSTICOS": "🏠",
+                "OTROS": "📦"
+            } %}
+            {% for cat in categorias %}
+                <a class="categoria-card" href="{{ url_for('main.tienda') }}">
+                    <div class="categoria-icon">{{ iconos.get(cat.nombre, "📦") }}</div>
+                    <h4>{{ cat.nombre }}</h4>
+                </a>
+            {% endfor %}
         </div>
     </div>
-    <div class="col">
-        <div class="card h-100 shadow-sm text-center">
-            <div class="card-body d-flex flex-column">
-                <div class="card-icon display-5">📦</div>
-                <h3 class="card-title h5 mt-2">Pedidos</h3>
-                <p class="card-text text-secondary flex-grow-1">Compra en línea y seguimiento de tus pedidos (próximamente).</p>
+</section>
+{% endif %}
+
+<!-- ─── Productos destacados ──────────────────────────── -->
+{% if productos_destacados %}
+<section class="section">
+    <div class="section-header">
+        <h2>Catálogo y repuestos</h2>
+        <p>Precios reales desde nuestra base de datos</p>
+        <div class="section-divider"></div>
+    </div>
+    <div class="container">
+        <div class="productos-destacados">
+            {% for p in productos_destacados %}
+            <div class="product-card">
+                <div class="product-img">
+                    <img src="{{ url_for('static', filename='img/producto-default.svg') }}" alt="{{ p.nombre }}">
+                    {% if p.oferta %}
+                        <span class="offer-badge">Oferta</span>
+                    {% endif %}
+                </div>
+                <div class="product-body">
+                    {% if p.marca %}
+                        <p class="product-meta">{{ p.marca }}</p>
+                    {% endif %}
+                    <h3 class="product-name">{{ p.nombre }}</h3>
+                    {% if p.categoria %}
+                        <p class="product-meta">{{ p.categoria }}</p>
+                    {% endif %}
+                    <div class="price-box">
+                        <span class="price-now">{{ p.precio_ahora }}</span>
+                        {% if p.precio_antes %}
+                            <span class="price-original">{{ p.precio_antes }}</span>
+                        {% endif %}
+                    </div>
+                    <a class="btn btn-primary btn-sm" href="{{ url_for('main.tienda') }}">Ver tienda</a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    <div style="text-align:center; margin-top:32px;">
+        <a class="btn btn-outline btn-lg" href="{{ url_for('main.tienda') }}">Ver catálogo completo</a>
+    </div>
+</section>
+{% endif %}
+
+<!-- ─── Servicios ─────────────────────────────────────── -->
+<section class="section" id="servicios" style="background: var(--surface-alt);">
+    <div class="section-header">
+        <h2>Servicios que ofrecemos</h2>
+        <p>Con diagnóstico honesto y garantía de 90 días</p>
+        <div class="section-divider"></div>
+    </div>
+    <div class="container">
+        <div class="servicios-grid">
+            <div class="servicio-card">
+                <div class="servicio-icon blue">🧺</div>
+                <h3>Reparación de lavadoras</h3>
+                <p>Diagnóstico completo de bomba, transmisión, tarjeta y programador, con prueba de ciclo completo.</p>
+                <div class="servicio-pie">
+                    <span class="servicio-precio">Desde S/ 150.00</span>
+                    <span class="servicio-duracion">2 – 3 h</span>
+                </div>
+                <a class="btn btn-primary" href="{{ url_for('citas.agendar_form') }}">Agendar</a>
+            </div>
+            <div class="servicio-card">
+                <div class="servicio-icon amber">🌀</div>
+                <h3>Reparación de secadoras</h3>
+                <p>Revisión de resistencia, termostato, sensor de humedad y ducto de aire caliente.</p>
+                <div class="servicio-pie">
+                    <span class="servicio-precio">Desde S/ 160.00</span>
+                    <span class="servicio-duracion">2 h</span>
+                </div>
+                <a class="btn btn-primary" href="{{ url_for('citas.agendar_form') }}">Agendar</a>
+            </div>
+            <div class="servicio-card">
+                <div class="servicio-icon green">❄️</div>
+                <h3>Reparación de refrigeradoras</h3>
+                <p>Detección de fugas, recarga de gas refrigerante y prueba de compresor y termostato.</p>
+                <div class="servicio-pie">
+                    <span class="servicio-precio">Desde S/ 220.00</span>
+                    <span class="servicio-duracion">2 – 4 h</span>
+                </div>
+                <a class="btn btn-primary" href="{{ url_for('citas.agendar_form') }}">Agendar</a>
+            </div>
+            <div class="servicio-card">
+                <div class="servicio-icon blue">🧊</div>
+                <h3>Reparación de congeladoras</h3>
+                <p>Corrección de escarcha excesiva, cambio de sellos y calibración de temperatura.</p>
+                <div class="servicio-pie">
+                    <span class="servicio-precio">Desde S/ 200.00</span>
+                    <span class="servicio-duracion">2 – 3 h</span>
+                </div>
+                <a class="btn btn-primary" href="{{ url_for('citas.agendar_form') }}">Agendar</a>
             </div>
         </div>
     </div>
 </section>
+
+<!-- ─── Testimonios ───────────────────────────────────── -->
+<section class="section" id="nosotros">
+    <div class="section-header">
+        <h2>Lo que dicen nuestros clientes</h2>
+        <p>Años de confianza y resultados comprobados</p>
+        <div class="section-divider"></div>
+    </div>
+    <div class="container">
+        <div class="testimonios-grid">
+            <figure class="testimonio-card">
+                <div class="stars">★★★★★</div>
+                <blockquote>“Mi lavadora LG no desaguaba hacía semanas. Cambiaron la bomba el mismo día en casa y me mostraron la pieza vieja.”</blockquote>
+                <figcaption>Jorge Paredes · Cliente desde 2019</figcaption>
+            </figure>
+            <figure class="testimonio-card">
+                <div class="stars">★★★★★</div>
+                <blockquote>“La congeladora del negocio dejó de enfriar un sábado. Vinieron en dos horas y salvaron toda la mercadería.”</blockquote>
+                <figcaption>Ana Quispe · Restaurante familiar</figcaption>
+            </figure>
+            <figure class="testimonio-card">
+                <div class="stars">★★★★★</div>
+                <blockquote>“Hacen el mantenimiento preventivo de las lavadoras y secadoras del edificio. Reportan todo por escrito y con foto.”</blockquote>
+                <figcaption>Luis Moreno · Administrador de edificio</figcaption>
+            </figure>
+        </div>
+    </div>
+</section>
+
+<!-- ─── Contacto ──────────────────────────────────────── -->
+<section class="section" style="background: var(--surface-alt);">
+    <div class="section-header">
+        <h2>Contáctanos</h2>
+        <p>Escríbenos tu falla y te respondemos con un estimado el mismo día.</p>
+        <div class="section-divider"></div>
+    </div>
+    <div class="container contacto-grid">
+        <form class="contacto-form" method="POST" action="{{ url_for('main.contacto') }}">
+            <label for="contacto-nombre">Nombre</label>
+            <input type="text" id="contacto-nombre" name="nombre" required placeholder="Tu nombre">
+            <label for="contacto-correo">Correo o teléfono</label>
+            <input type="text" id="contacto-correo" name="correo" required placeholder="correo@santalucia.pe o +51 987 654 321">
+            <label for="contacto-falla">Cuéntanos la falla</label>
+            <textarea id="contacto-falla" name="mensaje" rows="4" required placeholder="Ej: Mi lavadora deja agua..."></textarea>
+            <button type="submit" class="btn btn-primary">Enviar mensaje</button>
+        </form>
+        <div class="contacto-info">
+            <h3>Taller central</h3>
+            <p>Av. Los Talleres 245, Lima</p>
+            <p>+51 987 654 321</p>
+            <p>contacto@santalucia.pe</p>
+            <p>Lun a Sáb · 9:00 – 19:00</p>
+            <div class="contacto-cta">
+                <a class="btn btn-accent" href="{{ url_for('citas.agendar_form') }}">Agendar cita</a>
+            </div>
+        </div>
+    </div>
+</section>
+
 {% endblock %}

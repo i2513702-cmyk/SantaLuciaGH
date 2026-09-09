@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Cita agendada — {{ app_name }}{% endblock %}
+
+{% block main_class %}content-narrow{% endblock %}
+
+{% block content %}
+<div class="confirma-box">
+    <div class="confirma-icon">✅</div>
+    <h1>¡Tu cita está agendada!</h1>
+    <p class="text-muted">Nos pondremos en contacto contigo para confirmar la atención.</p>
+</div>
+
+<section class="table-wrap">
+    <table class="table">
+        <tbody>
+            <tr><th>Código de cita</th><td>#{{ reserva.id }}</td></tr>
+            {% if cliente %}
+                <tr><th>Cliente</th><td>{{ (cliente.nombres or '') ~ ' ' ~ (cliente.apellidos or '') ~ ((' — ' ~ cliente.razon_social) if cliente.razon_social else '') }}</td></tr>
+                <tr><th>Teléfono</th><td>{{ cliente.telefono or '—' }}{% if cliente.correo %} &nbsp;•&nbsp; {{ cliente.correo }}{% endif %}</td></tr>
+            {% endif %}
+            <tr>
+                <th>Equipo</th>
+                {% set eq = reserva.electrodomesticos or {} %}
+                <td>
+                    {{ eq.tipos_electrodomestico.nombre if eq.tipos_electrodomestico else '—' }}
+                    {% if eq.marcas %}<span class="badge badge-muted">{{ eq.marcas.nombre }}</span>{% endif %}
+                    {% if eq.modelo %} • {{ eq.modelo }}{% endif %}
+                    {% if eq.numero_serie %} (S/N {{ eq.numero_serie }}){% endif %}
+                </td>
+            </tr>
+            <tr><th>Tipo de atención</th><td>{{ 'A domicilio' if reserva.tipo_atencion == 'DOMICILIO' else 'En taller' }}</td></tr>
+            {% if reserva.calle %}<tr><th>Dirección</th><td>{{ reserva.calle }}</td></tr>{% endif %}
+            <tr><th>Fecha</th><td>{{ reserva.fecha_reserva }}</td></tr>
+            <tr><th>Hora</th><td>{{ reserva.hora_inicio }}{% if reserva.hora_fin %} – {{ reserva.hora_fin }}{% endif %} hrs</td></tr>
+            {% if reserva.motivo %}<tr><th>Problema</th><td>{{ reserva.motivo }}</td></tr>{% endif %}
+            <tr><th>Estado</th><td><span class="badge badge-warn">Pendiente de confirmación</span></td></tr>
+        </tbody>
+    </table>
+</section>
+
+<div class="cita-actions">
+    <a class="btn btn-primary" href="{{ url_for('main.home') }}">Volver al inicio</a>
+    <a class="btn btn-outline" href="{{ url_for('citas.agendar_form') }}">Agendar otra cita</a>
+</div>
+{% endblock %}
