@@ -36,6 +36,10 @@ class Config:
     MAX_CONTENT_LENGTH = 2 * 1024 * 1024
     UPLOAD_FOLDER = "app/static/img/uploads"
 
+    # Vigencia de los carritos en la base de datos (en horas).
+    # Pasado este tiempo desde la última creación, el carrito se invalida solo.
+    CART_TTL_HOURS = 3
+
 
 class DevelopmentConfig(Config):
     DEBUG = True

@@ -11,6 +11,15 @@
     <a class="btn btn-outline-primary" href="{{ url_for('main.tienda') }}">Seguir comprando</a>
 </section>
 
+<div class="alert alert-info d-flex align-items-center gap-2">
+    <span>💾</span>
+    <span>
+        Tu carrito se guarda automáticamente en la base de datos y te esperará por
+        <strong>{{ vigencia_horas }} horas</strong> desde su creación; luego se elimina
+        solo. Si vuelves, tus productos seguirán ahí.
+    </span>
+</div>
+
 {% if items %}
     <div class="card shadow-sm">
         <div class="table-responsive">
@@ -34,14 +43,14 @@
                             <td>{{ item.precio_unitario }}</td>
                             <td>
                                 <div class="d-inline-flex align-items-center gap-2">
-                                    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('carrito.disminuir', producto_id=item.id) }}">−</a>
+                                    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('carrito.disminuir', producto_id=item.producto_id) }}">−</a>
                                     <span class="fw-semibold">{{ item.cantidad }}</span>
-                                    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('carrito.aumentar', producto_id=item.id) }}">+</a>
+                                    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('carrito.aumentar', producto_id=item.producto_id) }}">+</a>
                                 </div>
                             </td>
                             <td class="fw-semibold">{{ item.subtotal }}</td>
                             <td>
-                                <a class="btn btn-outline-danger btn-sm" href="{{ url_for('carrito.disminuir', producto_id=item.id) }}">Quitar</a>
+                                <a class="btn btn-outline-danger btn-sm" href="{{ url_for('carrito.disminuir', producto_id=item.producto_id) }}">Quitar</a>
                             </td>
                         </tr>
                     {% endfor %}
@@ -50,9 +59,14 @@
         </div>
         <div class="card-footer d-flex flex-wrap align-items-center justify-content-between gap-3 py-3">
             <h2 class="h5 mb-0">Total: <strong>{{ total }}</strong></h2>
-            <form method="POST" action="{{ url_for('carrito.vaciar') }}" class="mb-0">
-                <button type="submit" class="btn btn-outline-danger">Vaciar carrito</button>
-            </form>
+            <div class="d-flex align-items-center gap-2">
+                <form method="POST" action="{{ url_for('carrito.vaciar') }}" class="mb-0">
+                    <button type="submit" class="btn btn-outline-danger">Vaciar carrito</button>
+                </form>
+                <form method="POST" action="{{ url_for('carrito.finalizar') }}" class="mb-0">
+                    <button type="submit" class="btn btn-primary">Finalizar pedido</button>
+                </form>
+            </div>
         </div>
     </div>
 {% else %}
