@@ -21,6 +21,14 @@ from app.supabase_client import (
 )
 
 TABLA_USUARIOS = "usuarios"
+ROLES_VALIDOS = (
+    "ADMINISTRADOR",
+    "SUPERVISOR",
+    "TECNICO",
+    "RECEPCIONISTA",
+    "VENDEDOR",
+    "ALMACENERO",
+)
 
 
 def _leer_usuario(campo: str, valor: str):
@@ -87,10 +95,99 @@ def login(identificador: str, password: str) -> dict:
 def listar_usuarios() -> list:
     """Devuelve todos los usuarios del sistema (para el panel de administración)."""
     try:
-        resp = get_reader().table(TABLA_USUARIOS).select("*").order("id").execute()
+        resp = get_reader().table(TABLA_USUARIOS).select(
+            "*,empleados(nombres,apellidos)"
+        ).order("id").execute()
     except Exception as exc:  # noqa: BLE001
         raise ValidationError(error_postgrest(exc)) from exc
     return resp.data or []
+
+
+def obtener_usuario(usuario_id: int) -> dict:
+    """Devuelve un usuario por id (con su empleado)."""
+    try:
+        resp = (
+            get_reader()
+            .table(TABLA_USUARIOS)
+            .select("*,empleados(nombres,apellidos)")
+            .eq("id", usuario_id)
+            .limit(1)
+            .execute()
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise ValidationError(error_postgrest(exc)) from exc
+    if not resp.data:
+        raise NotFoundError("El usuario no existe o fue eliminado.")
+    return resp.data[0]
+
+
+def _existe_otro_usuario(campo: str, valor: str, usuario_id: int) -> bool:
+    """True si otro usuario (distinto al indicado) ya usa ese campo."""
+    try:
+        resp = (
+            get_reader()
+            .table(TABLA_USUARIOS)
+            .select("id")
+            .eq(campo, valor)
+            .neq("id", usuario_id)
+            .limit(1)
+            .execute()
+        )
+        return bool(resp.data)
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def actualizar_usuario(
+    usuario_id: int,
+    nombre_usuario: str,
+    correo: str,
+    rol: str,
+    activo: bool,
+    empleado_id: int,
+) -> dict:
+    """Actualiza los datos editables de un usuario (sin tocar la contraseña)."""
+    nombre_usuario = (nombre_usuario or "").strip()
+    correo = (correo or "").strip().lower()
+    rol = (rol or "").strip().upper()
+
+    if not nombre_usuario or not correo:
+        raise ValidationError("El nombre de usuario y el correo son obligatorios.")
+    if rol not in ROLES_VALIDOS:
+        raise ValidationError("El rol seleccionado no es válido.")
+    try:
+        empleado_id = int(empleado_id or 0)
+    except (TypeError, ValueError):
+        raise ValidationError("El ID de empleado debe ser un número.")
+
+    if _existe_otro_usuario("nombre_usuario", nombre_usuario, usuario_id):
+        raise ValidationError(f"El nombre de usuario '{nombre_usuario}' ya está en uso.")
+    if _existe_otro_usuario("correo", correo, usuario_id):
+        raise ValidationError(f"El correo '{correo}' ya está registrado.")
+
+    fila = {
+        "nombre_usuario": nombre_usuario,
+        "correo": correo,
+        "rol": rol,
+        "activo": bool(activo),
+        "empleado_id": empleado_id,
+    }
+    try:
+        resp = _tabla_escritura().update(fila).eq("id", usuario_id).execute()
+    except Exception as exc:  # noqa: BLE001
+        raise ValidationError(error_postgrest(exc)) from exc
+    return resp.data[0] if resp.data else {}
+
+
+def cambiar_estado(usuario_id: int) -> bool:
+    """Invierte el estado activo/inactivo de un usuario y devuelve el nuevo."""
+    usuario = obtener_usuario(usuario_id)
+    nuevo_estado = not bool(usuario.get("activo"))
+    try:
+        _tabla_escritura().update({"activo": nuevo_estado}).eq("id", usuario_id).execute()
+    except Exception as exc:  # noqa: BLE001
+        raise ValidationError(error_postgrest(exc)) from exc
+    return nuevo_estado
 
 
 def listar_tipos_documento() -> list:

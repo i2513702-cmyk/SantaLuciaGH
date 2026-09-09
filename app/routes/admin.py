@@ -9,7 +9,7 @@ from app.supabase_client import get_reader
 
 bp = Blueprint("admin", __name__)
 
-TABLAS_CONTEO = ("clientes", "productos", "reparaciones", "usuarios")
+TABLAS_CONTEO = ("clientes", "productos","Tecnicos", "reparaciones", "usuarios")
 
 
 def _contar(tabla: str):
@@ -27,6 +27,7 @@ def dashboard():
     conteos = {t: _contar(t) for t in TABLAS_CONTEO}
 
     stats = [
+        {"label": "Técnicos", "value": conteos.get("tecnicos") or 0, "icon": "🔧"},
         {"label": "Clientes", "value": conteos.get("clientes") or 0, "icon": "👥"},
         {"label": "Productos", "value": conteos.get("productos") or 0, "icon": "🏷️"},
         {"label": "Reparaciones", "value": conteos.get("reparaciones") or 0, "icon": "🛠️"},

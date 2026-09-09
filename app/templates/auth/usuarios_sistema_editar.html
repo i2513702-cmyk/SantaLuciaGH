@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Editar usuario — {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between mb-4">
+    <div>
+        <h1 class="h3 fw-semibold mb-1">Editar usuario</h1>
+        <p class="text-secondary mb-0">Cambios guardados directamente en la base de datos.</p>
+    </div>
+    <a class="btn btn-outline-primary" href="{{ url_for('auth.usuarios_sistema') }}">← Volver al listado</a>
+</div>
+
+<div class="card shadow-sm mx-auto" style="max-width: 520px;">
+    <div class="card-body p-4">
+        {% if error %}
+            <div class="alert alert-danger py-2">{{ error }}</div>
+        {% endif %}
+
+        {% set emp = usuario.empleados or {} %}
+        {% if emp.get('nombres') or emp.get('apellidos') %}
+            <p class="text-secondary small mb-3">
+                Empleado vinculado: <strong>{{ emp.get('nombres', '') }} {{ emp.get('apellidos', '') }}</strong>
+                (ID {{ usuario.empleado_id }})
+            </p>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('auth.usuario_editar', usuario_id=usuario.id) }}">
+            <div class="mb-3">
+                <label for="nombre_usuario" class="form-label">Nombre de usuario</label>
+                <input type="text" class="form-control" id="nombre_usuario" name="nombre_usuario" required
+                       value="{{ usuario.get('nombre_usuario', '') }}">
+            </div>
+            <div class="mb-3">
+                <label for="correo" class="form-label">Correo</label>
+                <input type="email" class="form-control" id="correo" name="correo" required
+                       value="{{ usuario.get('correo', '') }}">
+            </div>
+            <div class="mb-3">
+                <label for="empleado_id" class="form-label">ID de empleado</label>
+                <input type="number" class="form-control" id="empleado_id" name="empleado_id" required
+                       value="{{ usuario.get('empleado_id', '') }}">
+            </div>
+            <div class="mb-3">
+                <label for="rol" class="form-label">Rol</label>
+                <select class="form-select" id="rol" name="rol">
+                    {% for r, rl in [('ADMINISTRADOR', 'Administrador'), ('SUPERVISOR', 'Supervisor'),
+                                     ('TECNICO', 'Técnico'), ('RECEPCIONISTA', 'Recepcionista'),
+                                     ('VENDEDOR', 'Vendedor'), ('ALMACENERO', 'Almacenero')] %}
+                        <option value="{{ r }}" {% if usuario.get('rol') == r %}selected{% endif %}>{{ rl }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="mb-4">
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" role="switch"
+                           id="activo" name="activo" {% if usuario.get('activo') %}checked{% endif %}>
+                    <label class="form-check-label" for="activo">Usuario activo</label>
+                </div>
+            </div>
+
+            {% if es_mismo %}
+                <div class="alert alert-warning py-2 small">Estás editando tu propia cuenta.</div>
+            {% endif %}
+
+            <div class="d-flex justify-content-between">
+                <a class="btn btn-outline-secondary" href="{{ url_for('auth.usuarios_sistema') }}">Cancelar</a>
+                <button type="submit" class="btn btn-primary">Guardar cambios</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
