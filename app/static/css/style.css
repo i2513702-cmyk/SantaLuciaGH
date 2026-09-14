@@ -230,6 +230,16 @@ h4 { font-size: 1rem; font-weight: 600; }
     box-shadow: var(--shadow);
 }
 
+.navbar .btn-primary {
+    background: var(--primary);
+    color: #fff;
+    font-weight: 600;
+}
+.navbar .btn-primary:hover {
+    background: var(--primary-dark);
+    color: #fff;
+}
+
 .btn-accent {
     background: var(--accent);
     color: var(--text);

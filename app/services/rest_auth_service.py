@@ -28,15 +28,14 @@ ROLES_VALIDOS = (
     "RECEPCIONISTA",
     "VENDEDOR",
     "ALMACENERO",
+    "CLIENTE",
 )
 
-# Roles que un usuario puede elegir registrándose por su cuenta (sin escalar
-# a administración). SUPERVISOR/ADMINISTRADOR se asignan solo desde el panel.
+# Quien se registra por su cuenta siempre queda como CLIENTE (el rol no se
+# elige en el front). Los roles de empleado/administración los asigna el admin
+# desde su panel.
 ROLES_REGISTRO_PUBLICO = (
-    "TECNICO",
-    "RECEPCIONISTA",
-    "VENDEDOR",
-    "ALMACENERO",
+    "CLIENTE",
 )
 
 
@@ -262,13 +261,14 @@ def register(
     tipo_documento_id: int,
     numero_documento: str,
     telefono: str = "",
-    cargo: str = "Empleado",
+    cargo: str = "Cliente",
 ) -> dict:
-    """Crea una cuenta completa: inserta el empleado y luego el usuario.
+    """Crea una cuenta completa: inserta la persona en `empleados` y el usuario.
 
     La tabla `usuarios` exige `empleado_id` NOT NULL y UNIQUE, por eso hay que
     crear primero la persona en `empleados` y usar su id. Los campos son los de
-    la BD (empleados + usuarios).
+    la BD (empleados + usuarios). El registro público crea cuentas CLIENTE y el
+    cargo se asigna automáticamente (no se elige en el front).
     """
     if not password or len(password) < 8:
         raise ValidationError("La contraseña debe tener al menos 8 caracteres")

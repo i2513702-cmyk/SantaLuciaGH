@@ -47,7 +47,8 @@
                 <select class="form-select" id="rol" name="rol">
                     {% for r, rl in [('ADMINISTRADOR', 'Administrador'), ('SUPERVISOR', 'Supervisor'),
                                      ('TECNICO', 'Técnico'), ('RECEPCIONISTA', 'Recepcionista'),
-                                     ('VENDEDOR', 'Vendedor'), ('ALMACENERO', 'Almacenero')] %}
+                                     ('VENDEDOR', 'Vendedor'), ('ALMACENERO', 'Almacenero'),
+                                     ('CLIENTE', 'Cliente')] %}
                         <option value="{{ r }}" {% if usuario.get('rol') == r %}selected{% endif %}>{{ rl }}</option>
                     {% endfor %}
                 </select>
