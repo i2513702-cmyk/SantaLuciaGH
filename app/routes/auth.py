@@ -94,13 +94,12 @@ def registrarse():
                 nombre_usuario=request.form.get("nombre_usuario", "").strip(),
                 correo=request.form.get("correo", "").strip().lower(),
                 password=request.form.get("password", ""),
-                rol=request.form.get("rol", "RECEPCIONISTA").strip(),
+                rol="CLIENTE",
                 nombres=request.form.get("nombres", "").strip(),
                 apellidos=request.form.get("apellidos", "").strip(),
                 tipo_documento_id=int(request.form.get("tipo_documento_id") or 1),
                 numero_documento=request.form.get("numero_documento", "").strip(),
                 telefono=request.form.get("telefono", "").strip(),
-                cargo=request.form.get("cargo", "Empleado").strip() or "Empleado",
             )
             session.clear()
             session["usuario_id"] = usuario["id"]

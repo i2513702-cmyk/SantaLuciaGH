@@ -11,6 +11,7 @@ ROLES_DB = {
     "RECEPCIONISTA": "Recepcionista",
     "VENDEDOR": "Vendedor",
     "ALMACENERO": "Almacenero",
+    "CLIENTE": "Cliente",
 }
 
 ADMIN_ROLES = ("ADMINISTRADOR", "SUPERVISOR")
@@ -39,6 +40,7 @@ def panel_for(rol):
         "RECEPCIONISTA": "worker.dashboard",
         "VENDEDOR": "worker.dashboard",
         "ALMACENERO": "worker.dashboard",
+        "CLIENTE": "main.home",
     }.get(rol, "main.home")
 
 
