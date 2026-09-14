@@ -282,23 +282,41 @@ def register(
     if _leer_usuario("correo", correo):
         raise ValidationError(f"El correo '{correo}' ya está registrado.")
 
-    try:
-        empleado = (
-            get_admin_client()
-            .table("empleados")
-            .insert({
-                "tipo_documento_id": tipo_documento_id,
-                "numero_documento": numero_documento,
-                "nombres": nombres,
-                "apellidos": apellidos,
-                "telefono": telefono or None,
-                "correo": correo,
-                "cargo": cargo,
-            })
+    # El correo vive también en `empleados` (único). Si ya existe un empleado
+    # con este correo y está asociado a otro usuario, es un conflicto real.
+    # Si el empleado quedó huérfano (registro truncado), se reutiliza.
+    empleado_existente = _leer_empleado("correo", correo)
+    if empleado_existente:
+        usuario_dueno = (
+            get_reader()
+            .table(TABLA_USUARIOS)
+            .select("id, nombre_usuario")
+            .eq("empleado_id", empleado_existente["id"])
+            .limit(1)
             .execute()
-        ).data[0]
-    except Exception as exc:  # noqa: BLE001
-        raise ValidationError(f"Error creando el empleado: {error_postgrest(exc)}") from exc
+            .data
+        )
+        if usuario_dueno:
+            raise ValidationError(f"El correo '{correo}' ya está registrado.")
+        empleado = empleado_existente
+    else:
+        try:
+            empleado = (
+                get_admin_client()
+                .table("empleados")
+                .insert({
+                    "tipo_documento_id": tipo_documento_id,
+                    "numero_documento": numero_documento,
+                    "nombres": nombres,
+                    "apellidos": apellidos,
+                    "telefono": telefono or None,
+                    "correo": correo,
+                    "cargo": cargo,
+                })
+                .execute()
+            ).data[0]
+        except Exception as exc:  # noqa: BLE001
+            raise ValidationError(f"Error creando el empleado: {error_postgrest(exc)}") from exc
 
     return crear_usuario(
         nombre_usuario=nombre_usuario,
@@ -307,6 +325,22 @@ def register(
         rol=rol,
         empleado_id=empleado["id"],
     )
+
+
+def _leer_empleado(campo: str, valor: str):
+    """Consulta la tabla empleados por un campo y devuelve la fila o None."""
+    try:
+        resp = (
+            get_reader()
+            .table("empleados")
+            .select("*")
+            .eq(campo, valor)
+            .limit(1)
+            .execute()
+        )
+        return resp.data[0] if resp.data else None
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def actualizar_ultimo_acceso(nombre_usuario: str, fecha_iso: str) -> None:
