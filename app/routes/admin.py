@@ -35,6 +35,12 @@ def dashboard():
     ]
     modulos = [
         {
+            "nombre": "Citas de servicio",
+            "descripcion": "Ver citas y asignar técnico",
+            "icon": "📅",
+            "url": "admin.citas_listado",
+        },
+        {
             "nombre": "Productos",
             "descripcion": "Agregar, editar y eliminar productos del catálogo",
             "icon": "🏷️",
@@ -60,6 +66,119 @@ def dashboard():
         },
     ]
     return render_template("admin/dashboard.html", stats=stats, modulos=modulos)
+
+
+def _listar_tecnicos():
+    """Lista de técnicos con datos del empleado (para asignar a citas)."""
+    try:
+        return (
+            get_reader()
+            .table("tecnicos")
+            .select("id,especialidad,empleados(nombres,apellidos)")
+            .order("id")
+            .execute()
+        ).data or []
+    except Exception:  # noqa: BLE001
+        return []
+
+
+ESTADO_CITA_LABEL = {
+    "PENDIENTE": "Pendiente",
+    "CONFIRMADA": "Confirmada",
+    "EN_ATENCION": "En atención",
+    "COMPLETADA": "Completada",
+    "CANCELADA": "Cancelada",
+}
+
+
+def _clase_estado_cita(estado: str) -> str:
+    if estado == "COMPLETADA":
+        return "badge-ok"
+    if estado in ("CONFIRMADA", "EN_ATENCION"):
+        return "badge-warn"
+    if estado == "CANCELADA":
+        return "badge-muted"
+    return "badge-muted"
+
+
+@bp.get("/admin/citas")
+@roles_required("admin")
+def citas_listado():
+    """Lista las citas (reservas) para asignarles un técnico."""
+    citas = []
+    try:
+        resp = (
+            get_reader()
+            .table("reservas")
+            .select(
+                "id,fecha_reserva,hora_inicio,hora_fin,estado,tipo_atencion,motivo,"
+                "clientes(nombres,apellidos,telefono,numero_documento,razon_social),"
+                "electrodomesticos(modelo,numero_serie,marcas(nombre),tipos_electrodomestico(nombre)),"
+                "tecnicos(id,empleados(nombres,apellidos))"
+            )
+            .order("fecha_reserva", desc=True)
+            .order("hora_inicio", desc=True)
+            .execute()
+        )
+        filas = resp.data or []
+    except Exception:  # noqa: BLE001
+        filas = []
+
+    for r in filas:
+        estado = r.get("estado") or "PENDIENTE"
+        cliente = r.get("clientes") or {}
+        equipo = r.get("electrodomesticos") or {}
+        tecnico = r.get("tecnicos") or {}
+        citas.append({
+            "id": r.get("id"),
+            "fecha": (r.get("fecha_reserva") or "")[:10],
+            "hora": r.get("hora_inicio"),
+            "hora_fin": r.get("hora_fin"),
+            "estado": ESTADO_CITA_LABEL.get(estado, estado),
+            "badge_class": _clase_estado_cita(estado),
+            "tipo_atencion": r.get("tipo_atencion"),
+            "motivo": r.get("motivo"),
+            "cliente_nombre": cliente.get("razon_social")
+            or " ".join(filter(None, [cliente.get("nombres"), cliente.get("apellidos")])),
+            "cliente_documento": cliente.get("numero_documento"),
+            "cliente_telefono": cliente.get("telefono"),
+            "equipo": " ".join(filter(None, [
+                (equipo.get("tipos_electrodomestico") or {}).get("nombre"),
+                (equipo.get("marcas") or {}).get("nombre"),
+                equipo.get("modelo"),
+            ])),
+            "tecnico_id": (tecnico or {}).get("id"),
+            "tecnico_nombre": " ".join(filter(None, [
+                ((tecnico.get("empleados")) or {}).get("nombres"),
+                ((tecnico.get("empleados")) or {}).get("apellidos"),
+            ])) or "Sin asignar",
+        })
+
+    return render_template(
+        "admin/citas.html",
+        citas=citas,
+        tecnicos=_listar_tecnicos(),
+    )
+
+
+@bp.post("/admin/citas/<int:reserva_id>/asignar")
+@roles_required("admin")
+def citas_asignar_tecnico(reserva_id):
+    """Asigna (o libera) el técnico de una cita."""
+    tecnico_id = request.form.get("tecnico_id", type=int)
+    try:
+        from app.supabase_client import get_admin_client
+
+        get_admin_client().table("reservas").update(
+            {"tecnico_id": tecnico_id or None, "estado": "CONFIRMADA" if tecnico_id else "PENDIENTE"}
+        ).eq("id", reserva_id).execute()
+        if tecnico_id:
+            flash("Técnico asignado a la cita.", "success")
+        else:
+            flash("Cita liberada (técnico sin asignar).", "info")
+    except Exception as exc:  # noqa: BLE001
+        flash(f"No se pudo actualizar la cita: {exc}", "error")
+    return redirect(url_for("admin.citas_listado"))
 
 
 def _form_ctx(producto=None, valores=None):

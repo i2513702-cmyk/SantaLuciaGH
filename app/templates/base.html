@@ -33,6 +33,7 @@
                 {% if rol %}
                     <div class="nav-user">
                         <span class="nav-user-name">{{ nombre }}</span>
+                        <a class="nav-perfil" href="{{ url_for('main.perfil') }}">Mi perfil</a>
                         <a class="btn btn-outline btn-sm" href="{{ url_for('auth.logout') }}">Salir</a>
                     </div>
                 {% else %}

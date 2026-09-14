@@ -200,6 +200,22 @@ h4 { font-size: 1rem; font-weight: 600; }
     color: var(--text-secondary);
     font-size: 0.85rem;
     font-weight: 500;
+    white-space: nowrap;
+}
+
+.nav-perfil {
+    padding: 8px 14px;
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    transition: all var(--transition);
+    text-decoration: none;
+}
+
+.nav-perfil:hover {
+    color: var(--primary);
+    background: var(--surface-alt);
 }
 
 /* ---------- Botones ---------- */

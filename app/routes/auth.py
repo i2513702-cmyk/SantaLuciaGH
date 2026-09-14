@@ -59,7 +59,10 @@ def login():
                 args=(usuario["nombre_usuario"], datetime.now(timezone.utc).isoformat()),
                 daemon=True,
             ).start()
-            return redirect(url_for("auth.panel"))
+            destino = (request.args.get("next") or "").strip()
+            if not destino or not destino.startswith("/") or destino.startswith("//"):
+                destino = url_for("auth.panel")
+            return redirect(destino)
         except (AppError, ValidationError) as exc:
             error = exc.message if isinstance(exc, AppError) else str(exc)
         except Exception:  # noqa: BLE001

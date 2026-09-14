@@ -17,36 +17,33 @@
 {% endif %}
 
 <form class="cita-form" method="POST" action="{{ url_for('citas.agendar_cita') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <div class="cita-grid">
         <!-- ── Tus datos ── -->
         <section class="cita-col">
             <h3 class="cita-col-title">🧑 &nbsp;Tus datos</h3>
-            <label for="tipo_documento_id">Tipo de documento</label>
-            <select id="tipo_documento_id" name="tipo_documento_id">
-                {% for doc in documentos %}
-                    <option value="{{ doc.id }}" {% if form and form.tipo_documento_id|int == doc.id %}selected{% endif %}>{{ doc.codigo }} — {{ doc.nombre }}</option>
-                {% endfor %}
-            </select>
+            <p style="color: var(--muted); font-size: 0.82rem; margin: 0 0 8px;">Datos de tu cuenta, no editables al agendar.</p>
+            <input type="hidden" name="tipo_documento_id" value="{{ cliente.tipo_documento_id or 1 }}">
 
-            <label for="numero_documento">Número de documento *</label>
-            <input type="text" id="numero_documento" name="numero_documento" required
-                   placeholder="Ej: 12345678" value="{{ form.numero_documento if form else '' }}">
+            <label for="numero_documento">Número de documento</label>
+            <input type="text" id="numero_documento" name="numero_documento" readonly
+                   value="{{ cliente.numero_documento or '' }}">
 
-            <label for="nombres">Nombres *</label>
-            <input type="text" id="nombres" name="nombres" required
-                   placeholder="Tus nombres" value="{{ form.nombres if form else '' }}">
+            <label for="nombres">Nombres</label>
+            <input type="text" id="nombres" name="nombres" readonly
+                   value="{{ cliente.nombres or '' }}">
 
-            <label for="apellidos">Apellidos *</label>
-            <input type="text" id="apellidos" name="apellidos" required
-                   placeholder="Tus apellidos" value="{{ form.apellidos if form else '' }}">
+            <label for="apellidos">Apellidos</label>
+            <input type="text" id="apellidos" name="apellidos" readonly
+                   value="{{ cliente.apellidos or '' }}">
 
-            <label for="telefono">Teléfono / WhatsApp *</label>
-            <input type="tel" id="telefono" name="telefono" required
-                   placeholder="Ej: 987654321" value="{{ form.telefono if form else '' }}">
+            <label for="telefono">Teléfono / WhatsApp</label>
+            <input type="tel" id="telefono" name="telefono" readonly
+                   value="{{ cliente.telefono or '' }}">
 
             <label for="correo">Correo electrónico</label>
-            <input type="email" id="correo" name="correo"
-                   placeholder="opcional" value="{{ form.correo if form else '' }}">
+            <input type="email" id="correo" name="correo" readonly
+                   value="{{ cliente.correo or '' }}">
         </section>
 
         <!-- ── Tu equipo ── -->
@@ -107,6 +104,7 @@
                         <option value="{{ h }}" {% if form and form.hora_inicio == h %}selected{% endif %}>{{ h }} hrs</option>
                     {% endfor %}
                 </select>
+                <p style="color: var(--muted); font-size: 0.78rem; margin: 6px 0 0;">Solo se muestran horas con técnico disponible.</p>
             </div>
         </div>
         <div id="domicilio-box" class="cita-form-row" style="display:none;">
@@ -136,10 +134,40 @@
 </form>
 
 <script>
-document.addEventListener('input', function () {
-    var tipo = document.getElementById('tipo_atencion').value;
-    var box = document.getElementById('domicilio-box');
-    box.style.display = tipo === 'DOMICILIO' ? '' : 'none';
-});
+    var disponiblesIniciales = {{ disponibles | tojson | safe }};
+
+    function aplicarDisponibles(disponibles) {
+        var select = document.getElementById('hora_inicio');
+        var prev = select.value;
+        select.querySelectorAll('option').forEach(function (opt) {
+            opt.disabled = opt.value !== '' && disponibles.indexOf(opt.value) === -1;
+        });
+        if (prev && disponibles.indexOf(prev) !== -1) select.value = prev;
+        else select.value = '';
+    }
+
+    function cargarDisponibles(callback) {
+        var fecha = document.getElementById('fecha_reserva').value;
+        if (!fecha) return;
+        fetch('{{ url_for("citas.disponibilidad") }}?fecha=' + encodeURIComponent(fecha))
+            .then(function (r) { return r.json(); })
+            .then(function (data) { callback(data.horarios || []); })
+            .catch(function () { callback([]); });
+    }
+
+    document.addEventListener('input', function (e) {
+        var tipo = document.getElementById('tipo_atencion').value;
+        var box = document.getElementById('domicilio-box');
+        box.style.display = tipo === 'DOMICILIO' ? '' : 'none';
+
+        if (e.target && e.target.id === 'fecha_reserva') {
+            cargarDisponibles(aplicarDisponibles);
+        }
+    });
+
+    aplicarDisponibles(disponiblesIniciales);
+    if (document.getElementById('fecha_reserva').value) {
+        cargarDisponibles(aplicarDisponibles);
+    }
 </script>
 {% endblock %}

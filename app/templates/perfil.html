@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Mi perfil — {{ app_name }}{% endblock %}
+
+{% block content %}
+<section class="panel-head">
+    <div>
+        <h1>Mi perfil</h1>
+        <p>Hola, <strong>{{ usuario_nombre }}</strong>. Este es tu historial de compras.</p>
+    </div>
+    <a class="btn btn-outline" href="{{ url_for('main.tienda') }}">Seguir comprando</a>
+</section>
+
+{% if compras %}
+    {% set agrupado = namespace(actual=None) %}
+    {% for compra in compras %}
+    <section class="card" style="margin-bottom: 20px;">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+            <div>
+                <h3 class="h6 mb-1">{{ compra.codigo }} <span class="text-secondary small">· {{ compra.fecha }}</span></h3>
+                <span class="text-secondary small">{{ compra.canal or 'TIENDA' }}{% if compra.entrega %} · {{ compra.entrega }}{% endif %}</span>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                {% if compra.comprobante %}
+                    <span class="text-secondary small">{{ compra.comprobante }}</span>
+                {% endif %}
+                <span class="badge text-bg-{{ 'success' if compra.estado == 'PAGADO' else 'secondary' }}">{{ compra.estado }}</span>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Producto</th>
+                        <th>Marca</th>
+                        <th>Cant.</th>
+                        <th>P. unitario</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for linea in compra.lineas %}
+                    <tr>
+                        <td>{{ linea.producto }}</td>
+                        <td>{{ linea.marca or '—' }}</td>
+                        <td>{{ linea.cantidad }}</td>
+                        <td>{{ linea.precio_unitario }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="d-flex justify-content-end gap-3 mt-3 text-secondary">
+            <span>Subtotal: <strong>{{ compra.subtotal }}</strong></span>
+            {% if compra.descuento != '—' %}<span>Descuento: <strong>{{ compra.descuento }}</strong></span>{% endif %}
+            <span>Envío: <strong>{{ compra.envio }}</strong></span>
+            <span class="fs-6 fw-bold text-primary">Total: {{ compra.total }}</span>
+        </div>
+    </section>
+    {% endfor %}
+{% else %}
+    <div class="empty-state">
+        <h1>🧾</h1>
+        <p>Aún no tienes compras registradas.</p>
+        <a class="btn btn-primary" href="{{ url_for('main.tienda') }}">Explorar el catálogo</a>
+    </div>
+{% endif %}
+{% endblock %}

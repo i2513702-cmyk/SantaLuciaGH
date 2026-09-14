@@ -3,31 +3,124 @@
 {% block title %}Panel Técnico — {{ app_name }}{% endblock %}
 
 {% block content %}
-<section class="d-flex flex-wrap align-items-center justify-content-between mb-4">
+<section class="panel-head">
     <div>
-        <h1 class="h3 fw-semibold mb-1">Panel del Técnico</h1>
-        <p class="text-secondary mb-0">Bienvenido, <strong>{{ nombre }}</strong>. Estado real de las reparaciones en la base de datos.</p>
+        <h1>Panel del Técnico</h1>
+        <p>
+            Bienvenido, <strong>{{ nombre }}</strong>.
+            {% if es_tecnico %}
+                Técnico: <strong>{{ (tecnico.empleados or {}).get('nombres', '') }} {{ (tecnico.empleados or {}).get('apellidos', '') }}</strong>.
+            {% else %}
+                Tu cuenta no está vinculada a un técnico.
+            {% endif %}
+        </p>
     </div>
 </section>
 
-<section class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-4 mb-4">
+<section class="cards" style="margin-bottom: 28px;">
     {% for stat in stats %}
-        <div class="col">
-            <div class="card h-100 shadow-sm text-center">
-                <div class="card-body">
-                    <div class="stat-icon">{{ stat.icon }}</div>
-                    <div class="display-6 fw-bold">{{ stat.value }}</div>
-                    <div class="text-secondary small">{{ stat.label }}</div>
-                </div>
-            </div>
+        <div class="card" style="align-items:center; text-align:center;">
+            <div class="stat-icon" style="font-size: 2rem;">{{ stat.icon }}</div>
+            <div class="stat-value" style="font-size: 1.8rem; font-weight: 700; margin: 4px 0 2px;">{{ stat.value }}</div>
+            <div class="stat-label">{{ stat.label }}</div>
         </div>
     {% endfor %}
 </section>
 
-<h2 class="h5 fw-semibold mb-3">Últimas reparaciones</h2>
-<div class="card shadow-sm">
-    <div class="table-responsive">
-        <table class="table table-hover mb-0">
+{% if es_tecnico %}
+    <h2 class="section-title">📅 &nbsp;Mis citas asignadas</h2>
+    {% if citas %}
+        <div class="table-wrap">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Hora</th>
+                        <th>Cliente</th>
+                        <th>Equipo</th>
+                        <th>Atención</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in citas %}
+                    <tr>
+                        <td>{{ c.fecha }}</td>
+                        <td>{{ c.hora }} – {{ c.hora_fin }}</td>
+                        <td>
+                            <strong>{{ c.cliente_nombre or '—' }}</strong>
+                            <div class="text-secondary small">{{ c.cliente_telefono or '' }}</div>
+                        </td>
+                        <td>
+                            {{ c.equipo or '—' }}
+                            {% if c.motivo %}<div class="text-secondary small">{{ c.motivo }}</div>{% endif %}
+                        </td>
+                        <td>{{ c.tipo_atencion }}</td>
+                        <td><span class="badge {{ c.badge_class }}">{{ c.estado }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="text-secondary">Aún no tienes citas asignadas. El administrador te asignará cuando las registre.</p>
+    {% endif %}
+
+    <h2 class="section-title">🕐 &nbsp;Mi disponibilidad</h2>
+    <div class="card" style="margin-bottom: 20px; max-width: 640px;">
+        <form method="POST" action="{{ url_for('worker.agenda_agregar') }}" class="cita-form-row" style="grid-template-columns: 1.4fr 1fr 1fr auto;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div>
+                <input type="date" name="fecha" required>
+            </div>
+            <div>
+                <input type="time" name="hora_inicio" value="09:00" required>
+            </div>
+            <div>
+                <input type="time" name="hora_fin" value="18:00" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Agregar</button>
+        </form>
+    </div>
+
+    {% if disponibilidad %}
+        <div class="table-wrap">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Desde</th>
+                        <th>Hasta</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for franja in disponibilidad %}
+                    <tr>
+                        <td>{{ franja.fecha }}</td>
+                        <td>{{ franja.hora_inicio }}</td>
+                        <td>{{ franja.hora_fin }}</td>
+                        <td>
+                            <form method="POST" action="{{ url_for('worker.agenda_quitar', franja_id=franja.id) }}"
+                                  onsubmit="return confirm('¿Eliminar esta franja de disponibilidad?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button type="submit" class="btn btn-sm btn-outline">Quitar</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="text-secondary">No has registrado disponibilidad todavía. Agrega franjas para que los clientes puedan agendar contigo.</p>
+    {% endif %}
+{% endif %}
+
+<h2 class="section-title">🔧 &nbsp;Últimas reparaciones</h2>
+{% if ordenes %}
+    <div class="table-wrap">
+        <table class="table">
             <thead>
                 <tr>
                     <th>Código</th>
@@ -39,28 +132,18 @@
             </thead>
             <tbody>
                 {% for orden in ordenes %}
-                    <tr>
-                        <td>{{ orden.codigo }}</td>
-                        <td>{{ orden.problema }}</td>
-                        <td>{{ orden.tipo }}</td>
-                        <td>{{ orden.ingreso }}</td>
-                        <td>
-                            {% if orden.badge_class == 'badge-ok' %}
-                                <span class="badge text-bg-success">{{ orden.estado }}</span>
-                            {% elif orden.badge_class == 'badge-warn' %}
-                                <span class="badge text-bg-warning">{{ orden.estado }}</span>
-                            {% else %}
-                                <span class="badge text-bg-secondary">{{ orden.estado }}</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                {% else %}
-                    <tr>
-                        <td colspan="5" class="text-center text-secondary py-4">No hay reparaciones registradas todavía.</td>
-                    </tr>
+                <tr>
+                    <td>{{ orden.codigo }}</td>
+                    <td>{{ orden.problema }}</td>
+                    <td>{{ orden.tipo }}</td>
+                    <td>{{ orden.ingreso }}</td>
+                    <td><span class="badge {{ orden.badge_class }}">{{ orden.estado }}</span></td>
+                </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
-</div>
+{% else %}
+    <p class="text-secondary">No hay reparaciones registradas todavía.</p>
+{% endif %}
 {% endblock %}

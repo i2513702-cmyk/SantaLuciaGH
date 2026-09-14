@@ -6,8 +6,9 @@ Crea/actualiza un `cliente`, registra su `electrodomestico` y guarda la
 
 import logging
 from datetime import date as date_cls
+from datetime import timedelta
 
-from app.supabase_client import get_admin_client
+from app.supabase_client import get_admin_client, get_reader
 
 log = logging.getLogger(__name__)
 
@@ -62,6 +63,200 @@ def validar(datos: dict) -> None:
     hora = datos.get("hora_inicio", "").strip()
     if hora not in HORARIOS:
         raise CitaError("Selecciona un horario disponible.")
+
+    if hora not in horarios_disponibles(fecha):
+        raise CitaError(
+            "En esa fecha y hora no hay un técnico disponible. "
+            "Elige otra hora o fecha."
+        )
+
+
+def horarios_disponibles(fecha: str) -> list:
+    """Horas de HORARIOS cubiertas por al menos un técnico disponible.
+
+    Un técnico cubre la franja [hora_inicio, hora_fin) de `agenda_tecnicos`
+    para la fecha indicada. Devuelve la lista de horas seleccionables.
+    """
+    try:
+        resp = (
+            get_reader()
+            .table("agenda_tecnicos")
+            .select("hora_inicio,hora_fin")
+            .eq("fecha", fecha)
+            .eq("disponible", True)
+            .execute()
+        )
+    except Exception:  # noqa: BLE001
+        return []
+    franjas = resp.data or []
+    disponibles = []
+    for hora in HORARIOS:
+        if any(_cubre_franja(franja, hora) for franja in franjas):
+            disponibles.append(hora)
+    return disponibles
+
+
+def _cubre_franja(franja: dict, hora: str) -> bool:
+    inicio = (franja.get("hora_inicio") or "")[:5]
+    fin = (franja.get("hora_fin") or "")[:5]
+    if not inicio:
+        return False
+    if not fin or fin <= inicio:
+        return True
+    return inicio <= hora < fin
+
+
+def datos_usuario(usuario_id) -> dict:
+    """Datos de cliente del usuario logueado (via usuarios->empleados).
+
+    Usado para autollenar 'Tus datos' en el formulario de citas.
+    """
+    if not usuario_id:
+        return {}
+    try:
+        u = (
+            get_reader()
+            .table("usuarios")
+            .select("empleado_id")
+            .eq("id", usuario_id)
+            .limit(1)
+            .execute()
+            .data
+            or [{}]
+        )[0]
+    except Exception:  # noqa: BLE001
+        return {}
+    emp_id = u.get("empleado_id")
+    if not emp_id:
+        return {}
+    try:
+        e = (
+            get_reader()
+            .table("empleados")
+            .select("tipo_documento_id,numero_documento,nombres,apellidos,telefono,correo")
+            .eq("id", emp_id)
+            .limit(1)
+            .execute()
+            .data
+            or [None]
+        )[0]
+    except Exception:  # noqa: BLE001
+        return {}
+    if not e:
+        return {}
+    return {
+        "tipo_documento_id": e.get("tipo_documento_id") or 1,
+        "numero_documento": e.get("numero_documento") or "",
+        "nombres": e.get("nombres") or "",
+        "apellidos": e.get("apellidos") or "",
+        "telefono": e.get("telefono") or "",
+        "correo": e.get("correo") or "",
+    }
+
+
+def seed_demo() -> dict:
+    """Crea técnicos desde los usuarios con rol TECNICO y su agenda demo.
+
+    Solo inserta lo que falta: no duplica técnicos existentes (mismo
+    empleado_id) ni franjas ya registradas para (tecnico_id, fecha).
+    """
+    db = get_admin_client()
+    resultado = {"tecnicos_creados": 0, "agenda_agregada": 0, "error": None}
+
+    try:
+        usuarios = (
+            get_reader()
+            .table("usuarios")
+            .select("id,empleado_id,activo")
+            .eq("rol", "TECNICO")
+            .execute()
+            .data
+            or []
+        )
+    except Exception as exc:  # noqa: BLE001
+        resultado["error"] = f"No se pudieron leer los usuarios TECNICO: {exc}"
+        log.error(resultado["error"])
+        return resultado
+
+    try:
+        existentes = (
+            get_reader()
+            .table("tecnicos")
+            .select("id,empleado_id")
+            .execute()
+            .data
+            or []
+        )
+    except Exception as exc:  # noqa: BLE001
+        resultado["error"] = f"No se pudo leer la tabla tecnicos: {exc}"
+        log.error(resultado["error"])
+        return resultado
+
+    por_empleado = {t["empleado_id"]: t["id"] for t in existentes if t.get("empleado_id")}
+
+    for u in usuarios:
+        emp_id = u.get("empleado_id")
+        if not emp_id or u.get("activo") is False:
+            continue
+
+        tecnico_id = por_empleado.get(emp_id)
+        if tecnico_id is None:
+            try:
+                resp = db.from_("tecnicos").insert(
+                    {"empleado_id": emp_id, "especialidad": "Electrodomésticos"}
+                ).execute()
+                tecnico_id = (resp.data or [{}])[0].get("id")
+                if tecnico_id:
+                    por_empleado[emp_id] = tecnico_id
+                    resultado["tecnicos_creados"] += 1
+            except Exception as exc:  # noqa: BLE001
+                resultado["error"] = f"Técnico empleado {emp_id}: {exc}"
+                log.error(resultado["error"])
+                continue
+
+        if not tecnico_id:
+            continue
+
+        hoy = _fecha_hoy()
+        for delta in range(1, 8):
+            dia = hoy + timedelta(days=delta)
+            if dia.weekday() == 6:  # domingo = descanso
+                continue
+            fecha = dia.isoformat()
+            try:
+                ya_existe = (
+                    get_reader()
+                    .table("agenda_tecnicos")
+                    .select("id")
+                    .eq("tecnico_id", tecnico_id)
+                    .eq("fecha", fecha)
+                    .limit(1)
+                    .execute()
+                    .data
+                    or []
+                )
+            except Exception as exc:  # noqa: BLE001
+                resultado["error"] = f"Agenda {fecha}: {exc}"
+                log.error(resultado["error"])
+                continue
+            if ya_existe:
+                continue
+            try:
+                db.from_("agenda_tecnicos").insert(
+                    {
+                        "tecnico_id": tecnico_id,
+                        "fecha": fecha,
+                        "hora_inicio": "09:00",
+                        "hora_fin": "18:00",
+                        "disponible": True,
+                    }
+                ).execute()
+                resultado["agenda_agregada"] += 1
+            except Exception as exc:  # noqa: BLE001
+                resultado["error"] = f"Franja {tecnico_id}/{fecha}: {exc}"
+                log.error(resultado["error"])
+
+    return resultado
 
 
 def _normalizar(datos: dict) -> dict:

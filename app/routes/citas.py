@@ -1,10 +1,26 @@
-"""Agendamiento de citas de servicio técnico (flujo público de cliente)."""
+"""Agendamiento de citas de servicio técnico (requiere iniciar sesión)."""
 
 from datetime import date
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import (
+    Blueprint,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 
-from app.services.cita_service import CitaError, HORARIOS, agendar
+from app.decorators import login_required
+from app.services.cita_service import (
+    CitaError,
+    HORARIOS,
+    agendar,
+    datos_usuario,
+    horarios_disponibles,
+)
 from app.supabase_client import get_reader
 
 bp = Blueprint("citas", __name__)
@@ -33,17 +49,36 @@ def _referencias():
     }
 
 
-@bp.get("/citas")
-def agendar_form():
-    return render_template(
-        "citas/agendar.html",
+def _ctx_agendar(**extra):
+    """Contexto común del formulario de citas (con datos del usuario logueado)."""
+    ctx = {
         **_referencias(),
-        tipo_atenciones={"TALLER": "En taller (tú llevas el equipo)", "DOMICILIO": "A domicilio"},
-        today=date.today().isoformat(),
-    )
+        "tipo_atenciones": {"TALLER": "En taller (tú llevas el equipo)", "DOMICILIO": "A domicilio"},
+        "today": date.today().isoformat(),
+        "cliente": datos_usuario(session.get("usuario_id")),
+        "disponibles": horarios_disponibles(date.today().isoformat()),
+    }
+    ctx.update(extra)
+    return ctx
+
+
+@bp.get("/citas")
+@login_required
+def agendar_form():
+    return render_template("citas/agendar.html", **_ctx_agendar())
+
+
+@bp.get("/citas/disponibilidad")
+@login_required
+def disponibilidad():
+    """Devuelve JSON con las horas disponibles para una fecha dada."""
+    fecha = (request.args.get("fecha") or "").strip()
+    disponibles = horarios_disponibles(fecha) if fecha else []
+    return jsonify({"fecha": fecha, "horarios": disponibles})
 
 
 @bp.post("/citas")
+@login_required
 def agendar_cita():
     datos = {
         "tipo_documento_id": request.form.get("tipo_documento_id", "1"),
@@ -66,14 +101,24 @@ def agendar_cita():
         "calle": request.form.get("calle", ""),
     }
 
+    # Los datos personales siempre vienen del usuario logueado (no editables).
+    datos_usuario_log = datos_usuario(session.get("usuario_id"))
+    if datos_usuario_log:
+        datos.update({
+            "tipo_documento_id": str(datos_usuario_log["tipo_documento_id"]),
+            "numero_documento": datos_usuario_log["numero_documento"],
+            "nombres": datos_usuario_log["nombres"],
+            "apellidos": datos_usuario_log["apellidos"],
+            "telefono": datos_usuario_log["telefono"],
+            "correo": datos_usuario_log["correo"],
+        })
+
     try:
         resultado = agendar(datos)
     except CitaError as exc:
         return render_template(
             "citas/agendar.html",
-            **_referencias(),
-            tipo_atenciones={"TALLER": "En taller (tú llevas el equipo)", "DOMICILIO": "A domicilio"},
-            today=date.today().isoformat(),
+            **_ctx_agendar(),
             error=str(exc),
             form=datos,
         ), 400

@@ -2,7 +2,7 @@
 
 from functools import wraps
 
-from flask import redirect, session, url_for
+from flask import redirect, request, session, url_for
 
 ROLES_DB = {
     "ADMINISTRADOR": "Administrador",
@@ -45,12 +45,12 @@ def panel_for(rol):
 
 
 def login_required(view):
-    """Requiere iniciar sesión. Si no, redirige al login."""
+    """Requiere iniciar sesión. Si no, redirige al login (y vuelve al destino)."""
 
     @wraps(view)
     def wrapped(*args, **kwargs):
         if "usuario_id" not in session:
-            return redirect(url_for("auth.login"))
+            return redirect(url_for("auth.login", next=request.path))
         return view(*args, **kwargs)
 
     return wrapped
