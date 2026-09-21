@@ -3,62 +3,146 @@
 {% block title %}Mi perfil — {{ app_name }}{% endblock %}
 
 {% block content %}
-<section class="panel-head">
-    <div>
-        <h1>Mi perfil</h1>
-        <p>Hola, <strong>{{ usuario_nombre }}</strong>. Este es tu historial de compras.</p>
+{% from "partials/avatar.html" import avatar %}
+
+<section class="card profile-head">
+    {{ avatar(usuario_nombre, size='xl') }}
+    <div class="profile-id">
+        <h1>{{ usuario_nombre }}</h1>
+        <p class="profile-role">
+            <span class="badge text-bg-secondary">{{ rol_label or 'Usuario' }}</span>
+            <span class="text-muted">· Cuenta registrada en {{ app_name }}</span>
+        </p>
+        <p class="text-muted text-sm mb-0">Desde aquí controlas tu cuenta y revisas tu historial de compras.</p>
     </div>
-    <a class="btn btn-outline" href="{{ url_for('main.tienda') }}">Seguir comprando</a>
+    <div class="profile-actions">
+        <a class="btn btn-outline" href="{{ url_for('main.tienda') }}">Seguir comprando</a>
+    </div>
 </section>
 
+<!-- ================= Seguridad: cambiar contraseña ================= -->
+<div class="dash-row">
+    <div class="dash-col">
+        <div class="card dash-card">
+            <div class="dash-card-head">
+                <h3>🔑 Seguridad de la cuenta</h3>
+                <span class="src-badge">usuarios</span>
+            </div>
+            <form method="POST" action="{{ url_for('auth.cambiar_clave') }}" id="form-clave-perfil">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="mb-3">
+                    <label for="p-actual" class="form-label">Contraseña actual</label>
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="p-actual" name="actual" required autocomplete="current-password" placeholder="Tu contraseña actual">
+                        <button class="btn btn-outline-secondary" type="button" data-toggle-pass="p-actual" tabindex="-1" aria-label="Ver contraseña actual">👁</button>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label for="p-nueva" class="form-label">Nueva contraseña</label>
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="p-nueva" name="nueva" required minlength="8" autocomplete="new-password" placeholder="Mínimo 8 caracteres">
+                        <button class="btn btn-outline-secondary" type="button" data-toggle-pass="p-nueva" tabindex="-1" aria-label="Ver nueva contraseña">👁</button>
+                    </div>
+                    <div class="meter mt-2" id="meter-perfil" aria-hidden="true">
+                        <span class="meter-bar" id="meter-bar-perfil"></span>
+                    </div>
+                    <small class="text-secondary" id="meter-text-perfil">Usa al menos 8 caracteres.</small>
+                </div>
+                <div class="mb-3">
+                    <label for="p-confirmar" class="form-label">Confirmar nueva contraseña</label>
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="p-confirmar" name="confirmar" required minlength="8" autocomplete="new-password" placeholder="Repite la nueva contraseña">
+                        <button class="btn btn-outline-secondary" type="button" data-toggle-pass="p-confirmar" tabindex="-1" aria-label="Ver confirmación">👁</button>
+                    </div>
+                    <small class="invalid-feedback" id="match-msg-perfil">La confirmación no coincide.</small>
+                </div>
+                <button type="submit" class="btn btn-primary w-100">Guardar nueva contraseña</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="dash-col">
+        <div class="card dash-card">
+            <div class="dash-card-head">
+                <h3>📋 Información de la cuenta</h3>
+                <span class="src-badge">sesión</span>
+            </div>
+            <dl class="row mb-0">
+                <dt class="col-5 text-secondary">Usuario</dt>
+                <dd class="col-7">{{ usuario_nombre }}</dd>
+                <dt class="col-5 text-secondary">Rol</dt>
+                <dd class="col-7">{{ rol_label or '—' }}</dd>
+                <dt class="col-5 text-secondary">Contraseña</dt>
+                <dd class="col-7"><span class="badge text-bg-success">Cifrada (bcrypt)</span></dd>
+            </dl>
+            <p class="text-muted text-sm mt-3 mb-0">
+                Tu contraseña se almacena hasheada con bcrypt en la base de datos.
+                Nadie, ni el personal, puede leerla en texto plano.
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- ================= Historial de compras (plegable) ================= -->
+<div class="d-flex align-items-center justify-content-between mt-4 mb-1">
+    <h2 class="section-title mb-0">Historial de compras</h2>
+    {% if compras %}<span class="text-muted text-sm">{{ compras|length }} compra{{ 's' if compras|length != 1 else '' }}</span>{% endif %}
+</div>
+
 {% if compras %}
-    {% set agrupado = namespace(actual=None) %}
-    {% for compra in compras %}
-    <section class="card" style="margin-bottom: 20px;">
-        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-            <div>
-                <h3 class="h6 mb-1">{{ compra.codigo }} <span class="text-secondary small">· {{ compra.fecha }}</span></h3>
-                <span class="text-secondary small">{{ compra.canal or 'TIENDA' }}{% if compra.entrega %} · {{ compra.entrega }}{% endif %}</span>
+    <p class="text-muted text-sm mb-3">Toca una compra para desplegar su detalle.</p>
+    <div class="lista-compras">
+        {% for compra in compras %}
+        <div class="card compra-card" data-collapsible>
+            <button class="compra-toggle" type="button" data-toggle-collapse aria-expanded="true">
+                <span class="compra-main">
+                    <span class="compra-codigo">{{ compra.codigo }}</span>
+                    <span class="compra-fecha">{{ compra.fecha }}</span>
+                    <span class="src-badge">{{ compra.canal or 'TIENDA' }}</span>
+                    {% if compra.entrega %}<span class="text-secondary small">{{ compra.entrega }}</span>{% endif %}
+                </span>
+                <span class="compra-side">
+                    {% if compra.comprobante %}
+                        <span class="text-secondary small">{{ compra.comprobante }}</span>
+                    {% endif %}
+                    <span class="badge text-bg-{{ 'success' if compra.estado == 'PAGADO' else 'secondary' }}">{{ compra.estado }}</span>
+                    <span class="compra-total">{{ compra.total }}</span>
+                    <span class="chevron">▾</span>
+                </span>
+            </button>
+            <div class="collapse-body compra-body">
+                <div class="table-wrap">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>Marca</th>
+                                <th>Cant.</th>
+                                <th>P. unitario</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for linea in compra.lineas %}
+                            <tr>
+                                <td>{{ linea.producto }}</td>
+                                <td>{{ linea.marca or '—' }}</td>
+                                <td>{{ linea.cantidad }}</td>
+                                <td>{{ linea.precio_unitario }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="d-flex justify-content-end gap-3 mt-3 text-secondary">
+                    <span>Subtotal: <strong>{{ compra.subtotal }}</strong></span>
+                    {% if compra.descuento != '—' %}<span>Descuento: <strong>{{ compra.descuento }}</strong></span>{% endif %}
+                    <span>Envío: <strong>{{ compra.envio }}</strong></span>
+                    <span class="fw-bold" style="color: var(--primary);">Total: {{ compra.total }}</span>
+                </div>
             </div>
-            <div class="d-flex align-items-center gap-3">
-                {% if compra.comprobante %}
-                    <span class="text-secondary small">{{ compra.comprobante }}</span>
-                {% endif %}
-                <span class="badge text-bg-{{ 'success' if compra.estado == 'PAGADO' else 'secondary' }}">{{ compra.estado }}</span>
-            </div>
         </div>
-
-        <div class="table-wrap">
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Producto</th>
-                        <th>Marca</th>
-                        <th>Cant.</th>
-                        <th>P. unitario</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for linea in compra.lineas %}
-                    <tr>
-                        <td>{{ linea.producto }}</td>
-                        <td>{{ linea.marca or '—' }}</td>
-                        <td>{{ linea.cantidad }}</td>
-                        <td>{{ linea.precio_unitario }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-
-        <div class="d-flex justify-content-end gap-3 mt-3 text-secondary">
-            <span>Subtotal: <strong>{{ compra.subtotal }}</strong></span>
-            {% if compra.descuento != '—' %}<span>Descuento: <strong>{{ compra.descuento }}</strong></span>{% endif %}
-            <span>Envío: <strong>{{ compra.envio }}</strong></span>
-            <span class="fs-6 fw-bold text-primary">Total: {{ compra.total }}</span>
-        </div>
-    </section>
-    {% endfor %}
+        {% endfor %}
+    </div>
 {% else %}
     <div class="empty-state">
         <h1>🧾</h1>
@@ -66,4 +150,52 @@
         <a class="btn btn-primary" href="{{ url_for('main.tienda') }}">Explorar el catálogo</a>
     </div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% include "partials/dashboard_scripts.html" %}
+<script>
+(function () {
+    // Mostrar / ocultar contraseñas
+    document.querySelectorAll('[data-toggle-pass]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var input = document.getElementById(btn.getAttribute('data-toggle-pass'));
+            if (!input) return;
+            input.type = input.type === 'password' ? 'text' : 'password';
+        });
+    });
+
+    // Medidor de fortaleza de contraseña
+    var nueva = document.getElementById('p-nueva');
+    var bar = document.getElementById('meter-bar-perfil');
+    var texto = document.getElementById('meter-text-perfil');
+    if (nueva && bar) {
+        nueva.addEventListener('input', function () {
+            var v = nueva.value;
+            var score = 0;
+            if (v.length >= 8) score++;
+            if (v.length >= 12) score++;
+            if (/[A-Z]/.test(v) && /[a-z]/.test(v)) score++;
+            if (/\d/.test(v)) score++;
+            if (/[^A-Za-z0-9]/.test(v)) score++;
+            var map = {0: ['#e2e8f0', ''], 1: ['#dc2626', 'Débil'], 2: ['#d97706', 'Aceptable'], 3: ['#f59e0b', 'Buena'], 4: ['#16a34a', 'Muy buena'], 5: ['#16a34a', 'Excelente']};
+            var r = map[Math.min(score, 5)];
+            bar.style.width = (score / 5 * 100) + '%';
+            bar.style.background = r[0];
+            texto.textContent = r[1] || 'Usa al menos 8 caracteres.';
+        });
+    }
+
+    // Validación de confirmación en vivo
+    var confirmar = document.getElementById('p-confirmar');
+    if (nueva && confirmar) {
+        var check = function () {
+            var ok = confirmar.value === nueva.value && confirmar.value.length >= 8;
+            confirmar.classList.toggle('is-invalid', !ok && confirmar.value.length > 0);
+        };
+        nueva.addEventListener('input', check);
+        confirmar.addEventListener('input', check);
+    }
+})();
+</script>
 {% endblock %}

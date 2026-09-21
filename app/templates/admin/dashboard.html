@@ -6,12 +6,389 @@
 <section class="panel-head">
     <div>
         <h1>Panel de Administración</h1>
-        <p>Bienvenido, <strong>{{ nombre }}</strong>. Resumen general del negocio.</p>
+        <p>Bienvenido, <strong>{{ nombre }}</strong>. Resumen ejecutivo del negocio ·
+            <span class="text-muted text-sm">Actualizado {{ fecha_actualizacion }}</span></p>
     </div>
-    <a class="btn btn-outline" href="{{ url_for('main.home') }}">Ver tienda</a>
+    <div class="panel-actions">
+        <a class="btn btn-outline" href="{{ url_for('main.tienda') }}">Ver tienda</a>
+        <a class="btn btn-primary" href="{{ url_for('admin.citas_listado') }}">Citas</a>
+        <button class="btn btn-outline no-print" type="button" onclick="window.print()">🖨 Imprimir</button>
+    </div>
 </section>
 
-<section class="cards" style="margin-bottom: 28px;">
+<!-- ===================== KPI ventas ===================== -->
+<div class="dash-group" data-collapsible>
+    <div class="collapse-head">
+        <h2 class="section-title">Desempeño comercial</h2>
+        <button class="collapse-btn" type="button" data-toggle-collapse aria-expanded="true">▾</button>
+    </div>
+    <div class="collapse-body">
+        <section class="kpi-grid">
+    <div class="kpi-card">
+        <div class="kpi-icon">💰</div>
+        <div class="kpi-label">Ventas totales</div>
+        <div class="kpi-value">S/ {{ "%.2f"|format(metricas.total_ventas) }}</div>
+        <div class="kpi-sub">{{ metricas.n_ventas }} pedidos registrados</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon">📈</div>
+        <div class="kpi-label">Ventas del mes</div>
+        <div class="kpi-value">S/ {{ "%.2f"|format(metricas.ventas_mes) }}</div>
+        {% if metricas.trend_ventas > 0 %}
+        <div class="kpi-trend trend-up">▲ +{{ metricas.trend_ventas }} % vs mes anterior</div>
+        {% elif metricas.trend_ventas < 0 %}
+        <div class="kpi-trend trend-down">▼ {{ metricas.trend_ventas }} % vs mes anterior</div>
+        {% else %}
+        <div class="kpi-trend trend-flat">→ Sin cambios vs mes anterior</div>
+        {% endif %}
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon">🧾</div>
+        <div class="kpi-label">Pedidos del mes</div>
+        <div class="kpi-value">{{ metricas.pedidos_mes }}</div>
+        {% if metricas.trend_pedidos > 0 %}
+        <div class="kpi-trend trend-up">▲ +{{ metricas.trend_pedidos }} %</div>
+        {% elif metricas.trend_pedidos < 0 %}
+        <div class="kpi-trend trend-down">▼ {{ metricas.trend_pedidos }} %</div>
+        {% else %}
+        <div class="kpi-trend trend-flat">estable</div>
+        {% endif %}
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon">📊</div>
+        <div class="kpi-label">Ticket promedio</div>
+        <div class="kpi-value">S/ {{ "%.2f"|format(metricas.ticket_promedio) }}</div>
+        <div class="kpi-sub">por pedido</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon">💎</div>
+        <div class="kpi-label">Margen bruto</div>
+        <div class="kpi-value">S/ {{ "%.2f"|format(metricas.margen_bruto) }}</div>
+        <div class="kpi-sub">{{ "%.1f"|format(metricas.margen_pct) }} % sobre la venta</div>
+    </div>
+        </section>
+    </div>
+</div>
+
+<!-- ===================== KPI operativo ===================== -->
+<div class="dash-group" data-collapsible>
+    <div class="collapse-head">
+        <h2 class="section-title">Operaciones</h2>
+        <button class="collapse-btn" type="button" data-toggle-collapse aria-expanded="true">▾</button>
+    </div>
+    <div class="collapse-body">
+        <section class="kpi-grid">
+    <div class="kpi-card">
+        <div class="kpi-icon">📅</div>
+        <div class="kpi-label">Citas de hoy</div>
+        <div class="kpi-value">{{ metricas.n_citas_hoy }}</div>
+        <div class="kpi-sub">{{ metricas.n_citas_confirmadas }} confirmadas</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon">🔧</div>
+        <div class="kpi-label">Citas sin técnico</div>
+        <div class="kpi-value">{{ metricas.n_citas_pendientes }}</div>
+        <a class="kpi-action" href="{{ url_for('admin.citas_listado') }}">Asignar técnico →</a>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon">🛠️</div>
+        <div class="kpi-label">Reparaciones activas</div>
+        <div class="kpi-value">{{ metricas.reparaciones_activas }}</div>
+        <div class="kpi-sub">en el taller o en ruta</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon">👥</div>
+        <div class="kpi-label">Clientes registrados</div>
+        <div class="kpi-value">{{ metricas.n_clientes }}</div>
+        <div class="kpi-sub">base de datos</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon">🏬</div>
+        <div class="kpi-label">Valor de inventario</div>
+        <div class="kpi-value">S/ {{ "%.2f"|format(metricas.stock_total_valor) }}</div>
+        <div class="kpi-sub">a costo de compra</div>
+    </div>
+        </section>
+    </div>
+</div>
+
+<!-- ===================== Gráficos 1: ventas + categorías ===================== -->
+<div class="dash-group" data-collapsible>
+    <div class="collapse-head">
+        <h2 class="section-title">Ingresos y categorías</h2>
+        <button class="collapse-btn" type="button" data-toggle-collapse aria-expanded="true">▾</button>
+    </div>
+    <div class="collapse-body">
+        <div class="dash-row">
+    <div class="dash-col col-wide">
+        <div class="card dash-card">
+            <div class="dash-card-head">
+                <h3>Ventas de los últimos 14 días</h3>
+                <span class="text-muted text-sm">S/ por día</span>
+            </div>
+            <div class="chart-bars">
+                {% for d in metricas.ventas_por_dia %}
+                <div class="chart-bar" title="S/ {{ '%.2f'|format(d.total) }}">
+                    <span class="bar-value">{{ '%.0f'|format(d.total) }}</span>
+                    <div class="bar-track">
+                        <div class="bar-fill" style="height:{{ d.pct }}%;"></div>
+                    </div>
+                    <span class="bar-day">{{ d.rotulo }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <div class="dash-col">
+        <div class="card dash-card">
+            <div class="dash-card-head">
+                <h3>Ingresos por categoría</h3>
+            </div>
+            {% if metricas.ventas_por_categoria %}
+            <div class="hbars">
+                {% for c in metricas.ventas_por_categoria %}
+                <div class="hbar">
+                    <span class="hbar-label">{{ c.nombre }}</span>
+                    <div class="hbar-track">
+                        <div class="hbar-fill accent" style="width:{{ c.pct }}%;"></div>
+                    </div>
+                    <span class="hbar-value">S/ {{ "%.0f"|format(c.monto) }}</span>
+                </div>
+                {% endfor %}
+                <p class="text-muted text-sm" style="margin-top:12px;">Participación sobre el total {{ "%.1f"|format(metricas.ventas_por_categoria[0].pct) }}% para la líder.</p>
+            </div>
+            {% else %}
+            <div class="empty-mini">Sin ventas registradas por categoría.</div>
+            {% endif %}
+        </div>
+    </div>
+    </div>
+    </div>
+</div>
+
+<!-- ===================== Gráficos 2: reparaciones + métodos ===================== -->
+<div class="dash-group" data-collapsible>
+    <div class="collapse-head">
+        <h2 class="section-title">Taller y pagos</h2>
+        <button class="collapse-btn" type="button" data-toggle-collapse aria-expanded="true">▾</button>
+    </div>
+    <div class="collapse-body">
+        <div class="dash-row">
+    <div class="dash-col">
+        <div class="card dash-card">
+            <div class="dash-card-head">
+                <h3>Reparaciones por estado</h3>
+            </div>
+            {% if metricas.reparaciones_estado %}
+            <div class="hbars">
+                {% for r in metricas.reparaciones_estado %}
+                <div class="hbar">
+                    <span class="hbar-label">{{ r.label }}</span>
+                    <div class="hbar-track">
+                        <div class="hbar-fill" style="width: {{ (r.count / (metricas.reparaciones_estado|map(attribute='count')|max) * 100)|round(1) }}%;"></div>
+                    </div>
+                    <span class="hbar-value">{{ r.count }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-mini">Aún no hay reparaciones en el sistema.</div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="dash-col">
+        <div class="card dash-card">
+            <div class="dash-card-head">
+                <h3>Ingresos por método de pago</h3>
+            </div>
+            {% if metricas.metodos_pago %}
+            <div class="hbars">
+                {% for m in metricas.metodos_pago %}
+                <div class="hbar">
+                    <span class="hbar-label">{{ m.nombre }}</span>
+                    <div class="hbar-track">
+                        <div class="hbar-fill" style="width: {{ m.pct_max }}%;"></div>
+                    </div>
+                    <span class="hbar-value">S/ {{ "%.0f"|format(m.monto) }} · {{ m.share }}%</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-mini">Sin pagos confirmados aún.</div>
+            {% endif %}
+        </div>
+    </div>
+    </div>
+    </div>
+</div>
+
+<!-- ===================== Tablas: top productos + clientes ===================== -->
+<div class="dash-group" data-collapsible>
+    <div class="collapse-head">
+        <h2 class="section-title">Top productos y clientes</h2>
+        <button class="collapse-btn" type="button" data-toggle-collapse aria-expanded="true">▾</button>
+    </div>
+    <div class="collapse-body">
+        <div class="dash-row">
+    <div class="dash-col">
+        <div class="card dash-card" style="padding: 0;">
+            <div class="dash-card-head" style="padding: 20px 24px 0;">
+                <h3>Top productos vendidos</h3>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr><th>Producto</th><th class="text-end">Unidades</th><th class="text-end">Ingresos</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for p in metricas.top_productos %}
+                        <tr>
+                            <td class="fw-semibold">{{ p.nombre }}</td>
+                            <td class="text-end">{{ p.cantidad }}</td>
+                            <td class="text-end">S/ {{ "%.2f"|format(p.ingresos) }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="3" class="text-muted">Sin ventas todavía.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="dash-col">
+        <div class="card dash-card" style="padding: 0;">
+            <div class="dash-card-head" style="padding: 20px 24px 0;">
+                <h3>Top clientes por gasto</h3>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr><th>Cliente</th><th class="text-end">Pedidos</th><th class="text-end">Total</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for c in metricas.top_clientes %}
+                        <tr>
+                            <td class="fw-semibold">{{ c.nombre }}</td>
+                            <td class="text-end">{{ c.n_pedidos }}</td>
+                            <td class="text-end">S/ {{ "%.2f"|format(c.total) }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="3" class="text-muted">Sin clientes con compras.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    </div>
+    </div>
+</div>
+
+<!-- ===================== Alertas ===================== -->
+<div class="dash-group" data-collapsible>
+    <div class="collapse-head">
+        <h2 class="section-title">Qué hacer hoy</h2>
+        <button class="collapse-btn" type="button" data-toggle-collapse aria-expanded="true">▾</button>
+    </div>
+    <div class="collapse-body">
+        <section class="insight-block" style="margin-bottom: 0;">
+    {% if metricas.alertas %}
+    <div class="insight-list">
+        {% for a in metricas.alertas %}
+        <div class="insight-item {{ a.tipo }}">
+            <span class="insight-icon">{{ a.icono }}</span>
+            <div class="insight-body">
+                <strong>{{ a.titulo }}</strong>
+                <span>{{ a.detalle }}</span>
+                {% if a.url %}
+                <a class="btn btn-sm btn-outline" href="{{ url_for(a.url) }}">{{ a.url_label }} →</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-mini">El negocio está al día. No hay alertas pendientes.</div>
+    {% endif %}
+        </section>
+    </div>
+</div>
+
+{% if metricas.stock_bajo %}
+<div class="dash-group" data-collapsible>
+    <div class="collapse-head">
+        <h2 class="section-title">Alerta de stock bajo (≤ 10 unidades)</h2>
+        <button class="collapse-btn" type="button" data-toggle-collapse aria-expanded="true">▾</button>
+    </div>
+    <div class="collapse-body">
+<section style="margin-bottom: 28px;">
+    <div class="card" style="padding: 0;">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr><th>Producto</th><th class="text-end">Stock</th><th class="text-end">Precio venta</th></tr>
+                </thead>
+                <tbody>
+                    {% for s in metricas.stock_bajo %}
+                    <tr>
+                        <td class="fw-semibold">{{ s.nombre }}</td>
+                        <td class="text-end">
+                            {% if s.critico %}
+                            <span class="badge text-bg-danger">{{ s.stock }} · crítico</span>
+                            {% else %}
+                            <span class="badge text-bg-warning">{{ s.stock }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">S/ {{ "%.2f"|format(s.precio) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+        </section>
+    </div>
+</div>
+{% endif %}
+
+{% if metricas.ventas_recientes %}
+<div class="dash-group" data-collapsible>
+    <div class="collapse-head">
+        <h2 class="section-title">Ventas recientes</h2>
+        <button class="collapse-btn" type="button" data-toggle-collapse aria-expanded="true">▾</button>
+    </div>
+    <div class="collapse-body">
+<section style="margin-bottom: 28px;">
+    <div class="card" style="padding: 0;">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr><th>Pedido</th><th>Fecha</th><th class="text-end">Total</th></tr>
+                </thead>
+                <tbody>
+                    {% for v in metricas.ventas_recientes %}
+                    <tr>
+                        <td class="fw-semibold">{{ v.codigo }}</td>
+                        <td>{{ v.fecha }}</td>
+                        <td class="text-end">S/ {{ "%.2f"|format(v.total) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+        </section>
+    </div>
+</div>
+{% endif %}
+
+<div class="dash-group" data-collapsible>
+    <div class="collapse-head">
+        <h2 class="section-title">Registro del sistema</h2>
+        <button class="collapse-btn" type="button" data-toggle-collapse aria-expanded="true">▾</button>
+    </div>
+    <div class="collapse-body">
+        <section class="cards">
     {% for stat in stats %}
         <div class="card" style="align-items:center; text-align:center;">
             <div class="stat-icon" style="font-size: 2rem;">{{ stat.icon }}</div>
@@ -19,10 +396,17 @@
             <div class="stat-label">{{ stat.label }}</div>
         </div>
     {% endfor %}
-</section>
+        </section>
+    </div>
+</div>
 
-<h2 class="section-title">Módulos del sistema</h2>
-<section class="cards">
+<div class="dash-group" data-collapsible>
+    <div class="collapse-head">
+        <h2 class="section-title">Módulos del sistema</h2>
+        <button class="collapse-btn" type="button" data-toggle-collapse aria-expanded="true">▾</button>
+    </div>
+    <div class="collapse-body">
+        <section class="cards">
     {% for modulo in modulos %}
         <div class="card">
             <div class="card-icon">{{ modulo.icon }}</div>
@@ -31,5 +415,11 @@
             <a class="btn btn-primary" href="{{ url_for(modulo.url) }}">Abrir</a>
         </div>
     {% endfor %}
-</section>
+        </section>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% include "partials/dashboard_scripts.html" %}
 {% endblock %}

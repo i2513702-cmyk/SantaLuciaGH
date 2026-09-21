@@ -8,6 +8,42 @@
     <p class="text-secondary mb-0">Catálogo real de {{ app_name }}. Precios y stock desde la base de datos.</p>
 </section>
 
+{% if categorias %}
+    <nav class="cat-index mb-3" aria-label="Índice de categorías">
+        <a class="cat-chip {% if not cat_id %}active{% endif %}" href="{{ url_todo }}">Todas</a>
+        {% for c in categorias %}
+            <a class="cat-chip {% if c.activa %}active{% endif %}" href="{{ c.url }}">
+                {{ c.nombre }}
+                {% if c.count %}<span class="cat-count">{{ c.count }}</span>{% endif %}
+            </a>
+        {% endfor %}
+    </nav>
+{% endif %}
+
+<form class="toolbar mb-3" method="get" action="{{ url_for('main.tienda') }}">
+    <input type="hidden" name="cat" value="{{ cat_id }}">
+    <input type="search" name="q" class="tool-search" value="{{ q }}"
+           placeholder="Buscar por producto, marca, modelo o palabra clave…" aria-label="Buscar productos">
+    <select name="marca" class="tool-select" aria-label="Filtrar por marca">
+        <option value="">Todas las marcas</option>
+        {% for m in marcas %}
+            <option value="{{ m.id }}" {% if marca_id == m.id|string %}selected{% endif %}>{{ m.nombre }}</option>
+        {% endfor %}
+    </select>
+    <label class="tool-oferta">
+        <input type="checkbox" name="oferta" value="on" {% if solo_ofertas %}checked{% endif %}> Solo ofertas
+    </label>
+    <button class="btn btn-primary btn-sm" type="submit">Filtrar</button>
+    {% if filtros_activos %}
+        <a class="btn btn-outline btn-sm" href="{{ url_limpiar }}">Limpiar</a>
+    {% endif %}
+</form>
+
+<p class="result-count">
+    <strong>{{ n_resultados }}</strong> producto{{ 's' if n_resultados != 1 else '' }}
+    {% if q or cat_id or marca_id or solo_ofertas %}encontrado{{ 's' if n_resultados != 1 else '' }}{% endif %}
+</p>
+
 {% if productos %}
     <section class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-4">
         {% for p in productos %}
@@ -44,6 +80,15 @@
             </div>
         {% endfor %}
     </section>
+{% elif filtros_activos %}
+    <div class="text-center py-5">
+        <p class="display-6 text-secondary mb-1">🔍</p>
+        <p class="text-secondary mb-2">
+            No encontramos productos{% if q %} para “<strong>{{ q }}</strong>”{% endif %}
+            con los filtros aplicados.
+        </p>
+        <a class="btn btn-outline" href="{{ url_limpiar }}">Ver todo el catálogo</a>
+    </div>
 {% else %}
     <div class="text-center py-5">
         <p class="display-6 text-secondary mb-1">🛒</p>

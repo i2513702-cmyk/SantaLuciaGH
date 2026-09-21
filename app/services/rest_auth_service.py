@@ -104,7 +104,7 @@ def listar_usuarios() -> list:
     """Devuelve todos los usuarios del sistema (para el panel de administración)."""
     try:
         resp = get_reader().table(TABLA_USUARIOS).select(
-            "*,empleados(nombres,apellidos)"
+            "*,empleados(nombres,apellidos),clientes(nombres,apellidos)"
         ).order("id").execute()
     except Exception as exc:  # noqa: BLE001
         raise ValidationError(error_postgrest(exc)) from exc
@@ -112,12 +112,12 @@ def listar_usuarios() -> list:
 
 
 def obtener_usuario(usuario_id: int) -> dict:
-    """Devuelve un usuario por id (con su empleado)."""
+    """Devuelve un usuario por id (con su empleado o cliente)."""
     try:
         resp = (
             get_reader()
             .table(TABLA_USUARIOS)
-            .select("*,empleados(nombres,apellidos)")
+            .select("*,empleados(nombres,apellidos),clientes(nombres,apellidos)")
             .eq("id", usuario_id)
             .limit(1)
             .execute()
@@ -152,34 +152,48 @@ def actualizar_usuario(
     correo: str,
     rol: str,
     activo: bool,
-    empleado_id: int,
+    empleado_id: int = 0,
+    cliente_id: int = 0,
 ) -> dict:
-    """Actualiza los datos editables de un usuario (sin tocar la contraseña)."""
+    """Actualiza los datos editables de un usuario (sin tocar la contraseña).
+
+    Para rol CLIENTE se actualiza el vínculo con `cliente_id` (si se indica);
+    para roles internos, el `empleado_id`.
+    """
     nombre_usuario = (nombre_usuario or "").strip()
     correo = (correo or "").strip().lower()
     rol = (rol or "").strip().upper()
 
     if not nombre_usuario or not correo:
         raise ValidationError("El nombre de usuario y el correo son obligatorios.")
-    if rol not in ROLES_VALIDOS:
-        raise ValidationError("El rol seleccionado no es válido.")
-    try:
-        empleado_id = int(empleado_id or 0)
-    except (TypeError, ValueError):
-        raise ValidationError("El ID de empleado debe ser un número.")
+    if not rol:
+        raise ValidationError("El rol no puede estar vacío.")
 
     if _existe_otro_usuario("nombre_usuario", nombre_usuario, usuario_id):
         raise ValidationError(f"El nombre de usuario '{nombre_usuario}' ya está en uso.")
     if _existe_otro_usuario("correo", correo, usuario_id):
         raise ValidationError(f"El correo '{correo}' ya está registrado.")
 
-    fila = {
+    fila: dict = {
         "nombre_usuario": nombre_usuario,
         "correo": correo,
         "rol": rol,
         "activo": bool(activo),
-        "empleado_id": empleado_id,
     }
+    if rol == "CLIENTE":
+        if cliente_id:
+            fila["cliente_id"] = int(cliente_id)
+            fila["empleado_id"] = None
+    else:
+        try:
+            empleado_id = int(empleado_id or 0)
+        except (TypeError, ValueError):
+            raise ValidationError("El ID de empleado debe ser un número.")
+        if not empleado_id:
+            raise ValidationError("Debes indicar un empleado para un rol interno.")
+        fila["empleado_id"] = empleado_id
+        fila["cliente_id"] = None
+
     try:
         resp = _tabla_escritura().update(fila).eq("id", usuario_id).execute()
     except Exception as exc:  # noqa: BLE001
@@ -212,9 +226,15 @@ def crear_usuario(
     correo: str,
     password: str,
     rol: str,
-    empleado_id: int,
+    empleado_id: int | None = None,
+    cliente_id: int | None = None,
 ) -> dict:
-    """Crea un usuario en Supabase con la contraseña hasheada con bcrypt."""
+    """Crea un usuario en Supabase con la contraseña hasheada con bcrypt.
+
+    El usuario se vincula a un empleado (personal interno) o a un cliente,
+    nunca a ambos. Un cliente registrado por su cuenta se vincula con
+    `cliente_id` y `empleado_id` queda nulo.
+    """
     if not password or len(password) < 8:
         raise ValidationError("La contraseña debe tener al menos 8 caracteres")
 
@@ -223,14 +243,22 @@ def crear_usuario(
     if _leer_usuario("correo", correo):
         raise ValidationError(f"El correo '{correo}' ya está registrado.")
 
-    fila = {
-        "empleado_id": empleado_id,
+    if not empleado_id and not cliente_id:
+        raise ValidationError(
+            "El usuario debe estar vinculado a un empleado o a un cliente."
+        )
+
+    fila: dict = {
         "rol": rol,
         "nombre_usuario": nombre_usuario,
         "correo": correo,
         "password": hash_password(password),
         "activo": True,
     }
+    if cliente_id:
+        fila["cliente_id"] = cliente_id
+    else:
+        fila["empleado_id"] = empleado_id
     try:
         resp = _tabla_escritura().insert(fila).execute()
     except Exception as exc:  # noqa: BLE001
@@ -238,10 +266,24 @@ def crear_usuario(
     return resp.data[0]
 
 
-def cambiar_clave(nombre_usuario: str, clave_nueva: str) -> None:
-    """Actualiza la contraseña de un usuario (campo password como hash bcrypt)."""
+def cambiar_clave(nombre_usuario: str, clave_actual: str, clave_nueva: str) -> None:
+    """Actualiza la contraseña de un usuario (campo password como hash bcrypt).
+
+    Verifica primero la contraseña actual contra el hash guardado en la base
+    de datos antes de permitir el cambio.
+    """
+    if not clave_actual:
+        raise ValidationError("Debes indicar tu contraseña actual.")
     if not clave_nueva or len(clave_nueva) < 8:
         raise ValidationError("La nueva contraseña debe tener al menos 8 caracteres")
+    if clave_actual == clave_nueva:
+        raise ValidationError("La nueva contraseña debe ser distinta a la actual.")
+
+    usuario = _leer_usuario("nombre_usuario", nombre_usuario)
+    if not usuario:
+        raise NotFoundError("El usuario no existe.")
+    if not check_password(usuario.get("password") or "", clave_actual):
+        raise ValidationError("La contraseña actual no es correcta.")
 
     try:
         _tabla_escritura().update({"password": hash_password(clave_nueva)}).eq(
@@ -249,6 +291,66 @@ def cambiar_clave(nombre_usuario: str, clave_nueva: str) -> None:
         ).execute()
     except Exception as exc:  # noqa: BLE001
         raise ValidationError(error_postgrest(exc)) from exc
+
+
+def _encontrar_cliente(tipo_documento_id: int, numero_documento: str, correo: str = ""):
+    """Busca un cliente por documento (o correo) en la tabla `clientes`."""
+    try:
+        if numero_documento:
+            resp = (
+                get_reader()
+                .table("clientes")
+                .select("id")
+                .eq("tipo_documento_id", tipo_documento_id)
+                .eq("numero_documento", numero_documento)
+                .limit(1)
+                .execute()
+            )
+            if resp.data:
+                return resp.data[0]
+        if correo:
+            resp = (
+                get_reader()
+                .table("clientes")
+                .select("id")
+                .eq("correo", correo)
+                .limit(1)
+                .execute()
+            )
+            if resp.data:
+                return resp.data[0]
+    except Exception:  # noqa: BLE001
+        return None
+    return None
+
+
+def _crear_cliente(
+    tipo_documento_id: int,
+    numero_documento: str,
+    nombres: str,
+    apellidos: str,
+    telefono: str = "",
+    correo: str = "",
+):
+    """Crea un cliente en la tabla `clientes` y devuelve su id."""
+    try:
+        resp = (
+            get_admin_client()
+            .table("clientes")
+            .insert({
+                "tipo_documento_id": tipo_documento_id,
+                "numero_documento": numero_documento,
+                "nombres": nombres,
+                "apellidos": apellidos,
+                "telefono": telefono or None,
+                "correo": correo or None,
+                "activo": True,
+            })
+            .execute()
+        )
+        return (resp.data or [{}])[0].get("id")
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def register(
@@ -263,12 +365,13 @@ def register(
     telefono: str = "",
     cargo: str = "Cliente",
 ) -> dict:
-    """Crea una cuenta completa: inserta la persona en `empleados` y el usuario.
+    """Crea una cuenta completa según el rol.
 
-    La tabla `usuarios` exige `empleado_id` NOT NULL y UNIQUE, por eso hay que
-    crear primero la persona en `empleados` y usar su id. Los campos son los de
-    la BD (empleados + usuarios). El registro público crea cuentas CLIENTE y el
-    cargo se asigna automáticamente (no se elige en el front).
+    - CLIENTE (registro público): crea (o reutiliza) el cliente en la tabla
+      `clientes` y vincula el usuario con `cliente_id`. NO se crea un empleado:
+      un cliente no es personal de la tienda.
+    - Roles internos (admin/worker): crea la persona en `empleados` y se vincula
+      con `empleado_id`.
     """
     if not password or len(password) < 8:
         raise ValidationError("La contraseña debe tener al menos 8 caracteres")
@@ -282,9 +385,25 @@ def register(
     if _leer_usuario("correo", correo):
         raise ValidationError(f"El correo '{correo}' ya está registrado.")
 
-    # El correo vive también en `empleados` (único). Si ya existe un empleado
-    # con este correo y está asociado a otro usuario, es un conflicto real.
-    # Si el empleado quedó huérfano (registro truncado), se reutiliza.
+    if rol == "CLIENTE":
+        cliente = _encontrar_cliente(tipo_documento_id, numero_documento, correo)
+        if cliente:
+            cliente_id = cliente["id"]
+        else:
+            cliente_id = _crear_cliente(
+                tipo_documento_id, numero_documento, nombres, apellidos, telefono, correo
+            )
+        if not cliente_id:
+            raise ValidationError("No se pudo crear el cliente. Inténtalo de nuevo.")
+        return crear_usuario(
+            nombre_usuario=nombre_usuario,
+            correo=correo,
+            password=password,
+            rol=rol,
+            cliente_id=cliente_id,
+        )
+
+    # Roles internos: la persona vive en `empleados` y el usuario se vincula ahí.
     empleado_existente = _leer_empleado("correo", correo)
     if empleado_existente:
         usuario_dueno = (

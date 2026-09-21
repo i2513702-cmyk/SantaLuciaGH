@@ -6,7 +6,7 @@
     <title>{% block title %}{{ app_name }}{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap/bootstrap.min.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
@@ -32,6 +32,8 @@
                 {% endif %}
                 {% if rol %}
                     <div class="nav-user">
+                        {% from "partials/avatar.html" import avatar %}
+                        {{ avatar(nombre, size='md') }}
                         <span class="nav-user-name">{{ nombre }}</span>
                         <a class="nav-perfil" href="{{ url_for('main.perfil') }}">Mi perfil</a>
                         <a class="btn btn-outline btn-sm" href="{{ url_for('auth.logout') }}">Salir</a>
@@ -91,5 +93,7 @@
     </footer>
 
     <script src="{{ url_for('static', filename='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/avatars.js') }}"></script>
+    {% block scripts %}{% endblock %}
 </body>
 </html>

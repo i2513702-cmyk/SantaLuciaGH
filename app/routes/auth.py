@@ -132,15 +132,23 @@ def registrarse():
 @bp.route("/cambiar_clave", methods=["GET", "POST"])
 @login_required
 def cambiar_clave():
+    """Cambio de contraseña: verifica la actual, valida confirmación y
+    guarda el nuevo hash bcrypt en la BD. Vive embebido en el perfil."""
     if request.method == "POST":
+        actual = request.form.get("actual", "")
         nueva = request.form.get("nueva", "")
+        confirmar = request.form.get("confirmar", "")
+        if nueva != confirmar:
+            flash("La confirmación no coincide con la nueva contraseña.", "error")
+            return redirect(url_for("main.perfil"))
         try:
-            rest_auth_service.cambiar_clave(session["username"], nueva)
+            rest_auth_service.cambiar_clave(session["username"], actual, nueva)
             flash("Contraseña actualizada correctamente.", "success")
-            return redirect(url_for("auth.panel"))
         except (AppError, ValidationError) as exc:
-            error = exc.message if isinstance(exc, AppError) else str(exc)
-            return render_template("auth/cambiar_clave.html", error=error)
+            flash(exc.message if isinstance(exc, AppError) else str(exc), "error")
+        except Exception:  # noqa: BLE001
+            flash("No se pudo actualizar la contraseña. Inténtalo de nuevo.", "error")
+        return redirect(url_for("main.perfil"))
     return render_template("auth/cambiar_clave.html")
 
 
@@ -200,6 +208,7 @@ def usuario_editar(usuario_id):
                     rol=request.form.get("rol", "").strip(),
                     activo=activo,
                     empleado_id=request.form.get("empleado_id", 0),
+                    cliente_id=request.form.get("cliente_id", 0),
                 )
                 flash("Usuario actualizado correctamente.", "success")
                 return redirect(url_for("auth.usuarios_sistema"))

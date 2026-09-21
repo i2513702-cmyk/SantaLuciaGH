@@ -2,7 +2,7 @@
 
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 
-from app.decorators import login_required
+from app.decorators import ROLES_DB, login_required
 from app.supabase_client import get_reader
 
 bp = Blueprint("main", __name__)
@@ -86,14 +86,26 @@ def contacto():
 
 @bp.route("/tienda")
 def tienda():
-    """Muestra los productos reales de la tabla `productos` (estilo vitrina)."""
+    """Catálogo real: búsqueda por palabra, filtros y índice de categorías.
+
+    Los productos, categorías y marcas provienen de las tablas de Supabase
+    (`productos`, `categorias`, `marcas`). Los filtros se aplican aquí sobre
+    el listado activo para mantener una sola lectura de la BD.
+    """
+    q_display = request.args.get("q", "").strip()
+    q = q_display.lower()
+    cat_id = request.args.get("cat", "").strip()
+    marca_id = request.args.get("marca", "").strip()
+    solo_ofertas = request.args.get("oferta") == "on"
+
     try:
         resp = (
             get_reader()
             .table("productos")
             .select(
-                "id,nombre,descripcion,modelo,tipo_producto,precio_venta,"
-                "precio_promocional,marcas(nombre),categorias(nombre)"
+                "id,nombre,descripcion,modelo,tipo_producto,"
+                "marca_id,categoria_id,precio_venta,precio_promocional,"
+                "marcas(nombre),categorias(nombre)"
             )
             .eq("activo", True)
             .order("nombre")
@@ -103,29 +115,97 @@ def tienda():
     except Exception:  # noqa: BLE001
         filas = []
 
+    try:
+        categorias_tabla = (
+            get_reader().table("categorias").select("id,nombre").order("nombre").execute().data or []
+        )
+        marcas_tabla = (
+            get_reader().table("marcas").select("id,nombre").order("nombre").execute().data or []
+        )
+    except Exception:  # noqa: BLE001
+        categorias_tabla, marcas_tabla = [], []
+
     productos = []
     for p in filas:
         original = _precio(p.get("precio_venta"))
         promocional = _precio(p.get("precio_promocional")) if p.get("precio_promocional") else None
         oferta = promocional is not None
-        if oferta:
-            precio_ahora, precio_antes = promocional, original
-        else:
-            precio_ahora, precio_antes = original, None
         productos.append({
             "id": p.get("id"),
             "nombre": p.get("nombre"),
             "marca": (p.get("marcas") or {}).get("nombre"),
             "categoria": (p.get("categorias") or {}).get("nombre"),
+            "marca_id": p.get("marca_id"),
+            "categoria_id": p.get("categoria_id"),
             "modelo": p.get("modelo"),
             "tipo": p.get("tipo_producto"),
             "descripcion": p.get("descripcion"),
-            "precio_ahora": precio_ahora,
-            "precio_antes": precio_antes,
+            "precio_ahora": promocional or original,
+            "precio_antes": original if oferta else None,
             "oferta": oferta,
         })
 
-    return render_template("tienda.html", productos=productos)
+    def _coincide(texto) -> bool:
+        return q in (texto or "").lower()
+
+    # Filtros salvo el de categoría (para que el índice refleje la búsqueda/marca)
+    preseleccionados = [
+        p for p in productos
+        if (not marca_id or str(p["marca_id"] or "") == marca_id)
+        and (not solo_ofertas or p["oferta"])
+        and (not q or any(_coincide(t) for t in (
+            p["nombre"], p["descripcion"], p["modelo"], p["marca"], p["categoria"]
+        )))
+    ]
+
+    contador_cat = {}
+    for p in preseleccionados:
+        contador_cat[p["categoria_id"]] = contador_cat.get(p["categoria_id"], 0) + 1
+
+    resultados = [
+        p for p in preseleccionados
+        if not cat_id or str(p["categoria_id"] or "") == cat_id
+    ]
+
+    def _url(**cambios):
+        args = {}
+        for k, v in (("q", q_display), ("cat", cat_id), ("marca", marca_id)):
+            if v:
+                args[k] = v
+        if solo_ofertas:
+            args["oferta"] = "on"
+        args.update({k: v for k, v in cambios.items() if v})
+        return url_for("main.tienda", **args)
+
+    categorias_ui = []
+    for c in categorias_tabla:
+        count = contador_cat.get(c["id"], 0)
+        if count == 0 and str(c["id"]) != cat_id:
+            continue
+        categorias_ui.append({
+            "id": c["id"],
+            "nombre": c["nombre"],
+            "count": count,
+            "url": _url(cat=str(c["id"])),
+            "activa": str(c["id"]) == cat_id,
+        })
+
+    filtros_activos = bool(q_display or cat_id or marca_id or solo_ofertas)
+
+    return render_template(
+        "tienda.html",
+        productos=resultados,
+        categorias=categorias_ui,
+        marcas=marcas_tabla,
+        q=q_display,
+        cat_id=cat_id,
+        marca_id=marca_id,
+        solo_ofertas=solo_ofertas,
+        url_todo=_url(cat=""),
+        url_limpiar=url_for("main.tienda"),
+        n_resultados=len(resultados),
+        filtros_activos=filtros_activos,
+    )
 
 
 @bp.route("/perfil")
@@ -189,5 +269,6 @@ def perfil():
     return render_template(
         "perfil.html",
         usuario_nombre=usuario_nombre,
+        rol_label=ROLES_DB.get(session.get("rol") or "") or (session.get("rol") or ""),
         compras=compras,
     )

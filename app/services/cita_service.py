@@ -107,9 +107,10 @@ def _cubre_franja(franja: dict, hora: str) -> bool:
 
 
 def datos_usuario(usuario_id) -> dict:
-    """Datos de cliente del usuario logueado (via usuarios->empleados).
+    """Datos del usuario logueado para autollenar 'Tus datos'.
 
-    Usado para autollenar 'Tus datos' en el formulario de citas.
+    Un cliente registrado se vincula al usuario vía `clientes` (cliente_id);
+    los roles internos vía `empleados` (empleado_id).
     """
     if not usuario_id:
         return {}
@@ -117,7 +118,7 @@ def datos_usuario(usuario_id) -> dict:
         u = (
             get_reader()
             .table("usuarios")
-            .select("empleado_id")
+            .select("empleado_id,cliente_id")
             .eq("id", usuario_id)
             .limit(1)
             .execute()
@@ -126,15 +127,18 @@ def datos_usuario(usuario_id) -> dict:
         )[0]
     except Exception:  # noqa: BLE001
         return {}
-    emp_id = u.get("empleado_id")
-    if not emp_id:
+
+    relacion, campo_id = ("clientes", "cliente_id") if u.get("cliente_id") else ("empleados", "empleado_id")
+    persona_id = u.get(campo_id)
+    if not persona_id:
         return {}
+    columnas = "tipo_documento_id,numero_documento,nombres,apellidos,telefono,correo"
     try:
-        e = (
+        persona = (
             get_reader()
-            .table("empleados")
-            .select("tipo_documento_id,numero_documento,nombres,apellidos,telefono,correo")
-            .eq("id", emp_id)
+            .table(relacion)
+            .select(columnas)
+            .eq("id", persona_id)
             .limit(1)
             .execute()
             .data
@@ -142,15 +146,15 @@ def datos_usuario(usuario_id) -> dict:
         )[0]
     except Exception:  # noqa: BLE001
         return {}
-    if not e:
+    if not persona:
         return {}
     return {
-        "tipo_documento_id": e.get("tipo_documento_id") or 1,
-        "numero_documento": e.get("numero_documento") or "",
-        "nombres": e.get("nombres") or "",
-        "apellidos": e.get("apellidos") or "",
-        "telefono": e.get("telefono") or "",
-        "correo": e.get("correo") or "",
+        "tipo_documento_id": persona.get("tipo_documento_id") or 1,
+        "numero_documento": persona.get("numero_documento") or "",
+        "nombres": persona.get("nombres") or "",
+        "apellidos": persona.get("apellidos") or "",
+        "telefono": persona.get("telefono") or "",
+        "correo": persona.get("correo") or "",
     }
 
 

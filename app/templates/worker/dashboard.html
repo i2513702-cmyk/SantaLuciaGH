@@ -15,9 +15,18 @@
             {% endif %}
         </p>
     </div>
+    <div class="panel-actions">
+        <button class="btn btn-outline no-print" type="button" onclick="window.print()">🖨 Imprimir</button>
+    </div>
 </section>
 
-<section class="cards" style="margin-bottom: 28px;">
+<div class="dash-group" data-collapsible>
+    <div class="collapse-head">
+        <h2 class="section-title">Resumen</h2>
+        <button class="collapse-btn" type="button" data-toggle-collapse aria-expanded="true">▾</button>
+    </div>
+    <div class="collapse-body">
+        <section class="cards" style="margin-bottom: 28px;">
     {% for stat in stats %}
         <div class="card" style="align-items:center; text-align:center;">
             <div class="stat-icon" style="font-size: 2rem;">{{ stat.icon }}</div>
@@ -25,10 +34,17 @@
             <div class="stat-label">{{ stat.label }}</div>
         </div>
     {% endfor %}
-</section>
+        </section>
+    </div>
+</div>
 
 {% if es_tecnico %}
-    <h2 class="section-title">📅 &nbsp;Mis citas asignadas</h2>
+<div class="dash-group" data-collapsible>
+    <div class="collapse-head">
+        <h2 class="section-title">📅 &nbsp;Mis citas asignadas</h2>
+        <button class="collapse-btn" type="button" data-toggle-collapse aria-expanded="true">▾</button>
+    </div>
+    <div class="collapse-body">
     {% if citas %}
         <div class="table-wrap">
             <table class="table">
@@ -65,8 +81,15 @@
     {% else %}
         <p class="text-secondary">Aún no tienes citas asignadas. El administrador te asignará cuando las registre.</p>
     {% endif %}
+    </div>
+</div>
 
-    <h2 class="section-title">🕐 &nbsp;Mi disponibilidad</h2>
+<div class="dash-group" data-collapsible>
+    <div class="collapse-head">
+        <h2 class="section-title">🕐 &nbsp;Mi disponibilidad</h2>
+        <button class="collapse-btn" type="button" data-toggle-collapse aria-expanded="true">▾</button>
+    </div>
+    <div class="collapse-body">
     <div class="card" style="margin-bottom: 20px; max-width: 640px;">
         <form method="POST" action="{{ url_for('worker.agenda_agregar') }}" class="cita-form-row" style="grid-template-columns: 1.4fr 1fr 1fr auto;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -115,9 +138,16 @@
     {% else %}
         <p class="text-secondary">No has registrado disponibilidad todavía. Agrega franjas para que los clientes puedan agendar contigo.</p>
     {% endif %}
+    </div>
+</div>
 {% endif %}
 
-<h2 class="section-title">🔧 &nbsp;Últimas reparaciones</h2>
+<div class="dash-group" data-collapsible>
+    <div class="collapse-head">
+        <h2 class="section-title">🔧 &nbsp;Últimas reparaciones</h2>
+        <button class="collapse-btn" type="button" data-toggle-collapse aria-expanded="true">▾</button>
+    </div>
+    <div class="collapse-body">
 {% if ordenes %}
     <div class="table-wrap">
         <table class="table">
@@ -146,4 +176,10 @@
 {% else %}
     <p class="text-secondary">No hay reparaciones registradas todavía.</p>
 {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% include "partials/dashboard_scripts.html" %}
 {% endblock %}
