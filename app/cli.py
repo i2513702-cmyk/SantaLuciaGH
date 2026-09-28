@@ -3,6 +3,7 @@
 Uso:
   flask --app app.py supabase:test        # Verificar conexión a Supabase
   flask --app app.py supabase:seed-demo   # Técnicos + agenda demo desde usuarios rol TECNICO
+  flask --app app.py kpi:snapshot         # Guardar la foto semanal de KPI-04
 """
 
 import click
@@ -37,3 +38,26 @@ def register_cli(app):
         for k, v in totales.items():
             click.echo(f"  {k}: {v}")
         click.echo("-----------------")
+
+    @app.cli.command("kpi:snapshot")
+    @with_appcontext
+    def kpi_snapshot():
+        """Guarda la foto semanal de disponibilidad del catálogo (KPI-04).
+
+        El inventario no guarda histórico, así que la evolución semanal se
+        acumula en data/kpi_snapshots.jsonl (un renglón por semana). Conviene
+        correrlo una vez por semana (por ejemplo, con el Programador de tareas
+        de Windows o un cron en Linux).
+        """
+        from app.services import kpi_service
+
+        try:
+            fila = kpi_service.guardar_snapshot(kpi_service._catalogo())
+        except kpi_service.KpiError as exc:
+            click.echo(f"No se pudo guardar el snapshot: {exc}")
+            raise SystemExit(1) from exc
+        click.echo("--- Snapshot KPI-04 ---")
+        click.echo(f"  semana: {fila['periodo']}")
+        click.echo(f"  valor:   {fila['valor']} %")
+        click.echo(f"  detalle: {fila['numerador']}/{fila['denominador']} productos con stock")
+        click.echo("-----------------------")

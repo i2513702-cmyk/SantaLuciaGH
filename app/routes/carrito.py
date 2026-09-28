@@ -3,25 +3,27 @@
 Cada usuario (o sesión anónima) tiene su carrito guardado en Supabase desde el
 primer "Agregar". Los carritos vencen automáticamente (CART_TTL_HOURS) y se
 avisa al usuario con mensajes flash.
+
+El administrador no compra: estas rutas se cierran para su rol con un 403
+(vía `app.decorators.bloquear_compras_admin`, registrado en la app).
 """
 
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 
 from app.exceptions import AppError, ValidationError
-from app.services import carrito_service
+from app.services import carrito_service, tracking_service
 
 bp = Blueprint("carrito", __name__)
 
 
 def _usuario_sesion() -> str:
-    """Clave de carrito: asociada al usuario si está logueado, si no, anónima."""
-    if session.get("usuario_id"):
-        return f"user:{session['usuario_id']}"
-    token = session.get("carrito_sesion")
-    if not token:
-        token = carrito_service.nueva_sesion()
-        session["carrito_sesion"] = token
-    return f"anon:{token}"
+    """Clave de carrito: asociada al usuario si está logueado, si no, anónima.
+
+    Delega en el servicio de tracking para que carrito y visitas web usen
+    exactamente la misma clave (`user:<id>` / `anon:<token>`); de ahí depende
+    el KPI de conversión (KPI-03).
+    """
+    return tracking_service.clave_sesion()
 
 
 def _preparar_carrito() -> int:
