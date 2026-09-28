@@ -6,7 +6,7 @@ Crea/actualiza un `cliente`, registra su `electrodomestico` y guarda la
 
 import logging
 from datetime import date as date_cls
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from app.supabase_client import get_admin_client, get_reader
 
@@ -24,6 +24,11 @@ class CitaError(Exception):
 
 def _fecha_hoy():
     return date_cls.today()
+
+
+def _ahora() -> str:
+    """Marca de tiempo en UTC, igual que usa el carrito."""
+    return datetime.now(timezone.utc).isoformat()
 
 
 def _plus_one_hour(hora: str) -> str:
@@ -389,3 +394,30 @@ def agendar(datos: dict) -> dict:
         raise CitaError(
             "No se pudo guardar la cita en este momento. Verifica la conexión y vuelve a intentar."
         ) from exc
+
+
+def marcar_primera_atencion(reserva_id) -> bool:
+    """Sella la hora de la primera atención de la cita (soporte del KPI-01/02).
+
+    Se escribe una sola vez: el UPDATE filtra por `fecha_primera_atencion IS
+    NULL`, así que volver a llamarlo no pisa la marca original. Por eso el tiempo
+    de respuesta se mide contra el primer contacto, no contra el último.
+
+    Es idempotente y nunca rompe el flujo: si Supabase falla, la cita se sigue
+    gestionando y el KPI solo pierde ese dato.
+    """
+    if not reserva_id:
+        return False
+    try:
+        resp = (
+            get_admin_client()
+            .table("reservas")
+            .update({"fecha_primera_atencion": _ahora()})
+            .eq("id", reserva_id)
+            .is_("fecha_primera_atencion", None)
+            .execute()
+        )
+        return bool(resp.data)
+    except Exception:  # noqa: BLE001
+        log.warning("No se pudo marcar la primera atención de la reserva %s", reserva_id)
+        return False

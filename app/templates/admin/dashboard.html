@@ -10,7 +10,9 @@
             <span class="text-muted text-sm">Actualizado {{ fecha_actualizacion }}</span></p>
     </div>
     <div class="panel-actions">
-        <a class="btn btn-outline" href="{{ url_for('main.tienda') }}">Ver tienda</a>
+        <a class="btn btn-outline" href="{{ url_for('kpi.panel') }}">KPIs</a>
+        <a class="btn btn-outline" href="{{ url_for('admin.productos') }}">Productos</a>
+        <a class="btn btn-outline" href="{{ url_for('auth.usuarios_sistema') }}">Usuarios</a>
         <a class="btn btn-primary" href="{{ url_for('admin.citas_listado') }}">Citas</a>
         <button class="btn btn-outline no-print" type="button" onclick="window.print()">🖨 Imprimir</button>
     </div>

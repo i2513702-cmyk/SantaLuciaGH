@@ -2,7 +2,7 @@
 
 from functools import wraps
 
-from flask import redirect, request, session, url_for
+from flask import abort, redirect, request, session, url_for
 
 ROLES_DB = {
     "ADMINISTRADOR": "Administrador",
@@ -14,6 +14,13 @@ ROLES_DB = {
     "CLIENTE": "Cliente",
 }
 
+# Blueprints de compra (carrito y checkout): bloqueados para el administrador.
+BLUEPRINTS_COMPRA = ("carrito", "checkout")
+
+# El panel administrativo es exclusivo del administrador: es el rol que gestiona
+# y, por tanto, el que no compra. ADMIN_ROLES suma el supervisor, que además
+# accede a la gestión de cuentas del sistema.
+ROLES_PANEL_ADMIN = ("ADMINISTRADOR",)
 ADMIN_ROLES = ("ADMINISTRADOR", "SUPERVISOR")
 
 _ROLES_PANEL = {
@@ -31,6 +38,20 @@ def map_rol(rol):
     return _ROLES_PANEL.get(rol)
 
 
+def es_administrativo(rol) -> bool:
+    """True si el rol dirige el panel administrativo (gestiona, no compra)."""
+    return rol in ROLES_PANEL_ADMIN
+
+
+def puede_comprar(rol) -> bool:
+    """True si el rol opera como comprador en la tienda.
+
+    El administrador gestiona el sistema, no compra: por eso no ve el carrito ni
+    puede pasar por el checkout. Las visitas anónimas también pueden comprar.
+    """
+    return not es_administrativo(rol)
+
+
 def panel_for(rol):
     """Devuelve el endpoint del panel según el rol de la BD."""
     return {
@@ -42,6 +63,11 @@ def panel_for(rol):
         "ALMACENERO": "worker.dashboard",
         "CLIENTE": "main.home",
     }.get(rol, "main.home")
+
+
+def _denegar():
+    """Corta la petición con la página 403 del proyecto."""
+    abort(403)
 
 
 def login_required(view):
@@ -64,7 +90,7 @@ def admin_required(view):
         if "usuario_id" not in session:
             return redirect(url_for("auth.login"))
         if session.get("rol") not in ADMIN_ROLES:
-            return "Acceso denegado", 403
+            _denegar()
         return view(*args, **kwargs)
 
     return wrapped
@@ -79,9 +105,19 @@ def roles_required(*roles_panel):
             if "usuario_id" not in session:
                 return redirect(url_for("auth.login"))
             if map_rol(session.get("rol")) not in roles_panel:
-                return "Acceso denegado", 403
+                _denegar()
             return view(*args, **kwargs)
 
         return wrapped
 
     return decorator
+
+
+def bloquear_compras_admin():
+    """Corta con 403 el carrito y el checkout del administrador.
+
+    Se registra como before_request global antes de la validación CSRF, para
+    que ni siquiera un POST suyo llegue a procesar una compra.
+    """
+    if request.blueprint in BLUEPRINTS_COMPRA and es_administrativo(session.get("rol")):
+        _denegar()
