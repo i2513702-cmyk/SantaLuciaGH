@@ -28,13 +28,45 @@
     <div class="collapse-body">
         <section class="cards" style="margin-bottom: 28px;">
     {% for stat in stats %}
-        <div class="card" style="align-items:center; text-align:center;">
+        <div class="card card-stat" style="align-items:center; text-align:center;" role="button" tabindex="0"
+             data-resumen="{{ stat.filtro }}" title="Ver {{ stat.label }}">
             <div class="stat-icon" style="font-size: 2rem;">{{ stat.icon }}</div>
             <div class="stat-value" style="font-size: 1.8rem; font-weight: 700; margin: 4px 0 2px;">{{ stat.value }}</div>
             <div class="stat-label">{{ stat.label }}</div>
+            <span class="stat-ver">Ver contenido →</span>
         </div>
     {% endfor %}
         </section>
+    </div>
+</div>
+
+<div class="modal fade" id="modal-resumen" tabindex="-1" aria-hidden="true" aria-labelledby="modal-resumen-label">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modal-resumen-label">Detalle</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body p-0" id="resumen-modal-body">
+                <div class="p-3 border-bottom d-none" id="resumen-modal-buscar">
+                    <input type="search" class="form-control form-control-sm" id="resumen-modal-q"
+                           autocomplete="off" placeholder="Buscar...">
+                </div>
+                <div id="resumen-modal-tabla">
+                    <div class="text-center p-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Cargando...</span>
+                        </div>
+                        <p class="mt-3 mb-0 text-muted">Cargando contenido...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer flex-wrap gap-2">
+                <span class="me-auto text-muted small" id="resumen-modal-total"></span>
+                <div class="btn-group btn-group-sm" id="resumen-modal-paginacion" role="group" aria-label="Paginación"></div>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -182,4 +214,135 @@
 
 {% block scripts %}
 {% include "partials/dashboard_scripts.html" %}
+<script>
+(function () {
+    var base = "{{ url_for('worker.resumen_detalle', clave='__clave__') }}";
+    var modalEl = document.getElementById('modal-resumen');
+    var zona = document.getElementById('resumen-modal-tabla');
+    var zonaBuscar = document.getElementById('resumen-modal-buscar');
+    var input = document.getElementById('resumen-modal-q');
+    var titulo = document.getElementById('modal-resumen-label');
+    var total = document.getElementById('resumen-modal-total');
+    var paginacion = document.getElementById('resumen-modal-paginacion');
+    if (!modalEl || !zona) return;
+    var modal = new bootstrap.Modal(modalEl);
+    var claveActual = '';
+    var paginaActual = 1;
+    var timer = null;
+
+    function escapar(texto) {
+        var d = document.createElement('div');
+        d.textContent = texto == null ? '' : String(texto);
+        return d.innerHTML;
+    }
+
+    function paginasHtml(datos) {
+        if (datos.paginas < 2) return '';
+        var html = '';
+        var ini = Math.max(1, datos.pagina - 2);
+        var fin = Math.min(datos.paginas, ini + 4);
+        ini = Math.max(1, fin - 4);
+        function btn(p, txt, activo, disabled) {
+            return '<button type="button" class="btn btn-outline-secondary' + (activo ? ' active' : '')
+                + '" data-pag="' + p + '"' + (disabled ? ' disabled' : '') + '>' + txt + '</button>';
+        }
+        html += btn(datos.pagina - 1, '&laquo;', false, datos.pagina === 1);
+        for (var p = ini; p <= fin; p++) html += btn(p, String(p), p === datos.pagina, false);
+        html += btn(datos.pagina + 1, '&raquo;', false, datos.pagina === datos.paginas);
+        return html;
+    }
+
+    function pintar(datos) {
+        if (!datos.ok) {
+            zona.innerHTML = '<div class="p-4"><div class="alert alert-danger mb-0">'
+                + escapar(datos.detalle || 'No se pudo cargar el contenido.') + '</div></div>';
+            total.textContent = '';
+            paginacion.innerHTML = '';
+            return;
+        }
+        titulo.textContent = datos.titulo + ' (' + datos.total + ')';
+        paginacion.innerHTML = paginasHtml(datos);
+
+        if (!datos.filas.length) {
+            zona.innerHTML = '<div class="text-center p-5 text-muted">'
+                + (datos.total === 0 ? 'No hay registros que coincidan con la búsqueda.'
+                    : 'No hay registros para este indicador.') + '</div>';
+            total.textContent = '';
+            return;
+        }
+
+        var html = '<div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">'
+            + '<thead class="table-light"><tr>';
+        datos.encabezados.forEach(function (h) { html += '<th>' + escapar(h) + '</th>'; });
+        html += '<th></th></tr></thead><tbody>';
+        datos.filas.forEach(function (fila) {
+            html += '<tr>';
+            fila.celdas.forEach(function (c) { html += '<td>' + escapar(c) + '</td>'; });
+            html += '<td class="text-end">';
+            if (fila.badge) {
+                html += '<span class="badge ' + escapar(fila.badge.clase) + '">'
+                    + escapar(fila.badge.texto) + '</span>';
+            }
+            html += '</td></tr>';
+        });
+        html += '</tbody></table></div>';
+        zona.innerHTML = html;
+        total.textContent = datos.total + ' registro(s) · página ' + datos.pagina + ' de ' + datos.paginas;
+    }
+
+    function cargar(clave, pagina, q) {
+        paginaActual = pagina || 1;
+        zona.innerHTML = '<div class="text-center p-5"><div class="spinner-border text-primary" role="status">'
+            + '<span class="visually-hidden">Cargando...</span></div>'
+            + '<p class="mt-3 mb-0 text-muted">Cargando contenido...</p></div>';
+        total.textContent = '';
+        var url = base.replace('__clave__', encodeURIComponent(clave))
+            + '?pagina=' + paginaActual + (q ? '&q=' + encodeURIComponent(q) : '');
+        fetch(url, { headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(pintar)
+            .catch(function () {
+                zona.innerHTML = '<div class="p-4"><div class="alert alert-danger mb-0">'
+                    + 'No se pudo consultar la base de datos.</div></div>';
+            });
+    }
+
+    function abrir(clave) {
+        claveActual = clave;
+        if (input) input.value = '';
+        cargar(clave, 1, '');
+        modal.show();
+    }
+
+    paginacion.addEventListener('click', function (ev) {
+        var b = ev.target.closest('[data-pag]');
+        if (!b || b.disabled) return;
+        cargar(claveActual, parseInt(b.dataset.pag, 10), input ? input.value : '');
+    });
+
+    if (input) {
+        input.addEventListener('input', function () {
+            clearTimeout(timer);
+            timer = setTimeout(function () { cargar(claveActual, 1, input.value); }, 250);
+        });
+        input.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Enter') {
+                ev.preventDefault();
+                clearTimeout(timer);
+                cargar(claveActual, 1, input.value);
+            }
+        });
+    }
+
+    document.querySelectorAll('[data-resumen]').forEach(function (card) {
+        card.addEventListener('click', function () { abrir(card.dataset.resumen); });
+        card.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Enter' || ev.key === ' ') {
+                ev.preventDefault();
+                abrir(card.dataset.resumen);
+            }
+        });
+    });
+})();
+</script>
 {% endblock %}

@@ -2,9 +2,17 @@
 
 from datetime import datetime, timedelta, timezone
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import (
+    Blueprint,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 
-from app.decorators import roles_required
+from app.decorators import ROLES_DB, roles_required
 from app.exceptions import AppError, NotFoundError, ValidationError
 from app.services import producto_service
 from app.supabase_client import get_reader
@@ -12,6 +20,43 @@ from app.supabase_client import get_reader
 bp = Blueprint("admin", __name__)
 
 TABLAS_CONTEO = ("clientes", "productos", "tecnicos", "reparaciones", "usuarios")
+
+# Columnas y armado de filas para el detalle de cada tarjeta de
+# "Registro del sistema" (/admin/registro/<tabla>).
+REGISTRO_TABLAS = {
+    "tecnicos": {
+        "titulo": "Técnicos",
+        "select": "id,especialidad,empleados(nombres,apellidos)",
+        "orden": "id",
+    },
+    "clientes": {
+        "titulo": "Clientes",
+        "select": "id,nombres,apellidos,razon_social,numero_documento,telefono,correo,activo",
+        "orden": "id",
+    },
+    "productos": {
+        "titulo": "Productos",
+        "select": (
+            "id,codigo,nombre,tipo_producto,precio_venta,precio_compra,activo,"
+            "marcas(nombre),categorias(nombre)"
+        ),
+        "orden": "nombre",
+    },
+    "reparaciones": {
+        "titulo": "Reparaciones",
+        "select": "*",
+        "orden": "fecha_ingreso",
+        "desc": True,
+    },
+    "usuarios": {
+        "titulo": "Usuarios",
+        "select": (
+            "id,nombre_usuario,correo,rol,activo,ultimo_acceso,"
+            "empleados(nombres,apellidos),clientes(nombres,apellidos)"
+        ),
+        "orden": "id",
+    },
+}
 
 ESTADOS_REPARACION_LABEL = {
     "RECIBIDO": "Recibido",
@@ -423,6 +468,151 @@ def _metricas_dashboard():
     }
 
 
+def _registro_filas(tabla: str, cfg: dict) -> list:
+    """Lee las filas de una tabla de "Registro del sistema" ya formateadas."""
+    filas = _leer(tabla, cfg["select"])
+    orden = cfg.get("orden")
+    if orden:
+        filas.sort(
+            key=lambda r: (r.get(orden) is None, r.get(orden)),
+            reverse=bool(cfg.get("desc")),
+        )
+
+    def _persona(rel):
+        """Nombre legible desde una relación anidada (empleados/clientes)."""
+        d = rel or {}
+        return " ".join(filter(None, [d.get("nombres"), d.get("apellidos")])) or "—"
+
+    if tabla == "tecnicos":
+        return [{
+            "celdas": [
+                f"#{r.get('id')}",
+                _persona(r.get("empleados")),
+                r.get("especialidad") or "—",
+            ],
+            "badge": None,
+            "busqueda": _persona(r.get("empleados")),
+        } for r in filas]
+
+    if tabla == "clientes":
+        return [{
+            "celdas": [
+                f"#{r.get('id')}",
+                r.get("razon_social") or _persona(r),
+                r.get("numero_documento") or "—",
+                r.get("telefono") or "—",
+                r.get("correo") or "—",
+            ],
+            "badge": None,
+            "busqueda": r.get("numero_documento") or "",
+        } for r in filas]
+
+    if tabla == "productos":
+        return [{
+            "celdas": [
+                r.get("codigo") or f"#{r.get('id')}",
+                r.get("nombre") or "—",
+                (r.get("marcas") or {}).get("nombre") or "—",
+                (r.get("categorias") or {}).get("nombre") or "—",
+                f"S/ {float(r.get('precio_venta') or 0):,.2f}",
+            ],
+            "badge": None,
+            "busqueda": r.get("codigo") or "",
+        } for r in filas]
+
+    if tabla == "reparaciones":
+        return [{
+            "celdas": [
+                f"OS-{r.get('id')}",
+                r.get("problema") or "—",
+                _dia(r.get("fecha_ingreso")),
+                r.get("tipo_atencion") or "—",
+            ],
+            "badge": {
+                "texto": ESTADOS_REPARACION_LABEL.get(r.get("estado") or "", r.get("estado") or "—"),
+                "clase": "badge-ok" if r.get("estado") in ("ENTREGADO", "REPARADO", "LISTO_ENTREGA")
+                else "badge-warn" if r.get("estado") in ("EN_REPARACION", "DIAGNOSTICO", "APROBADO")
+                else "badge-muted",
+            },
+            "busqueda": r.get("problema") or "",
+        } for r in filas]
+
+    # usuarios
+    return [{
+        "celdas": [
+            f"#{r.get('id')}",
+            r.get("nombre_usuario") or "—",
+            r.get("correo") or "—",
+            _persona(r.get("empleados")) if r.get("empleado_id") else _persona(r.get("clientes")),
+            (r.get("ultimo_acceso") or "")[:10] or "—",
+        ],
+        "badge": {
+            "texto": ROLES_DB.get(r.get("rol") or "", r.get("rol") or "—"),
+            "clase": "badge-ok" if r.get("rol") == "ADMINISTRADOR" else "badge-muted",
+        },
+        "busqueda": r.get("correo") or "",
+    } for r in filas]
+
+
+REGISTRO_ENCABEZADOS = {
+    "tecnicos": ("ID", "Técnico", "Especialidad"),
+    "clientes": ("ID", "Cliente", "Documento", "Teléfono", "Correo"),
+    "productos": ("Código", "Producto", "Marca", "Categoría", "Precio"),
+    "reparaciones": ("Orden", "Problema", "Ingreso", "Atención", "Estado"),
+    "usuarios": ("ID", "Usuario", "Correo", "Persona", "Último acceso", "Rol"),
+}
+
+REGISTRO_POR_PAGINA = 10
+
+# Placeholder del input de búsqueda de cada tabla (None = sin buscador).
+REGISTRO_BUSQUEDA = {
+    "tecnicos": "Buscar por nombre...",
+    "clientes": "Buscar por documento...",
+    "productos": "Buscar por código...",
+    "usuarios": "Buscar por correo...",
+    "reparaciones": None,
+}
+
+
+@bp.get("/admin/registro/<tabla>")
+@roles_required("admin")
+def registro_detalle(tabla):
+    """JSON paginado y filtrable del contenido de una tabla del registro."""
+    cfg = REGISTRO_TABLAS.get(tabla)
+    if not cfg:
+        return jsonify({"ok": False, "detalle": "Tabla no encontrada."}), 404
+
+    filas = _registro_filas(tabla, cfg)
+
+    q = (request.args.get("q") or "").strip()
+    if q:
+        filas = [f for f in filas if q.lower() in (f["busqueda"] or "").lower()]
+
+    total = len(filas)
+    paginas = max(1, -(-total // REGISTRO_POR_PAGINA))
+    try:
+        pagina = int(request.args.get("pagina") or 1)
+    except ValueError:
+        pagina = 1
+    pagina = min(max(pagina, 1), paginas)
+
+    inicio = (pagina - 1) * REGISTRO_POR_PAGINA
+    return jsonify({
+        "ok": True,
+        "titulo": cfg["titulo"],
+        "encabezados": list(REGISTRO_ENCABEZADOS[tabla]),
+        "filas": [
+            {"celdas": f["celdas"], "badge": f["badge"]}
+            for f in filas[inicio:inicio + REGISTRO_POR_PAGINA]
+        ],
+        "pagina": pagina,
+        "paginas": paginas,
+        "total": total,
+        "por_pagina": REGISTRO_POR_PAGINA,
+        "placeholder": REGISTRO_BUSQUEDA[tabla],
+    })
+
+
 @bp.route("/admin")
 @roles_required("admin")
 def dashboard():
@@ -430,11 +620,11 @@ def dashboard():
     fecha_actualizacion = datetime.now(timezone.utc).strftime("%d/%m/%Y %H:%M")
 
     stats = [
-        {"label": "Técnicos", "value": conteos.get("tecnicos") or 0, "icon": "🔧"},
-        {"label": "Clientes", "value": conteos.get("clientes") or 0, "icon": "👥"},
-        {"label": "Productos", "value": conteos.get("productos") or 0, "icon": "🏷️"},
-        {"label": "Reparaciones", "value": conteos.get("reparaciones") or 0, "icon": "🛠️"},
-        {"label": "Usuarios", "value": conteos.get("usuarios") or 0, "icon": "🔐"},
+        {"label": "Técnicos", "value": conteos.get("tecnicos") or 0, "icon": "🔧", "tabla": "tecnicos"},
+        {"label": "Clientes", "value": conteos.get("clientes") or 0, "icon": "👥", "tabla": "clientes"},
+        {"label": "Productos", "value": conteos.get("productos") or 0, "icon": "🏷️", "tabla": "productos"},
+        {"label": "Reparaciones", "value": conteos.get("reparaciones") or 0, "icon": "🛠️", "tabla": "reparaciones"},
+        {"label": "Usuarios", "value": conteos.get("usuarios") or 0, "icon": "🔐", "tabla": "usuarios"},
     ]
     metricas = _metricas_dashboard()
     modulos = [

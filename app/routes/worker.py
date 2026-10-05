@@ -4,10 +4,19 @@ Además de las reparaciones, muestra las citas asignadas al técnico
 logueado y permite gestionar su disponibilidad (agenda_tecnicos).
 """
 
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import (
+    Blueprint,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 
 from app.decorators import roles_required
-from app.supabase_client import get_admin_client, get_reader
+from app.supabase_client import error_postgrest, get_admin_client, get_reader
 
 bp = Blueprint("worker", __name__)
 
@@ -196,21 +205,113 @@ def dashboard():
             "ingreso": (r.get("fecha_ingreso") or "")[:10],
         })
 
+    citas_asignadas = _citas_tecnico(tecnico_id) if tecnico_id else []
     stats = [
-        {"label": "Reparaciones en servicio", "value": _contar("reparaciones", estado="EN_REPARACION") or 0, "icon": "🔧"},
-        {"label": "Listas para entrega", "value": _contar("reparaciones", estado="LISTO_ENTREGA") or 0, "icon": "📦"},
-        {"label": "Entregadas", "value": _contar("reparaciones", estado="ENTREGADO") or 0, "icon": "✅"},
-        {"label": "Citas asignadas", "value": len(_citas_tecnico(tecnico_id)) if tecnico_id else 0, "icon": "📅"},
+        {"label": "Reparaciones en servicio", "value": _contar("reparaciones", estado="EN_REPARACION") or 0, "icon": "🔧", "filtro": "EN_REPARACION"},
+        {"label": "Listas para entrega", "value": _contar("reparaciones", estado="LISTO_ENTREGA") or 0, "icon": "📦", "filtro": "LISTO_ENTREGA"},
+        {"label": "Entregadas", "value": _contar("reparaciones", estado="ENTREGADO") or 0, "icon": "✅", "filtro": "ENTREGADO"},
+        {"label": "Citas asignadas", "value": len(citas_asignadas), "icon": "📅", "filtro": "CITAS"},
     ]
     return render_template(
         "worker/dashboard.html",
         stats=stats,
         ordenes=ordenes,
         tecnico=tecnico,
-        citas=_citas_tecnico(tecnico_id) if tecnico_id else [],
+        citas=citas_asignadas,
         disponibilidad=_disponibilidad_tecnico(tecnico_id) if tecnico_id else [],
         es_tecnico=tecnico is not None,
     )
+
+
+RESUMEN_POR_PAGINA = 10
+
+
+def _paginar(filas: list, q: str, campo_busqueda: str) -> tuple:
+    """Filtra por `campo_busqueda` y devuelve (page_rows, meta) de 10 en 10."""
+    q = (q or "").strip()
+    if q:
+        filas = [f for f in filas if q.lower() in (f["busqueda"] or "").lower()]
+
+    total = len(filas)
+    paginas = max(1, -(-total // RESUMEN_POR_PAGINA))
+    try:
+        pagina = int(request.args.get("pagina") or 1)
+    except ValueError:
+        pagina = 1
+    pagina = min(max(pagina, 1), paginas)
+    inicio = (pagina - 1) * RESUMEN_POR_PAGINA
+
+    return filas[inicio:inicio + RESUMEN_POR_PAGINA], {
+        "pagina": pagina,
+        "paginas": paginas,
+        "total": total,
+        "por_pagina": RESUMEN_POR_PAGINA,
+    }
+
+
+@bp.get("/worker/resumen/<clave>")
+@roles_required("worker")
+def resumen_detalle(clave):
+    """JSON paginado y filtrable del detalle de una tarjeta del 'Resumen'."""
+    if clave == "CITAS":
+        tecnico = _tecnico_actual()
+        citas = _citas_tecnico((tecnico or {}).get("id")) if tecnico else []
+        formateadas = [{
+            "celdas": [c["fecha"], c["hora"] or "—", c["cliente_nombre"], c["equipo"] or "—"],
+            "badge": {"texto": c["estado"], "clase": c["badge_class"]},
+            "busqueda": c["cliente_nombre"],
+        } for c in citas]
+        pagina, meta = _paginar(formateadas, request.args.get("q"), "cliente_nombre")
+        return jsonify({
+            "ok": True,
+            "titulo": "Citas asignadas",
+            "encabezados": ["Fecha", "Hora", "Cliente", "Equipo", "Estado"],
+            "filas": [{"celdas": f["celdas"], "badge": f["badge"]} for f in pagina],
+            "placeholder": "Buscar por cliente...",
+            **meta,
+        })
+
+    estados = {
+        "EN_REPARACION": "Reparaciones en servicio",
+        "LISTO_ENTREGA": "Listas para entrega",
+        "ENTREGADO": "Entregadas",
+    }
+    if clave not in estados:
+        return jsonify({"ok": False, "detalle": "Indicador no encontrado."}), 404
+
+    try:
+        filas = (
+            get_reader()
+            .table("reparaciones")
+            .select("id,problema,tipo_atencion,estado,fecha_ingreso")
+            .eq("estado", clave)
+            .order("fecha_ingreso", desc=True)
+            .execute()
+        ).data or []
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"ok": False, "detalle": error_postgrest(exc)}), 502
+
+    formateadas = [{
+        "celdas": [
+            f"OS-{r.get('id')}",
+            r.get("problema") or "—",
+            (r.get("fecha_ingreso") or "")[:10] or "—",
+            r.get("tipo_atencion") or "—",
+        ],
+        "badge": {"texto": ESTADOS_LABEL.get(r.get("estado") or "", r.get("estado") or "—"),
+                  "clase": _clase_estado(r.get("estado") or "")},
+        "busqueda": r.get("problema") or "",
+    } for r in filas]
+
+    pagina, meta = _paginar(formateadas, request.args.get("q"), "problema")
+    return jsonify({
+        "ok": True,
+        "titulo": estados[clave],
+        "encabezados": ["Orden", "Problema", "Ingreso", "Atención", "Estado"],
+        "filas": [{"celdas": f["celdas"], "badge": f["badge"]} for f in pagina],
+        "placeholder": "Buscar por problema...",
+        **meta,
+    })
 
 
 @bp.post("/worker/agenda/agregar")
