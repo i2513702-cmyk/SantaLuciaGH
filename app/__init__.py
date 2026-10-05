@@ -5,6 +5,7 @@ import os
 from flask import Flask, render_template
 
 from app.config import config_map
+from app.decorators import bloquear_compras_admin
 from app.extensions import bcrypt, cors
 
 
@@ -28,6 +29,7 @@ def create_app() -> Flask:
     app.register_blueprint(carrito.bp)
     app.register_blueprint(checkout.bp)
     app.register_blueprint(citas.bp)
+    app.register_blueprint(kpi.bp)
     app.register_blueprint(supabase_bp)
     app.register_blueprint(api.bp)
 
@@ -51,20 +53,30 @@ def create_app() -> Flask:
     def inject_globals():
         from flask import session
 
-        from app.decorators import map_rol
+        from app.decorators import es_administrativo, map_rol, puede_comprar
         from app.security import get_csrf
+
+        rol = session.get("rol")
+        # El contador del carrito solo existe para quien puede comprar; así el
+        # personal administrativo nunca ve un carrito propio en la cabecera.
+        carrito_n = session.get("carrito_n", 0) if puede_comprar(rol) else 0
 
         return {
             "app_name": app.config["APP_NAME"],
             "app_tagline": app.config["APP_TAGLINE"],
             "logo_path": app.config["LOGO_PATH"],
             "footer_bg": app.config["FOOTER_BG_PATH"],
-            "rol": session.get("rol"),
-            "rol_panel": map_rol(session.get("rol")),
+            "rol": rol,
+            "rol_panel": map_rol(rol),
+            "es_admin": es_administrativo(rol),
+            "puede_comprar": puede_comprar(rol),
             "nombre": session.get("nombre"),
-            "carrito_n": session.get("carrito_n", 0),
+            "carrito_n": carrito_n,
             "csrf_token": get_csrf(),
         }
+
+    # --- El administrador no compra: se corta el carrito/checkout antes del CSRF ---
+    app.before_request(bloquear_compras_admin)
 
     # --- Protección CSRF en todas las peticiones POST ---
     @app.before_request

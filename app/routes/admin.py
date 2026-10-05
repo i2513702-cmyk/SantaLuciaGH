@@ -14,7 +14,7 @@ from flask import (
 
 from app.decorators import ROLES_DB, roles_required
 from app.exceptions import AppError, NotFoundError, ValidationError
-from app.services import producto_service
+from app.services import cita_service, producto_service
 from app.supabase_client import get_reader
 
 bp = Blueprint("admin", __name__)
@@ -629,6 +629,12 @@ def dashboard():
     metricas = _metricas_dashboard()
     modulos = [
         {
+            "nombre": "Indicadores (KPIs)",
+            "descripcion": "Seis indicadores del negocio con metas y evolución",
+            "icon": "📊",
+            "url": "kpi.panel",
+        },
+        {
             "nombre": "Citas de servicio",
             "descripcion": "Ver citas y asignar técnico",
             "icon": "📅",
@@ -765,7 +771,12 @@ def citas_listado():
 @bp.post("/admin/citas/<int:reserva_id>/asignar")
 @roles_required("admin")
 def citas_asignar_tecnico(reserva_id):
-    """Asigna (o libera) el técnico de una cita."""
+    """Asigna (o libera) el técnico de una cita.
+
+    Asignar el técnico es la primera atención de la cita: ahí se sella
+    `fecha_primera_atencion` (una sola vez, ver cita_service), que es la base
+    del KPI-01 y del KPI-02. Liberar el técnico no borra la marca.
+    """
     tecnico_id = request.form.get("tecnico_id", type=int)
     try:
         from app.supabase_client import get_admin_client
@@ -774,6 +785,7 @@ def citas_asignar_tecnico(reserva_id):
             {"tecnico_id": tecnico_id or None, "estado": "CONFIRMADA" if tecnico_id else "PENDIENTE"}
         ).eq("id", reserva_id).execute()
         if tecnico_id:
+            cita_service.marcar_primera_atencion(reserva_id)
             flash("Técnico asignado a la cita.", "success")
         else:
             flash("Cita liberada (técnico sin asignar).", "info")

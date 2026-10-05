@@ -5,7 +5,11 @@
 {% block content %}
 <section class="text-center py-4 bg-white border rounded-3 shadow-sm mb-4">
     <h1 class="h2 fw-semibold mb-1">Nuestros productos</h1>
-    <p class="text-secondary mb-0">Catálogo real de {{ app_name }}. Precios y stock desde la base de datos.</p>
+    {% if puede_comprar %}
+        <p class="text-secondary mb-0">Catálogo real de {{ app_name }}. Precios y stock desde la base de datos.</p>
+    {% else %}
+        <p class="text-secondary mb-0">Consulta del catálogo en modo administración: no hay carrito ni pagos para tu rol.</p>
+    {% endif %}
 </section>
 
 {% if categorias %}
@@ -71,10 +75,14 @@
                             {% endif %}
                             <span class="fs-5 fw-bold">{{ p.precio_ahora }}</span>
                         </div>
+                        {% if puede_comprar %}
                         <form method="POST" action="{{ url_for('carrito.agregar', producto_id=p.id) }}">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                             <button type="submit" class="btn btn-primary w-100">Agregar al carrito</button>
                         </form>
+                        {% else %}
+                        <a class="btn btn-outline w-100" href="{{ url_for('admin.producto_editar', producto_id=p.id) }}">Gestionar en el panel</a>
+                        {% endif %}
                     </div>
                 </div>
             </div>
@@ -91,7 +99,7 @@
     </div>
 {% else %}
     <div class="text-center py-5">
-        <p class="display-6 text-secondary mb-1">🛒</p>
+        <p class="display-6 text-secondary mb-1">📦</p>
         <p class="text-secondary">Aún no hay productos publicados en la base de datos.</p>
     </div>
 {% endif %}

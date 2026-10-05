@@ -2,7 +2,8 @@
 
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 
-from app.decorators import ROLES_DB, login_required
+from app.decorators import ROLES_DB, es_administrativo, login_required
+from app.services import tracking_service
 from app.supabase_client import get_reader
 
 bp = Blueprint("main", __name__)
@@ -67,6 +68,7 @@ def _cargar_home_data() -> dict:
 
 @bp.route("/")
 def home():
+    tracking_service.registrar_visita("/")
     data = _cargar_home_data()
     return render_template("home.html", **data)
 
@@ -192,6 +194,8 @@ def tienda():
 
     filtros_activos = bool(q_display or cat_id or marca_id or solo_ofertas)
 
+    tracking_service.registrar_visita("/tienda")
+
     return render_template(
         "tienda.html",
         productos=resultados,
@@ -211,64 +215,72 @@ def tienda():
 @bp.route("/perfil")
 @login_required
 def perfil():
-    """Historial de compras del usuario logueado (ventas con usuario_id)."""
+    """Cuenta del usuario logueado.
+
+    Los clientes ven además su historial de compras. El personal administrativo
+    solo accede a la gestión de su cuenta: no compra, así que no se consulta ni
+    se muestra historial de pedidos.
+    """
     usuario_id = session.get("usuario_id")
     usuario_nombre = session.get("nombre") or session.get("username")
-
-    try:
-        resp = (
-            get_reader()
-            .table("ventas")
-            .select(
-                "id,codigo_pedido,fecha_venta,subtotal,descuento,costo_envio,total,"
-                "estado,tipo_entrega,canal_venta,"
-                "comprobantes(tipo_comprobante,serie,numero),"
-                "detalle_venta(cantidad,precio_unitario,productos(nombre,marcas(nombre)))"
-            )
-            .eq("usuario_id", usuario_id)
-            .order("fecha_venta", desc=True)
-            .execute()
-        )
-        filas = resp.data or []
-    except Exception:  # noqa: BLE001
-        filas = []
-
+    es_admin = es_administrativo(session.get("rol"))
     compras = []
-    for v in filas:
-        lineas = []
-        for dv in v.get("detalle_venta") or []:
-            prod = dv.get("productos") or {}
-            lineas.append({
-                "producto": prod.get("nombre") or "Producto",
-                "marca": (prod.get("marcas") or {}).get("nombre"),
-                "cantidad": dv.get("cantidad"),
-                "precio_unitario": _precio(dv.get("precio_unitario")),
+
+    if not es_admin:
+        try:
+            resp = (
+                get_reader()
+                .table("ventas")
+                .select(
+                    "id,codigo_pedido,fecha_venta,subtotal,descuento,costo_envio,total,"
+                    "estado,tipo_entrega,canal_venta,"
+                    "comprobantes(tipo_comprobante,serie,numero),"
+                    "detalle_venta(cantidad,precio_unitario,productos(nombre,marcas(nombre)))"
+                )
+                .eq("usuario_id", usuario_id)
+                .order("fecha_venta", desc=True)
+                .execute()
+            )
+            filas = resp.data or []
+        except Exception:  # noqa: BLE001
+            filas = []
+
+        for v in filas:
+            lineas = []
+            for dv in v.get("detalle_venta") or []:
+                prod = dv.get("productos") or {}
+                lineas.append({
+                    "producto": prod.get("nombre") or "Producto",
+                    "marca": (prod.get("marcas") or {}).get("nombre"),
+                    "cantidad": dv.get("cantidad"),
+                    "precio_unitario": _precio(dv.get("precio_unitario")),
+                })
+            comprobante = None
+            comps = v.get("comprobantes") or []
+            if comps:
+                c = comps[0]
+                serie = c.get("serie") or ""
+                numero = c.get("numero") or ""
+                comprobante = f"{c.get('tipo_comprobante')} {serie or ''}-{numero or ''}".strip()
+            compras.append({
+                "codigo": v.get("codigo_pedido") or f"PED-{v.get('id')}",
+                "fecha": (v.get("fecha_venta") or "")[:10],
+                "subtotal": _precio(v.get("subtotal")),
+                "descuento": _precio(v.get("descuento")),
+                "envio": _precio(v.get("costo_envio")),
+                "total": _precio(v.get("total")),
+                "estado": v.get("estado") or "PENDIENTE",
+                "entrega": v.get("tipo_entrega"),
+                "canal": v.get("canal_venta"),
+                "comprobante": comprobante,
+                "lineas": lineas,
+                "n_lineas": len(lineas),
             })
-        comprobante = None
-        comps = v.get("comprobantes") or []
-        if comps:
-            c = comps[0]
-            serie = c.get("serie") or ""
-            numero = c.get("numero") or ""
-            comprobante = f"{c.get('tipo_comprobante')} {serie or ''}-{numero or ''}".strip()
-        compras.append({
-            "codigo": v.get("codigo_pedido") or f"PED-{v.get('id')}",
-            "fecha": (v.get("fecha_venta") or "")[:10],
-            "subtotal": _precio(v.get("subtotal")),
-            "descuento": _precio(v.get("descuento")),
-            "envio": _precio(v.get("costo_envio")),
-            "total": _precio(v.get("total")),
-            "estado": v.get("estado") or "PENDIENTE",
-            "entrega": v.get("tipo_entrega"),
-            "canal": v.get("canal_venta"),
-            "comprobante": comprobante,
-            "lineas": lineas,
-            "n_lineas": len(lineas),
-        })
 
     return render_template(
         "perfil.html",
         usuario_nombre=usuario_nombre,
         rol_label=ROLES_DB.get(session.get("rol") or "") or (session.get("rol") or ""),
         compras=compras,
+        mostrar_historial=not es_admin,
     )

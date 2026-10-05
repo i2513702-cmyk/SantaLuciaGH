@@ -3,6 +3,9 @@
 El usuario debe iniciar sesión para pagar: la venta, su detalle, el comprobante
 y el pago se guardan en Supabase asociados al usuario (historial de compras), y
 el carrito se vacía al confirmar el pago.
+
+El administrador no compra: estas rutas se cierran para su rol con un 403
+(vía `app.decorators.bloquear_compras_admin`, registrado en la app).
 """
 
 import uuid
