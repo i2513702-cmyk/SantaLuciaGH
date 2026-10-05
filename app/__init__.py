@@ -19,7 +19,7 @@ def create_app() -> Flask:
     bcrypt.init_app(app)
 
     # --- Blueprints ---
-    from app.routes import admin, auth, carrito, checkout, citas, kpi, main, worker
+    from app.routes import admin, api, auth, carrito, checkout, citas, main, worker
     from app.routes.supabase import bp as supabase_bp
 
     app.register_blueprint(main.bp)
@@ -31,6 +31,7 @@ def create_app() -> Flask:
     app.register_blueprint(citas.bp)
     app.register_blueprint(kpi.bp)
     app.register_blueprint(supabase_bp)
+    app.register_blueprint(api.bp)
 
     # --- Comandos CLI ---
     from app.cli import register_cli

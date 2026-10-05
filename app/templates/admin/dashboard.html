@@ -392,13 +392,45 @@
     <div class="collapse-body">
         <section class="cards">
     {% for stat in stats %}
-        <div class="card" style="align-items:center; text-align:center;">
+        <div class="card card-stat" style="align-items:center; text-align:center;" role="button" tabindex="0"
+             data-registro="{{ stat.tabla }}" title="Ver {{ stat.label }}">
             <div class="stat-icon" style="font-size: 2rem;">{{ stat.icon }}</div>
             <div class="stat-value" style="font-size: 1.8rem; font-weight: 700; margin: 4px 0 2px;">{{ stat.value }}</div>
             <div class="stat-label">{{ stat.label }}</div>
+            <span class="stat-ver">Ver contenido →</span>
         </div>
     {% endfor %}
         </section>
+    </div>
+</div>
+
+<div class="modal fade" id="modal-registro" tabindex="-1" aria-hidden="true" aria-labelledby="modal-registro-label">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modal-registro-label">Detalle</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body p-0" id="registro-modal-body">
+                <div class="p-3 border-bottom d-none" id="registro-modal-buscar">
+                    <input type="search" class="form-control form-control-sm" id="registro-modal-q"
+                           autocomplete="off" placeholder="Buscar...">
+                </div>
+                <div id="registro-modal-tabla">
+                    <div class="text-center p-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Cargando...</span>
+                        </div>
+                        <p class="mt-3 mb-0 text-muted">Cargando contenido...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer flex-wrap gap-2">
+                <span class="me-auto text-muted small" id="registro-modal-total"></span>
+                <div class="btn-group btn-group-sm" id="registro-modal-paginacion" role="group" aria-label="Paginación"></div>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -414,14 +446,204 @@
             <div class="card-icon">{{ modulo.icon }}</div>
             <h3>{{ modulo.nombre }}</h3>
             <p>{{ modulo.descripcion }}</p>
+            {% if modulo.modal %}
+            <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#modal-{{ modulo.modal }}">Abrir</button>
+            {% else %}
             <a class="btn btn-primary" href="{{ url_for(modulo.url) }}">Abrir</a>
+            {% endif %}
         </div>
     {% endfor %}
         </section>
+    </div>
+</div>
+<div class="modal fade" id="modal-supabase" tabindex="-1" aria-hidden="true" aria-labelledby="modal-supabase-label">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modal-supabase-label">Estado de Supabase</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body text-center" id="supabase-modal-body">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Verificando...</span>
+                </div>
+                <p class="mt-3 mb-0">Verificando la conexión con la base de datos...</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 {% include "partials/dashboard_scripts.html" %}
+<script>
+(function () {
+    var base = "{{ url_for('admin.registro_detalle', tabla='__tabla__') }}";
+    var modalEl = document.getElementById('modal-registro');
+    var zona = document.getElementById('registro-modal-tabla');
+    var zonaBuscar = document.getElementById('registro-modal-buscar');
+    var input = document.getElementById('registro-modal-q');
+    var titulo = document.getElementById('modal-registro-label');
+    var total = document.getElementById('registro-modal-total');
+    var paginacion = document.getElementById('registro-modal-paginacion');
+    if (!modalEl || !zona) return;
+    var modal = new bootstrap.Modal(modalEl);
+    var tablaActual = '';
+    var paginaActual = 1;
+    var timer = null;
+
+    function escapar(texto) {
+        var d = document.createElement('div');
+        d.textContent = texto == null ? '' : String(texto);
+        return d.innerHTML;
+    }
+
+    function paginasHtml(datos) {
+        if (datos.paginas < 2) return '';
+        var html = '';
+        var ini = Math.max(1, datos.pagina - 2);
+        var fin = Math.min(datos.paginas, ini + 4);
+        ini = Math.max(1, fin - 4);
+        function btn(p, txt, activo, disabled) {
+            return '<button type="button" class="btn btn-outline-secondary' + (activo ? ' active' : '')
+                + '" data-pag="' + p + '"' + (disabled ? ' disabled' : '') + '>' + txt + '</button>';
+        }
+        html += btn(datos.pagina - 1, '&laquo;', false, datos.pagina === 1);
+        for (var p = ini; p <= fin; p++) html += btn(p, String(p), p === datos.pagina, false);
+        html += btn(datos.pagina + 1, '&raquo;', false, datos.pagina === datos.paginas);
+        return html;
+    }
+
+    function pintar(datos) {
+        if (!datos.ok) {
+            zona.innerHTML = '<div class="p-4"><div class="alert alert-danger mb-0">'
+                + escapar(datos.detalle || 'No se pudo cargar el contenido.') + '</div></div>';
+            total.textContent = '';
+            paginacion.innerHTML = '';
+            return;
+        }
+        titulo.textContent = datos.titulo + ' (' + datos.total + ')';
+        paginacion.innerHTML = paginasHtml(datos);
+
+        if (!datos.filas.length) {
+            zona.innerHTML = '<div class="text-center p-5 text-muted">'
+                + (datos.total === 0 ? 'No hay registros que coincidan con la búsqueda.'
+                    : 'Todav&iacute;a no hay registros en esta tabla.') + '</div>';
+            total.textContent = '';
+            return;
+        }
+
+        var html = '<div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">'
+            + '<thead class="table-light"><tr>';
+        datos.encabezados.forEach(function (h) { html += '<th>' + escapar(h) + '</th>'; });
+        html += '<th></th></tr></thead><tbody>';
+        datos.filas.forEach(function (fila) {
+            html += '<tr>';
+            fila.celdas.forEach(function (c) { html += '<td>' + escapar(c) + '</td>'; });
+            html += '<td class="text-end">';
+            if (fila.badge) {
+                html += '<span class="badge ' + escapar(fila.badge.clase) + '">'
+                    + escapar(fila.badge.texto) + '</span>';
+            }
+            html += '</td></tr>';
+        });
+        html += '</tbody></table></div>';
+        zona.innerHTML = html;
+        total.textContent = datos.total + ' registro(s) · página ' + datos.pagina + ' de ' + datos.paginas;
+    }
+
+    function cargar(tabla, pagina, q) {
+        paginaActual = pagina || 1;
+        zona.innerHTML = '<div class="text-center p-5"><div class="spinner-border text-primary" role="status">'
+            + '<span class="visually-hidden">Cargando...</span></div>'
+            + '<p class="mt-3 mb-0 text-muted">Cargando contenido...</p></div>';
+        total.textContent = '';
+        var url = base.replace('__tabla__', encodeURIComponent(tabla))
+            + '?pagina=' + paginaActual + (q ? '&q=' + encodeURIComponent(q) : '');
+        fetch(url, { headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                pintar(d);
+                if (d.ok) {
+                    zonaBuscar.classList.toggle('d-none', !d.placeholder);
+                    if (d.placeholder && input) input.placeholder = d.placeholder;
+                }
+            })
+            .catch(function () {
+                zona.innerHTML = '<div class="p-4"><div class="alert alert-danger mb-0">'
+                    + 'No se pudo consultar la base de datos.</div></div>';
+            });
+    }
+
+    function abrir(tabla) {
+        tablaActual = tabla;
+        if (input) input.value = '';
+        zonaBuscar.classList.add('d-none');
+        cargar(tabla, 1, '');
+        modal.show();
+    }
+
+    paginacion.addEventListener('click', function (ev) {
+        var b = ev.target.closest('[data-pag]');
+        if (!b || b.disabled) return;
+        cargar(tablaActual, parseInt(b.dataset.pag, 10), input ? input.value : '');
+    });
+
+    if (input) {
+        input.addEventListener('input', function () {
+            clearTimeout(timer);
+            timer = setTimeout(function () {
+                cargar(tablaActual, 1, input.value);
+            }, 250);
+        });
+        input.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Enter') {
+                ev.preventDefault();
+                clearTimeout(timer);
+                cargar(tablaActual, 1, input.value);
+            }
+        });
+    }
+
+    document.querySelectorAll('[data-registro]').forEach(function (card) {
+        card.addEventListener('click', function () { abrir(card.dataset.registro); });
+        card.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Enter' || ev.key === ' ') {
+                ev.preventDefault();
+                abrir(card.dataset.registro);
+            }
+        });
+    });
+})();
+</script>
+<script>
+(function () {
+    var modal = document.getElementById('modal-supabase');
+    if (!modal) return;
+    var body = document.getElementById('supabase-modal-body');
+
+    modal.addEventListener('show.bs.modal', function () {
+        body.innerHTML = '<div class="spinner-border text-primary" role="status">'
+            + '<span class="visually-hidden">Verificando...</span></div>'
+            + '<p class="mt-3 mb-0">Verificando la conexi&oacute;n con la base de datos...</p>';
+        fetch("{{ url_for('supabase.status') }}", { headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (d) { render(d.ok, d.detalle || ''); })
+            .catch(function () { render(false, 'No se pudo verificar la conexi&oacute;n con Supabase.'); });
+    });
+
+    function render(ok, detalle) {
+        var icono = ok
+            ? '<div style="font-size:3rem;line-height:1;">&#9989;</div>'
+            + '<h5 class="mt-3 mb-1 text-success">Base de datos funcionando correctamente</h5>'
+            : '<div style="font-size:3rem;line-height:1;">&#10060;</div>'
+            + '<h5 class="mt-3 mb-1 text-danger">Base de datos con problemas</h5>';
+        body.innerHTML = icono
+            + '<p class="mb-0 text-muted">' + (detalle || '') + '</p>';
+    }
+})();
+</script>
 {% endblock %}

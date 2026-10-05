@@ -23,7 +23,7 @@ from flask import (
 
 from app.decorators import login_required
 from app.exceptions import AppError, ValidationError
-from app.services import carrito_service
+from app.services import carrito_service, rest_auth_service
 
 bp = Blueprint("checkout", __name__)
 
@@ -69,6 +69,7 @@ def checkout():
         igv=f"S/ {igv:,.2f}",
         total=f"S/ {total:,.2f}",
         metodos_pago=carrito_service.listar_metodos_pago(),
+        documentos=rest_auth_service.listar_tipos_documento(),
         vigencia_horas=carrito_service.HORAS_VIGENCIA,
     )
 
