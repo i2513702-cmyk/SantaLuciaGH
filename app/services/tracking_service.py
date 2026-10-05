@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 
 from flask import request, session
 
-from app.decorators import es_administrativo
+from app.decorators import es_no_comprador
 from app.services import carrito_service
 from app.supabase_client import get_admin_client, get_reader
 
@@ -57,15 +57,15 @@ def registrar_visita(ruta: str | None = None) -> bool:
     """Guarda una fila en `visitas_web` por sesión. Nunca rompe la navegación.
 
     - Solo cuenta la primera visita de cada sesión (una fila por `sesion_id`).
-    - El administrador no se cuenta: gestiona el sistema y no puede tener
-      carrito, así que su visita al catálogo solo bajaría la tasa de conversión.
+    - El personal interno no se cuenta: no puede tener carrito, así que su visita
+      al catálogo solo bajaría la tasa de conversión (KPI-03).
     - Si la escritura falla, la página sigue cargando: el KPI pierde un dato,
       no el sitio.
     """
     ruta = ruta or (request.path if request else "/")
     if ruta not in RUTAS_SEGUIDAS:
         return False
-    if es_administrativo(session.get("rol")):
+    if es_no_comprador(session.get("rol")):
         return False
     if session.get("visita_registrada"):
         return False

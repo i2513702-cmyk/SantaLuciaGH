@@ -4,8 +4,8 @@ Cada usuario (o sesión anónima) tiene su carrito guardado en Supabase desde el
 primer "Agregar". Los carritos vencen automáticamente (CART_TTL_HOURS) y se
 avisa al usuario con mensajes flash.
 
-El administrador no compra: estas rutas se cierran para su rol con un 403
-(vía `app.decorators.bloquear_compras_admin`, registrado en la app).
+El personal interno no compra: estas rutas se cierran para su rol con un 403
+(vía `app.decorators.bloquear_compras_sin_rol`, registrado en la app).
 """
 
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
