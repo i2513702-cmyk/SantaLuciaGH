@@ -467,6 +467,7 @@ def dashboard():
             "descripcion": "Verifica la conexión con la base de datos",
             "icon": "🦾",
             "url": "supabase.status",
+            "modal": "supabase",
         },
     ]
     return render_template(

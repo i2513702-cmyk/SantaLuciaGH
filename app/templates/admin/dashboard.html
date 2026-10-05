@@ -412,14 +412,64 @@
             <div class="card-icon">{{ modulo.icon }}</div>
             <h3>{{ modulo.nombre }}</h3>
             <p>{{ modulo.descripcion }}</p>
+            {% if modulo.modal %}
+            <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#modal-{{ modulo.modal }}">Abrir</button>
+            {% else %}
             <a class="btn btn-primary" href="{{ url_for(modulo.url) }}">Abrir</a>
+            {% endif %}
         </div>
     {% endfor %}
         </section>
+    </div>
+</div>
+<div class="modal fade" id="modal-supabase" tabindex="-1" aria-hidden="true" aria-labelledby="modal-supabase-label">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modal-supabase-label">Estado de Supabase</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body text-center" id="supabase-modal-body">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Verificando...</span>
+                </div>
+                <p class="mt-3 mb-0">Verificando la conexión con la base de datos...</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 {% include "partials/dashboard_scripts.html" %}
+<script>
+(function () {
+    var modal = document.getElementById('modal-supabase');
+    if (!modal) return;
+    var body = document.getElementById('supabase-modal-body');
+
+    modal.addEventListener('show.bs.modal', function () {
+        body.innerHTML = '<div class="spinner-border text-primary" role="status">'
+            + '<span class="visually-hidden">Verificando...</span></div>'
+            + '<p class="mt-3 mb-0">Verificando la conexi&oacute;n con la base de datos...</p>';
+        fetch("{{ url_for('supabase.status') }}", { headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (d) { render(d.ok, d.detalle || ''); })
+            .catch(function () { render(false, 'No se pudo verificar la conexi&oacute;n con Supabase.'); });
+    });
+
+    function render(ok, detalle) {
+        var icono = ok
+            ? '<div style="font-size:3rem;line-height:1;">&#9989;</div>'
+            + '<h5 class="mt-3 mb-1 text-success">Base de datos funcionando correctamente</h5>'
+            : '<div style="font-size:3rem;line-height:1;">&#10060;</div>'
+            + '<h5 class="mt-3 mb-1 text-danger">Base de datos con problemas</h5>';
+        body.innerHTML = icono
+            + '<p class="mb-0 text-muted">' + (detalle || '') + '</p>';
+    }
+})();
+</script>
 {% endblock %}
