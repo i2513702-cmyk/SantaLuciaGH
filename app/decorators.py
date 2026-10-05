@@ -23,6 +23,9 @@ BLUEPRINTS_COMPRA = ("carrito", "checkout")
 ROLES_PANEL_ADMIN = ("ADMINISTRADOR",)
 ADMIN_ROLES = ("ADMINISTRADOR", "SUPERVISOR")
 
+# Roles que ven el modulo de ventas/ordenes.
+ROLES_VENTAS = ("ADMINISTRADOR", "SUPERVISOR", "VENDEDOR", "RECEPCIONISTA")
+
 _ROLES_PANEL = {
     "ADMINISTRADOR": "admin",
     "SUPERVISOR": "worker",
@@ -121,3 +124,17 @@ def bloquear_compras_admin():
     """
     if request.blueprint in BLUEPRINTS_COMPRA and es_administrativo(session.get("rol")):
         _denegar()
+
+
+def ventas_required(view):
+    """Acceso al modulo de ventas: administrador, supervisor, vendedor y recepcionista."""
+
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if "usuario_id" not in session:
+            return redirect(url_for("auth.login", next=request.path))
+        if session.get("rol") not in ROLES_VENTAS:
+            _denegar()
+        return view(*args, **kwargs)
+
+    return wrapped

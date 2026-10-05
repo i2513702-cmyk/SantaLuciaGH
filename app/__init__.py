@@ -24,7 +24,7 @@ def create_app() -> Flask:
     bcrypt.init_app(app)
 
     # --- Blueprints ---
-    from app.routes import admin, api, auth, carrito, checkout, citas, kpi, main, seguridad, worker
+    from app.routes import admin, api, auth, carrito, checkout, citas, kpi, main, seguridad, ventas, worker
     from app.routes.supabase import bp as supabase_bp
 
     app.register_blueprint(main.bp)
@@ -36,6 +36,7 @@ def create_app() -> Flask:
     app.register_blueprint(citas.bp)
     app.register_blueprint(kpi.bp)
     app.register_blueprint(seguridad.bp)
+    app.register_blueprint(ventas.bp)
     app.register_blueprint(supabase_bp)
     app.register_blueprint(api.bp)
 
@@ -89,7 +90,7 @@ def create_app() -> Flask:
     def inject_globals():
         from flask import session
 
-        from app.decorators import es_administrativo, map_rol, puede_comprar
+        from app.decorators import ROLES_VENTAS, es_administrativo, map_rol, puede_comprar
         from app.security import get_csrf
 
         rol = session.get("rol")
@@ -106,6 +107,7 @@ def create_app() -> Flask:
             "rol_panel": map_rol(rol),
             "es_admin": es_administrativo(rol),
             "puede_comprar": puede_comprar(rol),
+            "puede_ventas": rol in ROLES_VENTAS,
             "nombre": session.get("nombre"),
             "carrito_n": carrito_n,
             "csrf_token": get_csrf(),
