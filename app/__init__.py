@@ -2,7 +2,7 @@
 
 import os
 
-from flask import Flask, render_template
+from flask import Flask, render_template, url_for
 
 from app.config import config_map
 from app.decorators import bloquear_compras_admin
@@ -14,12 +14,17 @@ def create_app() -> Flask:
     app = Flask(__name__)
     app.config.from_object(config_map.get(env, config_map["development"]))
 
+    if app.config.get("TRUST_PROXY"):
+        from werkzeug.middleware.proxy_fix import ProxyFix
+
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
     # --- Inicializar extensiones ---
     cors.init_app(app)
     bcrypt.init_app(app)
 
     # --- Blueprints ---
-    from app.routes import admin, auth, carrito, checkout, citas, kpi, main, worker
+    from app.routes import admin, api, auth, carrito, checkout, citas, kpi, main, seguridad, worker
     from app.routes.supabase import bp as supabase_bp
 
     app.register_blueprint(main.bp)
@@ -30,6 +35,7 @@ def create_app() -> Flask:
     app.register_blueprint(checkout.bp)
     app.register_blueprint(citas.bp)
     app.register_blueprint(kpi.bp)
+    app.register_blueprint(seguridad.bp)
     app.register_blueprint(supabase_bp)
     app.register_blueprint(api.bp)
 
@@ -47,6 +53,36 @@ def create_app() -> Flask:
     from app.services.carrito_service import iniciar_purga
 
     iniciar_purga()
+
+    # --- Iconos: imagen propia si existe en static/img/icons, si no Bootstrap Icons ---
+    from markupsafe import Markup, escape
+
+    from app.config import Config as _Cfg
+
+    _cache_iconos: dict = {}
+
+    def _archivo_icono(nombre):
+        if nombre not in _cache_iconos or app.debug:
+            carpeta = os.path.join(app.static_folder, *_cfg_dir.split("/"))
+            _cache_iconos[nombre] = next(
+                (f"{_cfg_dir}/{nombre}{e}" for e in (".svg", ".webp", ".png", ".jpg")
+                 if os.path.isfile(os.path.join(carpeta, nombre + e))),
+                None,
+            )
+        return _cache_iconos[nombre]
+
+    _cfg_dir = _Cfg.ICONS_DIR
+
+    @app.template_global()
+    def icono(nombre, bi=None, size=24, clase=""):
+        """<img> si hay archivo static/img/icons/<nombre>.*, si no <i class='bi bi-<bi>'>."""
+        ruta = _archivo_icono(nombre)
+        if ruta:
+            return Markup(
+                f'<img src="{escape(url_for("static", filename=ruta))}" alt="" width="{int(size)}" '
+                f'height="{int(size)}" class="icono-img {escape(clase)}">'
+            )
+        return Markup(f'<i class="bi bi-{escape(bi or nombre)} {escape(clase)}" style="font-size:{int(size)}px"></i>')
 
     # --- Contexto global para las plantillas ---
     @app.context_processor

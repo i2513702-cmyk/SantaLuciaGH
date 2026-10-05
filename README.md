@@ -34,6 +34,7 @@ python app.py
 ```
 flask --app app.py supabase:test    # verifica conexion con Supabase
 flask --app app.py kpi:snapshot     # guarda la foto semanal de KPI-04
+flask --app app.py ip:desbloquear <ip>  # desbloquea una IP del login
 ```
 
 ## Rutas principales
@@ -48,6 +49,7 @@ flask --app app.py kpi:snapshot     # guarda la foto semanal de KPI-04
 | `/admin/kpis` | **KPIs del negocio (solo ADMINISTRADOR)** |
 | `/worker` | Panel de trabajo (demas roles) |
 | `/sistema/usuarios` | Gestion de usuarios (solo admin) |
+| `/admin/seguridad` | IPs con intentos fallidos / bloqueadas; desbloqueo (solo ADMINISTRADOR) |
 | `/cambiar_clave` | Cambio de contrasena |
 | `/supabase/status` | Estado de la conexion (JSON) |
 

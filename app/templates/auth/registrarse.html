@@ -3,9 +3,12 @@
 {% block title %}Registrarse — {{ app_name }}{% endblock %}
 
 {% block content %}
-<div class="card shadow-sm mx-auto" style="max-width: 560px;">
-    <div class="card-body p-4">
-        <h1 class="h4 fw-semibold mb-4">Crear cuenta</h1>
+<div class="card no-hover mx-auto" style="max-width: 620px; border-radius: 24px;">
+    <div class="card-body p-4 p-md-5">
+        <div class="d-flex align-items-center gap-3 mb-4">
+            <span class="auth-chip" style="background:var(--surface-alt);color:var(--primary)">{{ icono('registro', 'person-plus', 22) }}</span>
+            <div><h1 class="h3 fw-bold mb-0">Crear cuenta</h1><small class="text-secondary">Compra repuestos y agenda tus citas.</small></div>
+        </div>
 
         {% if error %}
             <div class="alert alert-danger py-2">{{ error }}</div>
@@ -61,7 +64,7 @@
                 </div>
             </fieldset>
 
-            <button type="submit" class="btn btn-primary w-100">Crear cuenta</button>
+            <button type="submit" class="btn btn-primary btn-lg w-100">Crear cuenta</button>
         </form>
 
         <p class="text-center small text-secondary mt-3 mb-0">

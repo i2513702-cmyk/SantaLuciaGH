@@ -8,51 +8,73 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap/bootstrap.min.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/bootstrap-icons.min.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
 </head>
 <body>
-    <header class="navbar">
-        <div class="container nav-inner">
-            <a class="brand" href="{{ url_for('admin.dashboard') if es_admin else url_for('main.home') }}">
+    <nav class="navbar navbar-expand-lg sl-nav sticky-top">
+        <div class="container-fluid px-3 px-lg-5">
+            <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('admin.dashboard') if es_admin else url_for('main.home') }}">
                 <img src="{{ url_for('static', filename=logo_path) }}" alt="Logo {{ app_name }}" class="brand-logo">
                 <span class="brand-name">Santa Lucía <span>Servicio Técnico</span></span>
             </a>
-            <nav class="nav-links">
-                {% if es_admin %}
-                    {# Administración: solo paneles y gestión, sin tienda ni carrito. #}
-                    <a href="{{ url_for('admin.dashboard') }}">Panel</a>
-                    <a href="{{ url_for('kpi.panel') }}">KPIs</a>
-                    <a href="{{ url_for('admin.citas_listado') }}">Citas</a>
-                    <a href="{{ url_for('admin.productos') }}">Productos</a>
-                    <a href="{{ url_for('auth.usuarios_sistema') }}">Usuarios</a>
-                {% else %}
-                    <a href="{{ url_for('main.home') }}">Inicio</a>
-                    <a href="{{ url_for('main.tienda') }}">Catálogo</a>
-                    <a href="{{ url_for('citas.agendar_form') }}">Agendar cita</a>
-                    <a href="{{ url_for('main.home') }}#nosotros">Nosotros</a>
-                    {% if puede_comprar %}
-                        <a class="nav-cart" href="{{ url_for('carrito.ver') }}">
-                            🛒{% if carrito_n %}<span class="badge">{{ carrito_n }}</span>{% endif %}
-                        </a>
-                    {% endif %}
-                    {% if rol_panel == 'worker' %}
-                        <a href="{{ url_for('worker.dashboard') }}">Panel</a>
-                    {% endif %}
-                {% endif %}
-                {% if rol %}
-                    <div class="nav-user">
-                        {% from "partials/avatar.html" import avatar %}
-                        {{ avatar(nombre, size='md') }}
-                        <span class="nav-user-name">{{ nombre }}</span>
-                        <a class="nav-perfil" href="{{ url_for('main.perfil') }}">Mi perfil</a>
-                        <a class="btn btn-outline btn-sm" href="{{ url_for('auth.logout') }}">Salir</a>
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="offcanvas" data-bs-target="#menuPrincipal" aria-controls="menuPrincipal" aria-label="Abrir menú">
+                <i class="bi bi-list fs-2"></i>
+            </button>
+            <div class="offcanvas offcanvas-end" tabindex="-1" id="menuPrincipal">
+                <div class="offcanvas-header">
+                    <h5 class="offcanvas-title fw-bold">Menú</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Cerrar"></button>
+                </div>
+                <div class="offcanvas-body align-items-lg-center">
+                    <ul class="navbar-nav ms-lg-auto gap-lg-1">
+                        {% macro item(endpoint, texto, ico, bi, activo=None) %}
+                            <li class="nav-item">
+                                <a class="nav-link d-flex align-items-center gap-2 {% if request.endpoint == (activo or endpoint) %}active{% endif %}" href="{{ url_for(endpoint) }}">
+                                    {{ icono(ico, bi, 18) }}<span>{{ texto }}</span>
+                                </a>
+                            </li>
+                        {% endmacro %}
+                        {% if es_admin %}
+                            {{ item('admin.dashboard', 'Panel', 'nav-panel', 'speedometer2') }}
+                            {{ item('kpi.panel', 'KPIs', 'nav-kpis', 'graph-up-arrow') }}
+                            {{ item('admin.citas_listado', 'Citas', 'nav-citas', 'calendar-check') }}
+                            {{ item('admin.productos', 'Productos', 'nav-productos', 'box-seam') }}
+                            {{ item('auth.usuarios_sistema', 'Usuarios', 'nav-usuarios', 'people') }}
+                            {{ item('seguridad.panel', 'Seguridad', 'nav-seguridad', 'shield-lock') }}
+                        {% else %}
+                            {{ item('main.home', 'Inicio', 'nav-inicio', 'house') }}
+                            {{ item('main.tienda', 'Catálogo', 'nav-catalogo', 'shop') }}
+                            {{ item('citas.agendar_form', 'Agendar cita', 'nav-agendar', 'calendar-plus') }}
+                            <li class="nav-item"><a class="nav-link d-flex align-items-center gap-2" href="{{ url_for('main.home') }}#nosotros">{{ icono('nav-nosotros', 'info-circle', 18) }}<span>Nosotros</span></a></li>
+                            {% if rol_panel == 'worker' %}
+                                {{ item('worker.dashboard', 'Panel', 'nav-panel', 'speedometer2') }}
+                            {% endif %}
+                            {% if puede_comprar %}
+                                <li class="nav-item">
+                                    <a class="nav-link nav-cart position-relative d-flex align-items-center gap-2" href="{{ url_for('carrito.ver') }}" aria-label="Carrito">
+                                        {{ icono('nav-carrito', 'cart3', 20) }}<span class="d-lg-none">Carrito</span>
+                                        {% if carrito_n %}<span class="badge rounded-pill">{{ carrito_n }}</span>{% endif %}
+                                    </a>
+                                </li>
+                            {% endif %}
+                        {% endif %}
+                    </ul>
+                    <div class="d-flex align-items-center gap-2 ms-lg-3 mt-3 mt-lg-0">
+                        {% if rol %}
+                            {% from "partials/avatar.html" import avatar %}
+                            {{ avatar(nombre, size='md') }}
+                            <a class="nav-user-name text-decoration-none" href="{{ url_for('main.perfil') }}">{{ nombre }}</a>
+                            <a class="btn btn-sm btn-outline-primary rounded-pill px-3" href="{{ url_for('auth.logout') }}">Salir</a>
+                        {% else %}
+                            <a class="btn btn-sm btn-primary rounded-pill px-4" href="{{ url_for('auth.login') }}">Iniciar sesión</a>
+                        {% endif %}
                     </div>
-                {% else %}
-                    <a class="btn btn-primary btn-sm" href="{{ url_for('auth.login') }}">Iniciar sesión</a>
-                {% endif %}
-            </nav>
+                </div>
+            </div>
         </div>
-    </header>
+    </nav>
 
     <main class="container {% block main_class %}{% endblock %}">
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -81,7 +103,7 @@
                 </div>
                 <div class="footer-col">
                     <h4>Contacto</h4>
-                    <span class="footer-info">Av. Los Talleres 245, Lima</span>
+                    <span class="footer-info">Av. Los Talleres 245, Huancayo</span>
                     <a href="tel:+51987654321">+51 987 654 321</a>
                     <a href="mailto:contacto@santalucia.pe">contacto@santalucia.pe</a>
                     <span class="footer-info">Lun a Sáb · 9:00 – 19:00</span>
@@ -94,6 +116,7 @@
                         <a href="{{ url_for('admin.citas_listado') }}">Gestión de citas</a>
                         <a href="{{ url_for('admin.productos') }}">Gestión de productos</a>
                         <a href="{{ url_for('auth.usuarios_sistema') }}">Usuarios del sistema</a>
+                        <a href="{{ url_for('seguridad.panel') }}">Seguridad (IPs)</a>
                     {% else %}
                         <a href="{{ url_for('main.tienda') }}">Catálogo y repuestos</a>
                         <a href="{{ url_for('citas.agendar_form') }}">Agendar una cita</a>

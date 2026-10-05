@@ -16,8 +16,8 @@ from flask import (
 )
 
 from app.decorators import admin_required, es_administrativo, login_required, panel_for
-from app.exceptions import AppError, ValidationError
-from app.services import rest_auth_service
+from app.exceptions import AppError, AuthorizationError, ValidationError
+from app.services import login_guard, rest_auth_service
 
 bp = Blueprint("auth", __name__)
 
@@ -49,35 +49,44 @@ def login():
     if "usuario_id" in session:
         return redirect(url_for("auth.panel"))
 
+    ip = request.remote_addr or "desconocida"
     error = None
+    bloqueo = login_guard.estado(ip)
+
     if request.method == "POST":
-        identificador = request.form.get("username", "").strip()
-        password = request.form.get("password", "")
-        try:
-            usuario = rest_auth_service.login(identificador, password)
-            session.clear()
-            session["usuario_id"] = usuario["id"]
-            session["username"] = usuario["nombre_usuario"]
-            session["nombre"] = usuario["nombre_usuario"]
-            session["rol"] = usuario["rol"]
-            _sincronizar_carrito()
-            import threading
+        error = login_guard.mensaje_bloqueo(bloqueo)
+        if not error:
+            identificador = request.form.get("username", "").strip()
+            password = request.form.get("password", "")
+            try:
+                usuario = rest_auth_service.login(identificador, password)
+                login_guard.registrar_exito(ip)
+                session.clear()
+                session["usuario_id"] = usuario["id"]
+                session["username"] = usuario["nombre_usuario"]
+                session["nombre"] = usuario["nombre_usuario"]
+                session["rol"] = usuario["rol"]
+                _sincronizar_carrito()
+                import threading
 
-            threading.Thread(
-                target=rest_auth_service.actualizar_ultimo_acceso,
-                args=(usuario["nombre_usuario"], datetime.now(timezone.utc).isoformat()),
-                daemon=True,
-            ).start()
-            destino = (request.args.get("next") or "").strip()
-            if not destino or not destino.startswith("/") or destino.startswith("//"):
-                destino = url_for("auth.panel")
-            return redirect(destino)
-        except (AppError, ValidationError) as exc:
-            error = exc.message if isinstance(exc, AppError) else str(exc)
-        except Exception:  # noqa: BLE001
-            error = "No se pudo conectar con Supabase. Revisa la configuración."
+                threading.Thread(
+                    target=rest_auth_service.actualizar_ultimo_acceso,
+                    args=(usuario["nombre_usuario"], datetime.now(timezone.utc).isoformat()),
+                    daemon=True,
+                ).start()
+                destino = (request.args.get("next") or "").strip()
+                if not destino or not destino.startswith("/") or destino.startswith("//"):
+                    destino = url_for("auth.panel")
+                return redirect(destino)
+            except AuthorizationError as exc:
+                error = login_guard.registrar_fallo(ip, identificador) or exc.message
+                bloqueo = login_guard.estado(ip)
+            except (AppError, ValidationError) as exc:
+                error = exc.message if isinstance(exc, AppError) else str(exc)
+            except Exception:  # noqa: BLE001
+                error = "No se pudo conectar con Supabase. Revisa la configuración."
 
-    return render_template("auth/login.html", error=error)
+    return render_template("auth/login.html", error=error, bloqueo=bloqueo)
 
 
 @bp.route("/logout")
