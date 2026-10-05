@@ -37,6 +37,9 @@ from app.supabase_client import error_postgrest, get_reader
 log = logging.getLogger(__name__)
 
 UTC = timezone.utc
+LIMA = timezone(timedelta(hours=-5))  # Peru no usa horario de verano
+PAGINA = 1000  # PostgREST devuelve maximo 1000 filas por peticion
+LOTE_IDS = 150  # ids por consulta .in_() para no exceder el largo de la URL
 MESES_ES = [
     "ene", "feb", "mar", "abr", "may", "jun",
     "jul", "ago", "set", "oct", "nov", "dic",
@@ -118,12 +121,12 @@ def _iso(d: date) -> str:
 
 def _desde_ts(d: date) -> str:
     """Limite inferior inclusivo (UTC) para filtrar por fecha."""
-    return f"{_iso(d)}T00:00:00+00:00"
+    return datetime(d.year, d.month, d.day, tzinfo=LIMA).astimezone(UTC).isoformat()
 
 
 def _hasta_ts(d: date) -> str:
     """Limite superior EXCLUSIVO (UTC) para filtrar por fecha."""
-    return f"{_iso(d + timedelta(days=1))}T00:00:00+00:00"
+    return _desde_ts(d + timedelta(days=1))
 
 
 def _dt(valor) -> datetime | None:
@@ -141,7 +144,7 @@ def _dt(valor) -> datetime | None:
 
 def parsear_periodo(desde_txt, hasta_txt) -> tuple[date, date, str | None]:
     """Valida el rango pedido. Devuelve (desde, hasta, error)."""
-    hoy = datetime.now(UTC).date()
+    hoy = datetime.now(LIMA).date()
     if not desde_txt or not hasta_txt:
         return hoy.replace(day=1), hoy, None
     try:
@@ -158,13 +161,13 @@ def parsear_periodo(desde_txt, hasta_txt) -> tuple[date, date, str | None]:
 
 def rango_por_defecto() -> tuple[date, date]:
     """Mes en curso hasta hoy."""
-    hoy = datetime.now(UTC).date()
+    hoy = datetime.now(LIMA).date()
     return hoy.replace(day=1), hoy
 
 
 def ventanas_por_defecto() -> list[dict]:
     """Periodos sugeridos en los filtros."""
-    hoy = datetime.now(UTC).date()
+    hoy = datetime.now(LIMA).date()
     return [
         {"clave": "mes", "etiqueta": "Mes actual",
          "desde": _iso(hoy.replace(day=1)), "hasta": _iso(hoy)},
@@ -210,9 +213,21 @@ def _etiqueta_dia(iso_txt: str) -> str:
 # ---------------------------------------------------------------------------
 
 def _consulta(builder, tabla: str):
-    """Ejecuta una consulta. Devuelve las filas o None si fallo (se registra)."""
+    """Ejecuta una consulta paginando de a 1000 filas (limite de PostgREST).
+
+    Sin paginar, las tablas con mas de 1000 filas (visitas_web, reservas...)
+    se truncaban en silencio y los KPIs salian mal.
+    """
     try:
-        return builder.execute().data or []
+        if tabla in ("reservas", "carritos", "ventas", "notificaciones", "productos"):
+            builder = builder.order("id")  # orden estable entre paginas
+        filas, inicio = [], 0
+        while True:
+            lote = builder.range(inicio, inicio + PAGINA - 1).execute().data or []
+            filas.extend(lote)
+            if len(lote) < PAGINA:
+                return filas
+            inicio += PAGINA
     except Exception as exc:  # noqa: BLE001
         log.exception("KPIs: fallo al leer %s", tabla)
         raise KpiError(f"No se pudo leer «{tabla}» en Supabase: {error_postgrest(exc)}") from exc
@@ -240,15 +255,16 @@ def _carritos(desde: date, hasta: date, extra_ids: list) -> list[dict]:
     filas = _consulta(q, "carritos")
     vistos = {f["id"] for f in filas}
     faltan = [i for i in extra_ids if i and i not in vistos]
-    if faltan:
-        extra = _consulta(
-            get_reader()
-            .table("carritos")
-            .select("id,estado,fecha_creacion,fecha_expiracion,usuario_sesion")
-            .in_("id", faltan),
-            "carritos",
+    for i in range(0, len(faltan), LOTE_IDS):
+        filas.extend(
+            _consulta(
+                get_reader()
+                .table("carritos")
+                .select("id,estado,fecha_creacion,fecha_expiracion,usuario_sesion")
+                .in_("id", faltan[i : i + LOTE_IDS]),
+                "carritos",
+            )
         )
-        filas.extend(extra)
     return filas
 
 
@@ -267,11 +283,17 @@ def _ids_con_detalle(carrito_ids: list) -> set:
     """Carritos que alguna vez tuvieron lineas en detalle_carrito."""
     if not carrito_ids:
         return set()
-    filas = _consulta(
-        get_reader().table("detalle_carrito").select("carrito_id").in_("carrito_id", carrito_ids),
-        "detalle_carrito",
-    )
-    return {f["carrito_id"] for f in filas if f.get("carrito_id")}
+    encontrados: set = set()
+    for i in range(0, len(carrito_ids), LOTE_IDS):
+        filas = _consulta(
+            get_reader()
+            .table("detalle_carrito")
+            .select("carrito_id")
+            .in_("carrito_id", carrito_ids[i : i + LOTE_IDS]),
+            "detalle_carrito",
+        )
+        encontrados.update(f["carrito_id"] for f in filas if f.get("carrito_id"))
+    return encontrados
 
 
 def _visitas(desde: date, hasta: date) -> list[dict]:
@@ -332,14 +354,14 @@ def _catalogo() -> list[dict]:
 
 def _en(fecha, desde: date, hasta: date) -> bool:
     d = _dt(fecha)
-    return d is not None and _desde_ts(desde) <= d.isoformat() < _hasta_ts(hasta)
+    return d is not None and _dt(_desde_ts(desde)) <= d < _dt(_hasta_ts(hasta))
 
 
 def _mes_de(fecha, buckets) -> str | None:
     d = _dt(fecha)
     if d is None:
         return None
-    dia = d.date()
+    dia = d.astimezone(LIMA).date()
     for ym, ini, fin in buckets:
         if ini <= dia <= fin:
             return ym
@@ -439,6 +461,12 @@ def _horas_atencion(filas: list[dict]) -> list[dict | None]:
         horas = None
         if fpa is not None and fpa >= fc:
             horas = round((fpa - fc).total_seconds() / 3600, 4)
+        elif fpa is None and (f.get("estado") or "").strip().upper() != "PENDIENTE":
+            # Ya fue atendida (tecnico asignado, completada...) pero se registro antes de
+            # existir fecha_primera_atencion: no se sabe cuando, asi que no entra al KPI
+            # (antes se contaba como cita vencida y hundia KPI-02 con datos historicos).
+            salida.append(None)
+            continue
         salida.append({"horas": horas, "fecha_creacion": fc, "mes": None})
     return salida
 
@@ -591,7 +619,7 @@ def guardar_snapshot(catalogo: list[dict]) -> dict:
     con_stock = [p for p in catalogo if p["stock"] > 0]
     total = len(catalogo)
     valor = _pct(len(con_stock), total)
-    hoy = datetime.now(UTC).date()
+    hoy = datetime.now(LIMA).date()
     lunes = hoy - timedelta(days=hoy.weekday())
     fila = {
         "periodo": _iso(lunes),

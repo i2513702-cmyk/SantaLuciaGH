@@ -3,34 +3,79 @@
 {% block title %}Iniciar sesión — {{ app_name }}{% endblock %}
 
 {% block content %}
-<div class="card shadow-sm mx-auto" style="max-width: 400px;">
-    <div class="card-body p-4">
-        <h1 class="h4 fw-semibold mb-4">Iniciar sesión</h1>
+{% set cerrado = bloqueo and (bloqueo.bloqueada or bloqueo.espera_segundos) %}
+<div class="auth-wrap row g-0 no-hover">
+    <div class="col-lg-5 auth-side d-none d-lg-block">
+        <img src="{{ url_for('static', filename=logo_path) }}" alt="" width="56" class="mb-4 bg-white rounded-3 p-2">
+        <h2 class="fw-bold mb-2">Bienvenido a {{ app_name }}</h2>
+        <p class="opacity-75 mb-4">Gestiona ventas, inventario y citas de servicio técnico en un solo lugar.</p>
+        <ul class="list-unstyled mb-0 position-relative" style="z-index:1">
+            <li><span class="auth-chip">{{ icono('login-ventas', 'receipt', 20) }}</span>Ventas y comprobantes</li>
+            <li><span class="auth-chip">{{ icono('login-inventario', 'boxes', 20) }}</span>Inventario y repuestos</li>
+            <li><span class="auth-chip">{{ icono('login-citas', 'calendar-check', 20) }}</span>Agenda de citas técnicas</li>
+            <li><span class="auth-chip">{{ icono('login-kpis', 'graph-up-arrow', 20) }}</span>Indicadores para decidir</li>
+        </ul>
+    </div>
+    <div class="col-lg-7 auth-form">
+        <h1 class="h3 fw-bold mb-1">Iniciar sesión</h1>
+        <p class="text-secondary mb-4">Ingresa con tu usuario o correo.</p>
 
         {% if error %}
-            <div class="alert alert-danger py-2">{{ error }}</div>
+            <div class="alert alert-{{ 'warning' if cerrado else 'danger' }} d-flex align-items-start gap-2 py-2" role="alert">
+                <i class="bi bi-{{ 'shield-lock' if cerrado else 'exclamation-triangle' }} mt-1"></i>
+                <div>{{ error }}{% if bloqueo and bloqueo.espera_segundos and not bloqueo.bloqueada %} <strong id="cuenta"></strong>{% endif %}</div>
+            </div>
+        {% elif cerrado %}
+            <div class="alert alert-warning d-flex align-items-start gap-2 py-2" role="alert">
+                <i class="bi bi-shield-lock mt-1"></i>
+                <div>{% if bloqueo.bloqueada %}Tu IP está bloqueada. Contacta al administrador.{% else %}Acceso en pausa por intentos fallidos. Espera <strong id="cuenta"></strong>.{% endif %}</div>
+            </div>
         {% endif %}
 
-        <form method="POST" action="{{ url_for('auth.login') }}">
+        <form method="POST" action="{{ url_for('auth.login', next=request.args.get('next')) }}" id="formLogin">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <div class="mb-3">
-                <label for="username" class="form-label">Usuario</label>
-                <input type="text" class="form-control" id="username" name="username" required autofocus placeholder="Ej: admin">
-            </div>
-            <div class="mb-3">
-                <label for="password" class="form-label">Contraseña</label>
-                <input type="password" class="form-control" id="password" name="password" required placeholder="••••••••">
-            </div>
-            <button type="submit" class="btn btn-primary w-100">Entrar</button>
+            <fieldset {{ 'disabled' if cerrado }}>
+                <div class="mb-3">
+                    <label for="username" class="form-label fw-semibold">Usuario o correo</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-person"></i></span>
+                        <input type="text" class="form-control" id="username" name="username" required autofocus autocomplete="username" placeholder="Ej: admin">
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <label for="password" class="form-label fw-semibold">Contraseña</label>
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-lock"></i></span>
+                        <input type="password" class="form-control" id="password" name="password" required autocomplete="current-password" placeholder="••••••••">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary btn-lg w-100">Entrar <i class="bi bi-arrow-right-short"></i></button>
+            </fieldset>
         </form>
 
-        <p class="text-center small text-secondary mt-3 mb-0">
-            ¿No tienes cuenta? <a href="{{ url_for('auth.registrarse') }}">Regístrate</a>
-        </p>
-        <p class="text-center small text-secondary mt-3 mb-0">
-            Pie: el acceso se valida contra la tabla <code>usuarios</code> de Supabase
-        (contraseñas con bcrypt).
+        <p class="text-center small text-secondary mt-4 mb-0">
+            ¿No tienes cuenta? <a class="fw-semibold" href="{{ url_for('auth.registrarse') }}">Regístrate</a>
         </p>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{% if bloqueo and bloqueo.espera_segundos and not bloqueo.bloqueada %}
+<script>
+(function () {
+    var resto = {{ bloqueo.espera_segundos }}, el = document.getElementById('cuenta');
+    function pintar() {
+        var m = Math.floor(resto / 60), s = resto % 60;
+        if (el) el.textContent = m + ':' + String(s).padStart(2, '0') + ' min';
+    }
+    pintar();
+    var t = setInterval(function () {
+        resto -= 1;
+        if (resto <= 0) { clearInterval(t); window.location.replace(window.location.pathname + window.location.search); return; }
+        pintar();
+    }, 1000);
+})();
+</script>
+{% endif %}
 {% endblock %}
