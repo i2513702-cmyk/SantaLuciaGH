@@ -1,0 +1,6 @@
+{% macro estado_badge(estado) %}
+{% set e = (estado or '')|upper %}
+{% set c = 'success' if ('PAGAD' in e or 'ENTREGAD' in e or 'CONFIRM' in e or 'COMPLET' in e) else ('danger' if ('CANCEL' in e or 'ANUL' in e or 'FALL' in e) else ('warning' if 'PEND' in e else 'secondary')) %}
+{% set i = {'success': 'check-circle', 'danger': 'x-circle', 'warning': 'hourglass-split', 'secondary': 'dot'}[c] %}
+<span class="badge rounded-pill text-bg-{{ c }}"><i class="bi bi-{{ i }}"></i> {{ (estado or '—')|replace('_', ' ')|capitalize }}</span>
+{% endmacro %}

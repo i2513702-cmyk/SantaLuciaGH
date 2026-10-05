@@ -11,8 +11,10 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/bootstrap-icons.min.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/theme.css') }}">
+    {% block head %}{% endblock %}
 </head>
 <body>
+    {% block nav %}
     <nav class="navbar navbar-expand-lg sl-nav sticky-top">
         <div class="container-fluid px-3 px-lg-5">
             <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('admin.dashboard') if es_admin else url_for('main.home') }}">
@@ -40,6 +42,7 @@
                             {{ item('admin.dashboard', 'Panel', 'nav-panel', 'speedometer2') }}
                             {{ item('kpi.panel', 'KPIs', 'nav-kpis', 'graph-up-arrow') }}
                             {{ item('admin.citas_listado', 'Citas', 'nav-citas', 'calendar-check') }}
+                            {{ item('ventas.listado', 'Ventas', 'nav-ventas', 'receipt', 'ventas.listado') }}
                             {{ item('admin.productos', 'Productos', 'nav-productos', 'box-seam') }}
                             {{ item('auth.usuarios_sistema', 'Usuarios', 'nav-usuarios', 'people') }}
                             {{ item('seguridad.panel', 'Seguridad', 'nav-seguridad', 'shield-lock') }}
@@ -51,6 +54,7 @@
                             {% if rol_panel == 'worker' %}
                                 {{ item('worker.dashboard', 'Panel', 'nav-panel', 'speedometer2') }}
                             {% endif %}
+                            {% if puede_ventas %}{{ item('ventas.listado', 'Ventas', 'nav-ventas', 'receipt') }}{% endif %}
                             {% if puede_comprar %}
                                 <li class="nav-item">
                                     <a class="nav-link nav-cart position-relative d-flex align-items-center gap-2" href="{{ url_for('carrito.ver') }}" aria-label="Carrito">
@@ -75,8 +79,9 @@
             </div>
         </div>
     </nav>
+    {% endblock %}
 
-    <main class="container {% block main_class %}{% endblock %}">
+    <main class="{% block main_wrap %}container{% endblock %} {% block main_class %}{% endblock %}">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
@@ -91,6 +96,7 @@
         {% block content %}{% endblock %}
     </main>
 
+    {% block footer %}
     <footer class="footer">
         <div class="container">
             <div class="footer-grid">
@@ -131,6 +137,7 @@
             </div>
         </div>
     </footer>
+    {% endblock %}
 
     <script src="{{ url_for('static', filename='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/avatars.js') }}"></script>

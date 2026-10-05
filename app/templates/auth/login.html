@@ -1,81 +1,150 @@
 {% extends "base.html" %}
 
 {% block title %}Iniciar sesión — {{ app_name }}{% endblock %}
+{% block nav %}{% endblock %}
+{% block footer %}{% endblock %}
+{% block main_wrap %}login-main{% endblock %}
+
+{% block head %}
+<style>
+    body { background: #0b1b4d; }
+    .login-main { flex: 1; min-height: 100vh; position: relative; display: grid; place-items: center; padding: 24px 16px; overflow: hidden;
+        background: linear-gradient(120deg, #0b1b4d, #1d4ed8, #06b6d4, #1e3a8a); background-size: 300% 300%; animation: fondo 16s ease infinite; }
+    .login-main > * { animation: none; }
+    .orb { position: absolute; border-radius: 50%; filter: blur(2px); opacity: .22; background: #fff; animation: flotar 12s ease-in-out infinite; }
+    .orb.o1 { width: 280px; height: 280px; left: -80px; top: 8%; }
+    .orb.o2 { width: 170px; height: 170px; right: 8%; top: 12%; animation-delay: -4s; background: #fbbf24; opacity: .25; }
+    .orb.o3 { width: 360px; height: 360px; right: -120px; bottom: -100px; animation-delay: -7s; }
+    .login-back { position: absolute; top: 18px; left: 22px; color: #fff; text-decoration: none; font-weight: 600; opacity: .85; z-index: 3; }
+    .login-back:hover { color: #fff; opacity: 1; }
+    .login-shell { position: relative; z-index: 2; width: min(1080px, 100%); min-height: min(640px, 88vh); display: grid; grid-template-columns: 1.05fr 1fr;
+        border-radius: 32px; overflow: hidden; background: rgba(255,255,255,.97); box-shadow: 0 40px 90px rgba(0,0,0,.45); animation: entrar .8s cubic-bezier(.2,.9,.3,1.1) both; }
+    .login-brand { padding: 56px 48px; color: #fff; background: linear-gradient(160deg, rgba(11,27,77,.92), rgba(29,78,216,.85)); position: relative; }
+    .login-brand .logo { width: 72px; height: 72px; background: #fff; border-radius: 20px; padding: 10px; animation: pulso 3s ease-in-out infinite; }
+    .login-brand li { display: flex; gap: 14px; align-items: center; margin-bottom: 18px; font-weight: 500; opacity: 0; animation: subir .6s ease forwards; }
+    .login-brand li:nth-child(1) { animation-delay: .5s; } .login-brand li:nth-child(2) { animation-delay: .7s; }
+    .login-brand li:nth-child(3) { animation-delay: .9s; } .login-brand li:nth-child(4) { animation-delay: 1.1s; }
+    .login-panel { padding: 56px 52px; display: flex; flex-direction: column; justify-content: center; }
+    .login-panel .btn-login { position: relative; overflow: hidden; padding: 14px; font-size: 1.02rem; box-shadow: 0 10px 24px rgba(29,78,216,.35); transition: transform .2s, box-shadow .2s; }
+    .login-panel .btn-login:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(29,78,216,.45); }
+    .login-panel .btn-login::after { content: ""; position: absolute; top: 0; left: -120%; width: 60%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,.45), transparent); transform: skewX(-20deg); animation: brillo 3.5s infinite; }
+    .shake { animation: sacudir .5s; }
+    .intentos { display: flex; gap: 6px; margin-bottom: 14px; }
+    .intentos i { flex: 1; height: 6px; border-radius: 6px; background: #e2e8f0; transition: background .4s; }
+    .intentos i.on { background: #f59e0b; } .intentos i.on.riesgo { background: #dc2626; }
+    #verPass { border-radius: 0 12px 12px 0; }
+    @keyframes fondo { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+    @keyframes flotar { 0%,100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-34px) scale(1.06); } }
+    @keyframes entrar { from { opacity: 0; transform: translateY(40px) scale(.95); } to { opacity: 1; transform: none; } }
+    @keyframes subir { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+    @keyframes pulso { 0%,100% { box-shadow: 0 0 0 0 rgba(251,191,36,.55); } 50% { box-shadow: 0 0 0 16px rgba(251,191,36,0); } }
+    @keyframes brillo { 0% { left: -120%; } 40%,100% { left: 160%; } }
+    @keyframes sacudir { 10%,90% { transform: translateX(-2px); } 20%,80% { transform: translateX(4px); } 30%,50%,70% { transform: translateX(-7px); } 40%,60% { transform: translateX(7px); } }
+    @media (max-width: 860px) { .login-shell { grid-template-columns: 1fr; border-radius: 24px; } .login-brand { display: none; } .login-panel { padding: 40px 24px; } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; } }
+</style>
+{% endblock %}
 
 {% block content %}
 {% set cerrado = bloqueo and (bloqueo.bloqueada or bloqueo.espera_segundos) %}
-<div class="auth-wrap row g-0 no-hover">
-    <div class="col-lg-5 auth-side d-none d-lg-block">
-        <img src="{{ url_for('static', filename=logo_path) }}" alt="" width="56" class="mb-4 bg-white rounded-3 p-2">
-        <h2 class="fw-bold mb-2">Bienvenido a {{ app_name }}</h2>
-        <p class="opacity-75 mb-4">Gestiona ventas, inventario y citas de servicio técnico en un solo lugar.</p>
-        <ul class="list-unstyled mb-0 position-relative" style="z-index:1">
-            <li><span class="auth-chip">{{ icono('login-ventas', 'receipt', 20) }}</span>Ventas y comprobantes</li>
-            <li><span class="auth-chip">{{ icono('login-inventario', 'boxes', 20) }}</span>Inventario y repuestos</li>
-            <li><span class="auth-chip">{{ icono('login-citas', 'calendar-check', 20) }}</span>Agenda de citas técnicas</li>
-            <li><span class="auth-chip">{{ icono('login-kpis', 'graph-up-arrow', 20) }}</span>Indicadores para decidir</li>
-        </ul>
-    </div>
-    <div class="col-lg-7 auth-form">
-        <h1 class="h3 fw-bold mb-1">Iniciar sesión</h1>
-        <p class="text-secondary mb-4">Ingresa con tu usuario o correo.</p>
+{% set usados = bloqueo.intentos if bloqueo else 0 %}
+<span class="orb o1"></span><span class="orb o2"></span><span class="orb o3"></span>
+<a class="login-back" href="{{ url_for('main.home') }}"><i class="bi bi-arrow-left"></i> Volver al inicio</a>
 
-        {% if error %}
-            <div class="alert alert-{{ 'warning' if cerrado else 'danger' }} d-flex align-items-start gap-2 py-2" role="alert">
-                <i class="bi bi-{{ 'shield-lock' if cerrado else 'exclamation-triangle' }} mt-1"></i>
-                <div>{{ error }}{% if bloqueo and bloqueo.espera_segundos and not bloqueo.bloqueada %} <strong id="cuenta"></strong>{% endif %}</div>
-            </div>
-        {% elif cerrado %}
-            <div class="alert alert-warning d-flex align-items-start gap-2 py-2" role="alert">
-                <i class="bi bi-shield-lock mt-1"></i>
-                <div>{% if bloqueo.bloqueada %}Tu IP está bloqueada. Contacta al administrador.{% else %}Acceso en pausa por intentos fallidos. Espera <strong id="cuenta"></strong>.{% endif %}</div>
+<div class="login-shell">
+    <aside class="login-brand">
+        <img class="logo mb-4" src="{{ url_for('static', filename=logo_path) }}" alt="Logo {{ app_name }}">
+        <h2 class="fw-bold display-6 mb-2">Tu taller, bajo control.</h2>
+        <p class="opacity-75 mb-5">Ventas, inventario y citas técnicas en un solo lugar, para decidir con datos.</p>
+        <ul class="list-unstyled mb-0">
+            <li><span class="auth-chip">{{ icono('login-ventas', 'receipt', 20) }}</span>Ventas y comprobantes al instante</li>
+            <li><span class="auth-chip">{{ icono('login-inventario', 'boxes', 20) }}</span>Stock de repuestos siempre visible</li>
+            <li><span class="auth-chip">{{ icono('login-citas', 'calendar-check', 20) }}</span>Citas atendidas en menos de 24 h</li>
+            <li><span class="auth-chip">{{ icono('login-kpis', 'graph-up-arrow', 20) }}</span>Indicadores claros para decidir</li>
+        </ul>
+    </aside>
+
+    <section class="login-panel">
+        <h1 class="h2 fw-bold mb-1">Hola de nuevo 👋</h1>
+        <p class="text-secondary mb-4">Ingresa para continuar. Solo te toma unos segundos.</p>
+
+        {% if usados and not bloqueo.bloqueada %}
+            <div class="intentos" role="img" aria-label="{{ usados }} de 5 intentos usados">
+                {% for n in range(1, 6) %}<i class="{{ 'on' if n <= usados }} {{ 'riesgo' if n > 3 }}"></i>{% endfor %}
             </div>
         {% endif %}
 
-        <form method="POST" action="{{ url_for('auth.login', next=request.args.get('next')) }}" id="formLogin">
+        {% if error or cerrado %}
+            <div class="alert alert-{{ 'warning' if cerrado else 'danger' }} d-flex align-items-start gap-2 py-2 {{ 'shake' if error and not cerrado }}" role="alert" aria-live="assertive">
+                <i class="bi bi-{{ 'shield-lock' if cerrado else 'exclamation-triangle' }} mt-1"></i>
+                <div>
+                    {% if error %}{{ error }}{% elif bloqueo.bloqueada %}Tu IP está bloqueada. Contacta al administrador.{% else %}Acceso en pausa por seguridad.{% endif %}
+                    {% if bloqueo and bloqueo.espera_segundos and not bloqueo.bloqueada %}<strong id="cuenta" class="ms-1"></strong>{% endif %}
+                </div>
+            </div>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('auth.login', next=request.args.get('next')) }}" id="formLogin" novalidate>
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <fieldset {{ 'disabled' if cerrado }}>
-                <div class="mb-3">
-                    <label for="username" class="form-label fw-semibold">Usuario o correo</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-person"></i></span>
-                        <input type="text" class="form-control" id="username" name="username" required autofocus autocomplete="username" placeholder="Ej: admin">
-                    </div>
+                <div class="form-floating mb-3">
+                    <input type="text" class="form-control" id="username" name="username" required autofocus autocomplete="username" placeholder="Usuario o correo">
+                    <label for="username"><i class="bi bi-person"></i> Usuario o correo</label>
                 </div>
-                <div class="mb-4">
-                    <label for="password" class="form-label fw-semibold">Contraseña</label>
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-lock"></i></span>
-                        <input type="password" class="form-control" id="password" name="password" required autocomplete="current-password" placeholder="••••••••">
+                <div class="input-group mb-1">
+                    <div class="form-floating flex-grow-1">
+                        <input type="password" class="form-control" id="password" name="password" required autocomplete="current-password" placeholder="Contraseña" style="border-radius:12px 0 0 12px">
+                        <label for="password"><i class="bi bi-lock"></i> Contraseña</label>
                     </div>
+                    <button class="btn btn-outline-secondary" type="button" id="verPass" aria-label="Mostrar contraseña" aria-pressed="false"><i class="bi bi-eye"></i></button>
                 </div>
-                <button type="submit" class="btn btn-primary btn-lg w-100">Entrar <i class="bi bi-arrow-right-short"></i></button>
+                <div id="mayus" class="small text-warning-emphasis mb-3 d-none"><i class="bi bi-capslock"></i> Tienes las mayúsculas activadas</div>
+                <button type="submit" class="btn btn-primary btn-login w-100 mt-3" id="btnEntrar">
+                    <span class="txt">Entrar a mi cuenta <i class="bi bi-arrow-right-short"></i></span>
+                    <span class="cargando d-none"><span class="spinner-border spinner-border-sm"></span> Verificando…</span>
+                </button>
             </fieldset>
         </form>
 
-        <p class="text-center small text-secondary mt-4 mb-0">
-            ¿No tienes cuenta? <a class="fw-semibold" href="{{ url_for('auth.registrarse') }}">Regístrate</a>
-        </p>
-    </div>
+        <div class="d-flex flex-wrap justify-content-between small mt-4 text-secondary">
+            <span>¿Primera vez? <a class="fw-semibold" href="{{ url_for('auth.registrarse') }}">Crea tu cuenta gratis</a></span>
+            <span><i class="bi bi-shield-check text-success"></i> Acceso protegido</span>
+        </div>
+        <p class="small text-secondary mt-2 mb-0">¿No puedes ingresar? Pide ayuda al administrador.</p>
+    </section>
 </div>
 {% endblock %}
 
 {% block scripts %}
-{% if bloqueo and bloqueo.espera_segundos and not bloqueo.bloqueada %}
 <script>
 (function () {
+    var pass = document.getElementById('password'), ver = document.getElementById('verPass');
+    ver.addEventListener('click', function () {
+        var mostrar = pass.type === 'password';
+        pass.type = mostrar ? 'text' : 'password';
+        ver.setAttribute('aria-pressed', mostrar);
+        ver.firstElementChild.className = 'bi bi-' + (mostrar ? 'eye-slash' : 'eye');
+    });
+    pass.addEventListener('keyup', function (e) {
+        document.getElementById('mayus').classList.toggle('d-none', !(e.getModifierState && e.getModifierState('CapsLock')));
+    });
+    var form = document.getElementById('formLogin'), btn = document.getElementById('btnEntrar');
+    form.addEventListener('submit', function (e) {
+        if (!form.checkValidity()) { e.preventDefault(); form.querySelectorAll(':invalid')[0].focus(); return; }
+        btn.disabled = true;
+        btn.querySelector('.txt').classList.add('d-none');
+        btn.querySelector('.cargando').classList.remove('d-none');
+    });
+{% if bloqueo and bloqueo.espera_segundos and not bloqueo.bloqueada %}
     var resto = {{ bloqueo.espera_segundos }}, el = document.getElementById('cuenta');
-    function pintar() {
-        var m = Math.floor(resto / 60), s = resto % 60;
-        if (el) el.textContent = m + ':' + String(s).padStart(2, '0') + ' min';
-    }
+    function pintar() { el.textContent = Math.floor(resto / 60) + ':' + String(resto % 60).padStart(2, '0') + ' min'; }
     pintar();
     var t = setInterval(function () {
         resto -= 1;
-        if (resto <= 0) { clearInterval(t); window.location.replace(window.location.pathname + window.location.search); return; }
+        if (resto <= 0) { clearInterval(t); location.replace(location.pathname + location.search); return; }
         pintar();
     }, 1000);
+{% endif %}
 })();
 </script>
-{% endif %}
 {% endblock %}
