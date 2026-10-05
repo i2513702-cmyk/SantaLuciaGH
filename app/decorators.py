@@ -14,14 +14,31 @@ ROLES_DB = {
     "CLIENTE": "Cliente",
 }
 
-# Blueprints de compra (carrito y checkout): bloqueados para el administrador.
+# Blueprints de compra (carrito y checkout): bloqueados para quien no compra.
 BLUEPRINTS_COMPRA = ("carrito", "checkout")
 
-# El panel administrativo es exclusivo del administrador: es el rol que gestiona
-# y, por tanto, el que no compra. ADMIN_ROLES suma el supervisor, que además
-# accede a la gestión de cuentas del sistema.
+# El panel administrativo es exclusivo del administrador: el rol que dirige el
+# sistema. ADMIN_ROLES suma el supervisor, que además accede a la gestión de
+# cuentas. Ojo: esto NO decide quién compra, solo qué menú se muestra.
 ROLES_PANEL_ADMIN = ("ADMINISTRADOR",)
 ADMIN_ROLES = ("ADMINISTRADOR", "SUPERVISOR")
+
+# Roles que NO operan como compradores en la tienda. El personal interno
+# (administración, supervisión, taller, almacén y mostrador) trabaja con la
+# operación; la venta la registra quien atiende al cliente, no el técnico ni el
+# supervisor. El único rol que compra es CLIENTE, y las visitas anónimas
+# también (rol ausente -> permitido).
+#
+# OJO al añadir un rol nuevo a ROLES_DB: esta lista es una denegación, así que
+# un rol nuevo compraría por defecto hasta que se agregue aquí.
+ROLES_SIN_COMPRA = (
+    "ADMINISTRADOR",
+    "SUPERVISOR",
+    "TECNICO",
+    "RECEPCIONISTA",
+    "VENDEDOR",
+    "ALMACENERO",
+)
 
 # Roles que ven el modulo de ventas/ordenes.
 ROLES_VENTAS = ("ADMINISTRADOR", "SUPERVISOR", "VENDEDOR", "RECEPCIONISTA")
@@ -42,17 +59,23 @@ def map_rol(rol):
 
 
 def es_administrativo(rol) -> bool:
-    """True si el rol dirige el panel administrativo (gestiona, no compra)."""
+    """True si el rol dirige el panel administrativo (menú de gestión)."""
     return rol in ROLES_PANEL_ADMIN
+
+
+def es_no_comprador(rol) -> bool:
+    """True si el rol no puede comprar en la tienda (personal interno)."""
+    return rol in ROLES_SIN_COMPRA
 
 
 def puede_comprar(rol) -> bool:
     """True si el rol opera como comprador en la tienda.
 
-    El administrador gestiona el sistema, no compra: por eso no ve el carrito ni
-    puede pasar por el checkout. Las visitas anónimas también pueden comprar.
+    Solo el cliente compra; el personal interno gestiona, repara o atiende, y
+    por eso no ve el carrito ni puede pasar por el checkout. Las visitas
+    anónimas (sin rol en sesión) también pueden comprar.
     """
-    return not es_administrativo(rol)
+    return not es_no_comprador(rol)
 
 
 def panel_for(rol):
@@ -116,13 +139,13 @@ def roles_required(*roles_panel):
     return decorator
 
 
-def bloquear_compras_admin():
-    """Corta con 403 el carrito y el checkout del administrador.
+def bloquear_compras_sin_rol():
+    """Corta con 403 el carrito y el checkout de quien no puede comprar.
 
     Se registra como before_request global antes de la validación CSRF, para
     que ni siquiera un POST suyo llegue a procesar una compra.
     """
-    if request.blueprint in BLUEPRINTS_COMPRA and es_administrativo(session.get("rol")):
+    if request.blueprint in BLUEPRINTS_COMPRA and es_no_comprador(session.get("rol")):
         _denegar()
 
 
