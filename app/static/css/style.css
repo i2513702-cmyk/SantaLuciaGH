@@ -1188,6 +1188,34 @@ h4 { font-size: 1rem; font-weight: 600; }
 .card-stat:hover .stat-ver,
 .card-stat:focus-visible .stat-ver { opacity: 1; }
 
+/* ---------- Autocompletado de clientes por documento ---------- */
+.ac-wrapper { position: relative; }
+.ac-wrapper .form-control { padding-right: 2.25rem; }
+.ac-wrapper .form-control.is-loading { background-image: none; }
+
+.ac-spinner {
+    position: absolute;
+    top: 50%;
+    right: .65rem;
+    width: 1rem;
+    height: 1rem;
+    margin-top: -.5rem;
+    border: 2px solid rgba(30, 64, 175, .25);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: ac-giro .7s linear infinite;
+    pointer-events: none;
+}
+
+@keyframes ac-giro {
+    to { transform: rotate(360deg); }
+}
+
+.ac-feedback { min-height: 1.1rem; font-size: .78rem; }
+.ac-feedback.ac-ok { color: #15803d; }
+.ac-feedback.ac-nuevo { color: var(--muted); }
+.ac-feedback.ac-error { color: #b91c1c; }
+
 /* ---------- Formulario de citas ---------- */
 .cita-form {
     background: var(--surface);
