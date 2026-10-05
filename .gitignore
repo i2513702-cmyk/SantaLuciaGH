@@ -14,6 +14,9 @@ instance/
 *.db
 *.sqlite3
 
+# Historico semanal de KPI-04 (se regenera con flask --app app.py kpi:snapshot)
+data/
+
 # IDE
 .vscode/
 .idea/

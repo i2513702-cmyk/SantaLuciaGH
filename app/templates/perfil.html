@@ -13,10 +13,20 @@
             <span class="badge text-bg-secondary">{{ rol_label or 'Usuario' }}</span>
             <span class="text-muted">· Cuenta registrada en {{ app_name }}</span>
         </p>
-        <p class="text-muted text-sm mb-0">Desde aquí controlas tu cuenta y revisas tu historial de compras.</p>
+        <p class="text-muted text-sm mb-0">
+            {% if mostrar_historial %}
+                Desde aquí controlas tu cuenta y revisas tu historial de compras.
+            {% else %}
+                Desde aquí controlas tu cuenta. La gestión de usuarios, productos y citas vive en el panel de administración.
+            {% endif %}
+        </p>
     </div>
     <div class="profile-actions">
-        <a class="btn btn-outline" href="{{ url_for('main.tienda') }}">Seguir comprando</a>
+        {% if mostrar_historial %}
+            <a class="btn btn-outline" href="{{ url_for('main.tienda') }}">Seguir comprando</a>
+        {% else %}
+            <a class="btn btn-outline" href="{{ url_for('admin.dashboard') }}">Ir al panel</a>
+        {% endif %}
     </div>
 </section>
 
@@ -83,7 +93,8 @@
     </div>
 </div>
 
-<!-- ================= Historial de compras (plegable) ================= -->
+{% if mostrar_historial %}
+<!-- ================= Historial de compras (solo para compradores) ================= -->
 <div class="d-flex align-items-center justify-content-between mt-4 mb-1">
     <h2 class="section-title mb-0">Historial de compras</h2>
     {% if compras %}<span class="text-muted text-sm">{{ compras|length }} compra{{ 's' if compras|length != 1 else '' }}</span>{% endif %}
@@ -149,6 +160,7 @@
         <p>Aún no tienes compras registradas.</p>
         <a class="btn btn-primary" href="{{ url_for('main.tienda') }}">Explorar el catálogo</a>
     </div>
+{% endif %}
 {% endif %}
 {% endblock %}
 

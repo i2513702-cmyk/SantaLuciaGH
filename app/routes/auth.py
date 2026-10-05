@@ -15,7 +15,7 @@ from flask import (
     url_for,
 )
 
-from app.decorators import admin_required, login_required, panel_for
+from app.decorators import admin_required, es_administrativo, login_required, panel_for
 from app.exceptions import AppError, ValidationError
 from app.services import rest_auth_service
 
@@ -23,7 +23,17 @@ bp = Blueprint("auth", __name__)
 
 
 def _sincronizar_carrito():
-    """Reclama el carrito anónimo (si existe) y refresca el contador al usuario."""
+    """Reclama el carrito anónimo (si existe) y refresca el contador al usuario.
+
+    El personal administrativo no compra: se descarta cualquier carrito previo
+    y no se reclama nada, para que su sesión quede limpia.
+    """
+    session.pop("carrito_id", None)
+
+    if es_administrativo(session.get("rol")):
+        session["carrito_n"] = 0
+        return
+
     from app.services import carrito_service
 
     token = session.get("carrito_sesion")
@@ -32,7 +42,6 @@ def _sincronizar_carrito():
     if carrito_id and token:
         carrito_service.reclamar(carrito_id, token, user_key)
     session["carrito_n"] = carrito_service.contar_por_usuario(user_key)
-    session.pop("carrito_id", None)
 
 
 @bp.route("/login", methods=["GET", "POST"])
