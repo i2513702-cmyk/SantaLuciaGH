@@ -31,6 +31,7 @@ def create_app() -> Flask:
     app.register_blueprint(citas.bp)
     app.register_blueprint(kpi.bp)
     app.register_blueprint(supabase_bp)
+    app.register_blueprint(api.bp)
 
     # --- Comandos CLI ---
     from app.cli import register_cli

@@ -65,31 +65,44 @@
                 </div>
                 <div class="row g-3">
                     <div class="col-md-4">
-                        <label class="form-label">Tipo de documento</label>
-                        <select class="form-select" name="tipo_documento_id" form="formPago">
-                            <option value="1">DNI</option>
-                            <option value="6">RUC</option>
+                        <label class="form-label" for="cliTipoDocumento">Tipo de documento</label>
+                        <select class="form-select" id="cliTipoDocumento" name="tipo_documento_id" form="formPago">
+                            {% for doc in documentos %}
+                            <option value="{{ doc.id }}">{{ doc.codigo }}</option>
+                            {% endfor %}
                         </select>
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label">N° documento</label>
-                        <input type="text" class="form-control" name="numero_documento" form="formPago">
+                        <label class="form-label" for="cliNumeroDocumento">N° documento</label>
+                        <div class="ac-wrapper"
+                             data-cliente-api="{{ url_for('api.buscar_cliente', numero_documento='__documento__') }}">
+                            <input type="text" class="form-control" id="cliNumeroDocumento"
+                                   name="numero_documento" form="formPago"
+                                   autocomplete="off" inputmode="numeric" maxlength="15"
+                                   placeholder="Escribe para autocompletar">
+                            <span class="ac-spinner" id="cliSpinner" hidden aria-hidden="true"></span>
+                        </div>
+                        <div class="form-text ac-feedback" id="cliFeedback" role="status" aria-live="polite"></div>
                     </div>
                     <div class="col-md-4">
-                        <label class="form-label">Teléfono</label>
-                        <input type="text" class="form-control" name="telefono" form="formPago">
+                        <label class="form-label" for="cliTelefono">Teléfono</label>
+                        <input type="text" class="form-control" id="cliTelefono"
+                               name="telefono" form="formPago">
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Nombres</label>
-                        <input type="text" class="form-control" name="nombres" form="formPago">
+                        <label class="form-label" for="cliNombres">Nombres</label>
+                        <input type="text" class="form-control" id="cliNombres"
+                               name="nombres" form="formPago">
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Apellidos</label>
-                        <input type="text" class="form-control" name="apellidos" form="formPago">
+                        <label class="form-label" for="cliApellidos">Apellidos</label>
+                        <input type="text" class="form-control" id="cliApellidos"
+                               name="apellidos" form="formPago">
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">Correo</label>
-                        <input type="email" class="form-control" name="correo" form="formPago">
+                        <label class="form-label" for="cliCorreo">Correo</label>
+                        <input type="email" class="form-control" id="cliCorreo"
+                               name="correo" form="formPago">
                     </div>
                 </div>
             </div>
@@ -161,4 +174,8 @@
         </form>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/autocompletado-cliente.js') }}"></script>
 {% endblock %}
