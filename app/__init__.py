@@ -5,7 +5,7 @@ import os
 from flask import Flask, render_template, url_for
 
 from app.config import config_map
-from app.decorators import bloquear_compras_admin
+from app.decorators import bloquear_compras_sin_rol
 from app.extensions import bcrypt, cors
 
 
@@ -95,7 +95,7 @@ def create_app() -> Flask:
 
         rol = session.get("rol")
         # El contador del carrito solo existe para quien puede comprar; así el
-        # personal administrativo nunca ve un carrito propio en la cabecera.
+        # personal interno nunca ve un carrito propio en la cabecera.
         carrito_n = session.get("carrito_n", 0) if puede_comprar(rol) else 0
 
         return {
@@ -113,8 +113,8 @@ def create_app() -> Flask:
             "csrf_token": get_csrf(),
         }
 
-    # --- El administrador no compra: se corta el carrito/checkout antes del CSRF ---
-    app.before_request(bloquear_compras_admin)
+    # --- El personal interno no compra: se corta el carrito/checkout antes del CSRF ---
+    app.before_request(bloquear_compras_sin_rol)
 
     # --- Protección CSRF en todas las peticiones POST ---
     @app.before_request
