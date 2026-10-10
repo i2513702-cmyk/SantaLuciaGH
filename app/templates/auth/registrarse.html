@@ -28,13 +28,17 @@
                         <label for="tipo_documento_id" class="form-label">Tipo de documento</label>
                         <select class="form-select" id="tipo_documento_id" name="tipo_documento_id">
                             {% for t in tipos_documento %}
-                                <option value="{{ t.id }}">{{ t.codigo }} — {{ t.nombre }}</option>
+                                <option value="{{ t.id }}" data-tipo="{{ t.codigo }}">{{ t.codigo }} — {{ t.nombre }}</option>
                             {% endfor %}
                         </select>
                     </div>
                     <div class="col-md-6">
                         <label for="numero_documento" class="form-label">Número de documento</label>
-                        <input type="text" class="form-control" id="numero_documento" name="numero_documento" required>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="numero_documento" name="numero_documento" required>
+                            <button type="button" class="btn btn-outline-primary" id="btn_buscar_doc">Buscar</button>
+                        </div>
+                        <div id="doc_status" class="form-text"></div>
                     </div>
                     <div class="col-md-6">
                         <label for="telefono" class="form-label">Teléfono</label>
@@ -69,4 +73,65 @@
         </p>
     </div>
 </div>
+
+<script>
+(function () {
+    var btn = document.getElementById('btn_buscar_doc');
+    var docInput = document.getElementById('numero_documento');
+    var tipoSelect = document.getElementById('tipo_documento_id');
+    var status = document.getElementById('doc_status');
+    var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+
+    function mensaje(texto, ok) {
+        status.textContent = texto;
+        status.className = 'form-text ' + (ok ? 'text-success' : 'text-danger');
+    }
+
+    function tipoActual() {
+        var op = tipoSelect.options[tipoSelect.selectedIndex];
+        return op ? (op.dataset.tipo || '') : '';
+    }
+
+    btn.addEventListener('click', function () {
+        var tipo = tipoActual();
+        var numero = docInput.value.trim();
+        if (!tipo || !numero) {
+            mensaje('Ingresa el número de tu documento.', false);
+            return;
+        }
+        if (tipo === 'PASAPORTE') {
+            mensaje('El pasaporte no tiene consulta automática: escríbelo manualmente.', false);
+            return;
+        }
+        btn.disabled = true;
+        mensaje('Consultando…', true);
+        fetch('{{ url_for("identidad.consultar") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrf
+            },
+            body: JSON.stringify({ tipo: tipo, numero: numero })
+        })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+        .then(function (res) {
+            if (!res.ok) {
+                mensaje(res.data.error || 'No se pudo consultar el documento.', false);
+                return;
+            }
+            var d = res.data.datos;
+            document.getElementById('nombres').value = d.nombres || '';
+            document.getElementById('apellidos').value =
+                ((d.apellido_paterno || '') + ' ' + (d.apellido_materno || '')).trim();
+            mensaje('Datos autollenados (' + d.proveedor + ').', true);
+        })
+        .catch(function () { mensaje('Error de conexión al consultar.', false); })
+        .finally(function () { btn.disabled = false; });
+    });
+
+    docInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); btn.click(); }
+    });
+})();
+</script>
 {% endblock %}

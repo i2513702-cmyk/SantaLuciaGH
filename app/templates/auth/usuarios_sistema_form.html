@@ -35,10 +35,90 @@
             <div class="mb-3">
                 <label for="empleado_id" class="form-label">ID de empleado (existente)</label>
                 <input type="number" class="form-control" id="empleado_id" name="empleado_id" required placeholder="Ej: 1">
+                <div class="form-text">Se completa automáticamente al buscar el DNI (o escribe el ID si lo conoces).</div>
             </div>
-            <p class="small text-secondary mb-3">La contraseña por defecto será <code>123456</code> (bcrypt).</p>
+
+            <hr class="my-4">
+            <h2 class="h6 fw-semibold mb-2">🔎 Buscar empleado por documento</h2>
+            <div class="row g-2">
+                <div class="col-4">
+                    <select class="form-select form-select-sm" id="emp_tipo">
+                        <option value="DNI" selected>DNI</option>
+                        <option value="CE">CE</option>
+                        <option value="RUC">RUC</option>
+                    </select>
+                </div>
+                <div class="col-8">
+                    <div class="input-group input-group-sm">
+                        <input type="text" class="form-control" id="emp_numero" placeholder="Número de documento">
+                        <button type="button" class="btn btn-outline-primary" id="btn_buscar_emp">Buscar</button>
+                    </div>
+                </div>
+            </div>
+            <div id="emp_resultado" class="mt-2 small"></div>
+
+            <p class="small text-secondary mb-3 mt-3">La contraseña por defecto será <code>123456</code> (bcrypt).</p>
             <button type="submit" class="btn btn-primary w-100">Crear usuario</button>
         </form>
     </div>
 </div>
+
+<script>
+(function () {
+    var btn = document.getElementById('btn_buscar_emp');
+    var tipoSel = document.getElementById('emp_tipo');
+    var numero = document.getElementById('emp_numero');
+    var resultado = document.getElementById('emp_resultado');
+    var empleadoId = document.getElementById('empleado_id');
+    var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+
+    function mostrar(texto, ok) {
+        resultado.innerHTML = texto;
+        resultado.classList.remove('text-success', 'text-danger', 'text-secondary');
+        resultado.classList.add(ok === true ? 'text-success' : ok === false ? 'text-danger' : 'text-secondary');
+    }
+
+    btn.addEventListener('click', function () {
+        var tipo = tipoSel.value;
+        var num = numero.value.trim();
+        if (!num) { mostrar('Ingresa el número de documento.', false); return; }
+        btn.disabled = true;
+        mostrar('Consultando…', null);
+        fetch('{{ url_for("identidad.consultar_empleado") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrf
+            },
+            body: JSON.stringify({ tipo: tipo, numero: num })
+        })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+        .then(function (res) {
+            if (!res.ok) {
+                mostrar(res.data.error || 'No se pudo consultar el documento.', false);
+                empleadoId.value = '';
+                return;
+            }
+            var d = res.data;
+            var emp = d.empleado;
+            if (emp) {
+                empleadoId.value = emp.id;
+                mostrar('Empleado encontrado: <strong>' + (emp.nombres || '') + ' ' + (emp.apellidos || '') +
+                        '</strong> (ID ' + emp.id + ')' + (emp.cargo ? ' — ' + emp.cargo : '') +
+                        '. Ahora puedes crear el usuario.', true);
+            } else {
+                empleadoId.value = '';
+                mostrar('El documento existe (' + (d.datos.nombre_completo || d.datos.razon_social || num) +
+                        '), pero no hay un empleado registrado con ese número. Regístralo antes de vincular.', false);
+            }
+        })
+        .catch(function () { mostrar('Error de conexión al consultar.', false); })
+        .finally(function () { btn.disabled = false; });
+    });
+
+    numero.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); btn.click(); }
+    });
+})();
+</script>
 {% endblock %}

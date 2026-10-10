@@ -27,6 +27,21 @@ class Config:
     SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "")
     SUPABASE_WEBHOOK_SECRET = os.getenv("SUPABASE_WEBHOOK_SECRET", "")
 
+    # --- APIs de identidad (consulta DNI / RUC / CE) -----------------------
+    # apiperu.dev: DNI y RUC. json.pe: DNI, RUC y Carnet de Extranjería (CE).
+    # Los tokens viven en el .env local; NO se suben al repositorio.
+    APIPERU_TOKEN = os.getenv("APIPERU_TOKEN", "")
+    APIPERU_DNI_URL = os.getenv("APIPERU_DNI_URL", "https://apiperu.dev/api/dni")
+    APIPERU_RUC_URL = os.getenv("APIPERU_RUC_URL", "https://apiperu.dev/api/ruc")
+
+    JSONPE_TOKEN = os.getenv("JSONPE_TOKEN", "")
+    JSONPE_DNI_URL = os.getenv("JSONPE_DNI_URL", "https://api.json.pe/api/dni")
+    JSONPE_RUC_URL = os.getenv("JSONPE_RUC_URL", "https://api.json.pe/api/ruc")
+    JSONPE_CE_URL = os.getenv("JSONPE_CE_URL", "https://api.json.pe/api/ce")
+
+    # Timeout (segundos) para las llamadas a los proveedores de identidad.
+    IDENTIDAD_TIMEOUT = float(os.getenv("IDENTIDAD_TIMEOUT", "6"))
+
     # Imágenes (se usará al agregar catálogo de productos/servicios)
     LOGO_PATH = "img/logo.svg"
     DEFAULT_PRODUCT_IMAGE = "img/producto-default.svg"

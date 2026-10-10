@@ -24,13 +24,23 @@
             <label for="tipo_documento_id">Tipo de documento</label>
             <select id="tipo_documento_id" name="tipo_documento_id">
                 {% for doc in documentos %}
-                    <option value="{{ doc.id }}" {% if form and form.tipo_documento_id|int == doc.id %}selected{% endif %}>{{ doc.codigo }} — {{ doc.nombre }}</option>
+                    <option value="{{ doc.id }}" data-tipo="{{ doc.codigo }}" {% if form and form.tipo_documento_id|int == doc.id %}selected{% endif %}>{{ doc.codigo }} — {{ doc.nombre }}</option>
                 {% endfor %}
             </select>
 
             <label for="numero_documento">Número de documento *</label>
-            <input type="text" id="numero_documento" name="numero_documento" required
-                   placeholder="Ej: 12345678" value="{{ form.numero_documento if form else '' }}">
+            <div class="cita-doc-row">
+                <input type="text" id="numero_documento" name="numero_documento" required
+                       placeholder="Ej: 12345678" value="{{ form.numero_documento if form else '' }}">
+                <button type="button" class="btn btn-outline btn-sm" id="btn_buscar_doc">Buscar</button>
+            </div>
+            <div id="doc_status" class="cita-doc-status"></div>
+
+            <div id="razon_social_box" style="display:none;">
+                <label for="razon_social">Razón social (empresa) *</label>
+                <input type="text" id="razon_social" name="razon_social"
+                       placeholder="Razón social" value="{{ form.razon_social if form else '' }}">
+            </div>
 
             <label for="nombres">Nombres *</label>
             <input type="text" id="nombres" name="nombres" required
@@ -136,10 +146,90 @@
 </form>
 
 <script>
-document.addEventListener('input', function () {
-    var tipo = document.getElementById('tipo_atencion').value;
-    var box = document.getElementById('domicilio-box');
-    box.style.display = tipo === 'DOMICILIO' ? '' : 'none';
-});
+(function () {
+    // ── Toggle: domicilio ──
+    document.addEventListener('input', function () {
+        var tipo = document.getElementById('tipo_atencion').value;
+        var box = document.getElementById('domicilio-box');
+        box.style.display = tipo === 'DOMICILIO' ? '' : 'none';
+    });
+
+    // ── Autollenado de documento (DNI / CE / RUC) ──
+    var btn = document.getElementById('btn_buscar_doc');
+    var docInput = document.getElementById('numero_documento');
+    var tipoSelect = document.getElementById('tipo_documento_id');
+    var status = document.getElementById('doc_status');
+    var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+
+    function tipoActual() {
+        var op = tipoSelect.options[tipoSelect.selectedIndex];
+        return op ? (op.dataset.tipo || '') : '';
+    }
+
+    function mostrarRazonSocial(valor) {
+        document.getElementById('razon_social_box').style.display = valor === 'RUC' ? '' : 'none';
+    }
+
+    function mensaje(texto, ok) {
+        status.textContent = texto;
+        status.classList.toggle('text-success', !!ok);
+        status.classList.toggle('text-danger', !ok);
+    }
+
+    tipoSelect.addEventListener('change', function () {
+        mostrarRazonSocial(tipoActual());
+        var tipo = tipoActual();
+        docInput.placeholder = tipo === 'DNI' ? 'Ej: 12345678' :
+                              tipo === 'RUC' ? 'Ej: 20123456789' :
+                              tipo === 'CE' ? 'Ej: 001234567' : 'Ej: 12345678';
+    });
+    mostrarRazonSocial(tipoActual());
+
+    btn.addEventListener('click', function () {
+        var tipo = tipoActual();
+        var numero = docInput.value.trim();
+        if (!tipo || !numero) {
+            mensaje('Ingresa el número de tu documento.', false);
+            return;
+        }
+        if (tipo === 'PASAPORTE') {
+            mensaje('El pasaporte no tiene consulta automática: escríbelo manualmente.', false);
+            return;
+        }
+        btn.disabled = true;
+        mensaje('Consultando…', true);
+        fetch('{{ url_for("identidad.consultar") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrf
+            },
+            body: JSON.stringify({ tipo: tipo, numero: numero })
+        })
+        .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+        .then(function (res) {
+            if (!res.ok) {
+                mensaje(res.data.error || 'No se pudo consultar el documento.', false);
+                return;
+            }
+            var d = res.data.datos;
+            if (tipo === 'RUC') {
+                document.getElementById('razon_social').value = d.razon_social || '';
+                mensaje('Razón social autollenada (' + d.proveedor + ').', true);
+            } else {
+                document.getElementById('nombres').value = d.nombres || '';
+                document.getElementById('apellidos').value =
+                    ((d.apellido_paterno || '') + ' ' + (d.apellido_materno || '')).trim();
+                mensaje('Datos autollenados (' + d.proveedor + ').', true);
+            }
+        })
+        .catch(function () { mensaje('Error de conexión al consultar.', false); })
+        .finally(function () { btn.disabled = false; });
+    });
+
+    docInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); btn.click(); }
+    });
+})();
 </script>
 {% endblock %}
