@@ -236,6 +236,46 @@ def perfil():
     sin_compra = es_no_comprador(session.get("rol"))
     compras = []
 
+    # --- Datos personales desde la BD (tabla usuarios + clientes/empleados) ---
+    from app.services import rest_auth_service
+
+    perfil_db = {}
+    try:
+        perfil_db = rest_auth_service.obtener_perfil(usuario_id)
+    except Exception:  # noqa: BLE001
+        perfil_db = {}
+
+    if perfil_db.get("cliente_id") and (perfil_db.get("clientes") or not perfil_db.get("empleado_id")):
+        persona = perfil_db.get("clientes") or {}
+        origen_persona = "clientes"
+    elif perfil_db.get("empleado_id"):
+        persona = perfil_db.get("empleados") or {}
+        origen_persona = "empleados"
+    elif perfil_db.get("rol") == "CLIENTE":
+        persona = perfil_db.get("clientes") or {}
+        origen_persona = "clientes"
+    else:
+        persona = perfil_db.get("empleados") or {}
+        origen_persona = "empleados"
+
+    nombres = (persona.get("nombres") or "").strip()
+    apellidos = (persona.get("apellidos") or "").strip()
+    nombre_completo = " ".join(p for p in (nombres, apellidos) if p) or usuario_nombre
+
+    tipo_doc = rest_auth_service.nombre_tipo_documento(persona.get("tipo_documento_id"))
+    numero_doc = (persona.get("numero_documento") or "").strip()
+    documento = f"{tipo_doc} {numero_doc}".strip() if numero_doc else ""
+
+    ultimo_acceso = (perfil_db.get("ultimo_acceso") or "").replace("T", " ")[:16]
+
+    datos_personales = [
+        ("Nombre completo", nombre_completo),
+        ("Documento", documento),
+        ("Correo", persona.get("correo") or perfil_db.get("correo")),
+        ("Teléfono", persona.get("telefono")),
+        ("Cargo", persona.get("cargo")),
+    ]
+
     if not sin_compra:
         try:
             resp = (
@@ -290,7 +330,12 @@ def perfil():
     return render_template(
         "perfil.html",
         usuario_nombre=usuario_nombre,
+        nombre_completo=nombre_completo,
         rol_label=ROLES_DB.get(session.get("rol") or "") or (session.get("rol") or ""),
+        datos_personales=datos_personales,
+        origen_persona=origen_persona,
+        correo=perfil_db.get("correo") or session.get("correo"),
+        ultimo_acceso=ultimo_acceso,
         compras=compras,
         mostrar_historial=not sin_compra,
     )

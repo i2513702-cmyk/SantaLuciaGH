@@ -97,7 +97,7 @@ def create_app() -> Flask:
     def inject_globals():
         from flask import session
 
-        from app.decorators import ROLES_VENTAS, es_administrativo, map_rol, puede_comprar
+        from app.decorators import ROLES_DB, ROLES_VENTAS, es_administrativo, map_rol, puede_comprar
         from app.security import get_csrf
 
         rol = session.get("rol")
@@ -116,6 +116,7 @@ def create_app() -> Flask:
             "footer_bg": app.config["FOOTER_BG_PATH"],
             "rol": rol,
             "rol_panel": map_rol(rol),
+            "rol_label": ROLES_DB.get(rol or ""),
             "es_admin": es_administrativo(rol),
             "puede_comprar": puede_comprar(rol),
             "puede_ventas": rol in ROLES_VENTAS,
