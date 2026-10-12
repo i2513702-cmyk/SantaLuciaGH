@@ -624,8 +624,10 @@ h4 { font-size: 1rem; font-weight: 600; }
 }
 
 .product-img img {
-    max-height: 130px;
-    object-fit: contain;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
 }
 
 .offer-badge {
@@ -1343,8 +1345,8 @@ h4 { font-size: 1rem; font-weight: 600; }
     .hero-split .hero-text, .hero-split .hero-actions { align-items: center; justify-content: center; }
     .hero-split .hero-sub { margin: 0 auto 28px; }
     .hero-visual { display: none; }
-    .product-img { height: 140px; padding: 16px; }
-    .product-img img { max-height: 100px; }
+    .product-img { height: 150px; padding: 0; }
+    .product-img img { width: 100%; height: 100%; object-fit: cover; object-position: center; }
     .stats-bar { gap: 24px; flex-wrap: wrap; }
     .stat-value { font-size: 1.4rem; }
     .section { padding: 56px 0; }
