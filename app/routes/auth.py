@@ -15,15 +15,25 @@ from flask import (
     url_for,
 )
 
-from app.decorators import admin_required, login_required, panel_for
-from app.exceptions import AppError, ValidationError
-from app.services import rest_auth_service
+from app.decorators import admin_required, es_no_comprador, login_required, panel_for
+from app.exceptions import AppError, AuthorizationError, ValidationError
+from app.services import login_guard, rest_auth_service
 
 bp = Blueprint("auth", __name__)
 
 
 def _sincronizar_carrito():
-    """Reclama el carrito anónimo (si existe) y refresca el contador al usuario."""
+    """Reclama el carrito anónimo (si existe) y refresca el contador al usuario.
+
+    El personal interno no compra: se descarta cualquier carrito previo
+    y no se reclama nada, para que su sesión quede limpia.
+    """
+    session.pop("carrito_id", None)
+
+    if es_no_comprador(session.get("rol")):
+        session["carrito_n"] = 0
+        return
+
     from app.services import carrito_service
 
     token = session.get("carrito_sesion")
@@ -32,7 +42,6 @@ def _sincronizar_carrito():
     if carrito_id and token:
         carrito_service.reclamar(carrito_id, token, user_key)
     session["carrito_n"] = carrito_service.contar_por_usuario(user_key)
-    session.pop("carrito_id", None)
 
 
 @bp.route("/login", methods=["GET", "POST"])
@@ -40,32 +49,44 @@ def login():
     if "usuario_id" in session:
         return redirect(url_for("auth.panel"))
 
+    ip = request.remote_addr or "desconocida"
     error = None
+    bloqueo = login_guard.estado(ip)
+
     if request.method == "POST":
-        identificador = request.form.get("username", "").strip()
-        password = request.form.get("password", "")
-        try:
-            usuario = rest_auth_service.login(identificador, password)
-            session.clear()
-            session["usuario_id"] = usuario["id"]
-            session["username"] = usuario["nombre_usuario"]
-            session["nombre"] = usuario["nombre_usuario"]
-            session["rol"] = usuario["rol"]
-            _sincronizar_carrito()
-            import threading
+        error = login_guard.mensaje_bloqueo(bloqueo)
+        if not error:
+            identificador = request.form.get("username", "").strip()
+            password = request.form.get("password", "")
+            try:
+                usuario = rest_auth_service.login(identificador, password)
+                login_guard.registrar_exito(ip)
+                session.clear()
+                session["usuario_id"] = usuario["id"]
+                session["username"] = usuario["nombre_usuario"]
+                session["nombre"] = usuario["nombre_usuario"]
+                session["rol"] = usuario["rol"]
+                _sincronizar_carrito()
+                import threading
 
-            threading.Thread(
-                target=rest_auth_service.actualizar_ultimo_acceso,
-                args=(usuario["nombre_usuario"], datetime.now(timezone.utc).isoformat()),
-                daemon=True,
-            ).start()
-            return redirect(url_for("auth.panel"))
-        except (AppError, ValidationError) as exc:
-            error = exc.message if isinstance(exc, AppError) else str(exc)
-        except Exception:  # noqa: BLE001
-            error = "No se pudo conectar con Supabase. Revisa la configuración."
+                threading.Thread(
+                    target=rest_auth_service.actualizar_ultimo_acceso,
+                    args=(usuario["nombre_usuario"], datetime.now(timezone.utc).isoformat()),
+                    daemon=True,
+                ).start()
+                destino = (request.args.get("next") or "").strip()
+                if not destino or not destino.startswith("/") or destino.startswith("//"):
+                    destino = url_for("auth.panel")
+                return redirect(destino)
+            except AuthorizationError as exc:
+                error = login_guard.registrar_fallo(ip, identificador) or exc.message
+                bloqueo = login_guard.estado(ip)
+            except (AppError, ValidationError) as exc:
+                error = exc.message if isinstance(exc, AppError) else str(exc)
+            except Exception:  # noqa: BLE001
+                error = "No se pudo conectar con Supabase. Revisa la configuración."
 
-    return render_template("auth/login.html", error=error)
+    return render_template("auth/login.html", error=error, bloqueo=bloqueo)
 
 
 @bp.route("/logout")
@@ -129,15 +150,23 @@ def registrarse():
 @bp.route("/cambiar_clave", methods=["GET", "POST"])
 @login_required
 def cambiar_clave():
+    """Cambio de contraseña: verifica la actual, valida confirmación y
+    guarda el nuevo hash bcrypt en la BD. Vive embebido en el perfil."""
     if request.method == "POST":
+        actual = request.form.get("actual", "")
         nueva = request.form.get("nueva", "")
+        confirmar = request.form.get("confirmar", "")
+        if nueva != confirmar:
+            flash("La confirmación no coincide con la nueva contraseña.", "error")
+            return redirect(url_for("main.perfil"))
         try:
-            rest_auth_service.cambiar_clave(session["username"], nueva)
+            rest_auth_service.cambiar_clave(session["username"], actual, nueva)
             flash("Contraseña actualizada correctamente.", "success")
-            return redirect(url_for("auth.panel"))
         except (AppError, ValidationError) as exc:
-            error = exc.message if isinstance(exc, AppError) else str(exc)
-            return render_template("auth/cambiar_clave.html", error=error)
+            flash(exc.message if isinstance(exc, AppError) else str(exc), "error")
+        except Exception:  # noqa: BLE001
+            flash("No se pudo actualizar la contraseña. Inténtalo de nuevo.", "error")
+        return redirect(url_for("main.perfil"))
     return render_template("auth/cambiar_clave.html")
 
 
@@ -197,6 +226,7 @@ def usuario_editar(usuario_id):
                     rol=request.form.get("rol", "").strip(),
                     activo=activo,
                     empleado_id=request.form.get("empleado_id", 0),
+                    cliente_id=request.form.get("cliente_id", 0),
                 )
                 flash("Usuario actualizado correctamente.", "success")
                 return redirect(url_for("auth.usuarios_sistema"))

@@ -3,43 +3,647 @@
 {% block title %}Panel Administrador — {{ app_name }}{% endblock %}
 
 {% block content %}
-<section class="d-flex flex-wrap align-items-center justify-content-between mb-4">
+<section class="panel-head">
     <div>
-        <h1 class="h3 fw-semibold mb-1">Panel de Administración</h1>
-        <p class="text-secondary mb-0">Bienvenido, <strong>{{ nombre }}</strong>. Resumen general del negocio (datos reales de la base de datos).</p>
+        <h1>Panel de Administración</h1>
+        <p>Bienvenido, <strong>{{ nombre }}</strong>. Resumen ejecutivo del negocio ·
+            <span class="text-muted text-sm">Actualizado {{ fecha_actualizacion }}</span></p>
     </div>
-    <a class="btn btn-outline-primary" href="{{ url_for('main.home') }}">Ver tienda</a>
+    <div class="panel-actions">
+        <a class="btn btn-outline" href="{{ url_for('kpi.panel') }}">KPIs</a>
+        <a class="btn btn-outline" href="{{ url_for('admin.productos') }}">Productos</a>
+        <a class="btn btn-outline" href="{{ url_for('auth.usuarios_sistema') }}">Usuarios</a>
+        <a class="btn btn-primary" href="{{ url_for('admin.citas_listado') }}">Citas</a>
+        <button class="btn btn-outline no-print" type="button" onclick="window.print()">🖨 Imprimir</button>
+    </div>
 </section>
 
-<section class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-4 mb-4">
+<!-- ===================== KPI ventas ===================== -->
+<div class="dash-group" data-collapsible>
+    <div class="collapse-head">
+        <h2 class="section-title">Desempeño comercial</h2>
+        <button class="collapse-btn" type="button" data-toggle-collapse aria-expanded="true">▾</button>
+    </div>
+    <div class="collapse-body">
+        <section class="kpi-grid">
+    <div class="kpi-card">
+        <div class="kpi-icon">💰</div>
+        <div class="kpi-label">Ventas totales</div>
+        <div class="kpi-value">S/ {{ "%.2f"|format(metricas.total_ventas) }}</div>
+        <div class="kpi-sub">{{ metricas.n_ventas }} pedidos registrados</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon">📈</div>
+        <div class="kpi-label">Ventas del mes</div>
+        <div class="kpi-value">S/ {{ "%.2f"|format(metricas.ventas_mes) }}</div>
+        {% if metricas.trend_ventas > 0 %}
+        <div class="kpi-trend trend-up">▲ +{{ metricas.trend_ventas }} % vs mes anterior</div>
+        {% elif metricas.trend_ventas < 0 %}
+        <div class="kpi-trend trend-down">▼ {{ metricas.trend_ventas }} % vs mes anterior</div>
+        {% else %}
+        <div class="kpi-trend trend-flat">→ Sin cambios vs mes anterior</div>
+        {% endif %}
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon">🧾</div>
+        <div class="kpi-label">Pedidos del mes</div>
+        <div class="kpi-value">{{ metricas.pedidos_mes }}</div>
+        {% if metricas.trend_pedidos > 0 %}
+        <div class="kpi-trend trend-up">▲ +{{ metricas.trend_pedidos }} %</div>
+        {% elif metricas.trend_pedidos < 0 %}
+        <div class="kpi-trend trend-down">▼ {{ metricas.trend_pedidos }} %</div>
+        {% else %}
+        <div class="kpi-trend trend-flat">estable</div>
+        {% endif %}
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon">📊</div>
+        <div class="kpi-label">Ticket promedio</div>
+        <div class="kpi-value">S/ {{ "%.2f"|format(metricas.ticket_promedio) }}</div>
+        <div class="kpi-sub">por pedido</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon">💎</div>
+        <div class="kpi-label">Margen bruto</div>
+        <div class="kpi-value">S/ {{ "%.2f"|format(metricas.margen_bruto) }}</div>
+        <div class="kpi-sub">{{ "%.1f"|format(metricas.margen_pct) }} % sobre la venta</div>
+    </div>
+        </section>
+    </div>
+</div>
+
+<!-- ===================== KPI operativo ===================== -->
+<div class="dash-group" data-collapsible>
+    <div class="collapse-head">
+        <h2 class="section-title">Operaciones</h2>
+        <button class="collapse-btn" type="button" data-toggle-collapse aria-expanded="true">▾</button>
+    </div>
+    <div class="collapse-body">
+        <section class="kpi-grid">
+    <div class="kpi-card">
+        <div class="kpi-icon">📅</div>
+        <div class="kpi-label">Citas de hoy</div>
+        <div class="kpi-value">{{ metricas.n_citas_hoy }}</div>
+        <div class="kpi-sub">{{ metricas.n_citas_confirmadas }} confirmadas</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon">🔧</div>
+        <div class="kpi-label">Citas sin técnico</div>
+        <div class="kpi-value">{{ metricas.n_citas_pendientes }}</div>
+        <a class="kpi-action" href="{{ url_for('admin.citas_listado') }}">Asignar técnico →</a>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon">🛠️</div>
+        <div class="kpi-label">Reparaciones activas</div>
+        <div class="kpi-value">{{ metricas.reparaciones_activas }}</div>
+        <div class="kpi-sub">en el taller o en ruta</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon">👥</div>
+        <div class="kpi-label">Clientes registrados</div>
+        <div class="kpi-value">{{ metricas.n_clientes }}</div>
+        <div class="kpi-sub">base de datos</div>
+    </div>
+    <div class="kpi-card">
+        <div class="kpi-icon">🏬</div>
+        <div class="kpi-label">Valor de inventario</div>
+        <div class="kpi-value">S/ {{ "%.2f"|format(metricas.stock_total_valor) }}</div>
+        <div class="kpi-sub">a costo de compra</div>
+    </div>
+        </section>
+    </div>
+</div>
+
+<!-- ===================== Gráficos 1: ventas + categorías ===================== -->
+<div class="dash-group" data-collapsible>
+    <div class="collapse-head">
+        <h2 class="section-title">Ingresos y categorías</h2>
+        <button class="collapse-btn" type="button" data-toggle-collapse aria-expanded="true">▾</button>
+    </div>
+    <div class="collapse-body">
+        <div class="dash-row">
+    <div class="dash-col col-wide">
+        <div class="card dash-card">
+            <div class="dash-card-head">
+                <h3>Ventas de los últimos 14 días</h3>
+                <span class="text-muted text-sm">S/ por día</span>
+            </div>
+            <div class="chart-bars">
+                {% for d in metricas.ventas_por_dia %}
+                <div class="chart-bar" title="S/ {{ '%.2f'|format(d.total) }}">
+                    <span class="bar-value">{{ '%.0f'|format(d.total) }}</span>
+                    <div class="bar-track">
+                        <div class="bar-fill" style="height:{{ d.pct }}%;"></div>
+                    </div>
+                    <span class="bar-day">{{ d.rotulo }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    <div class="dash-col">
+        <div class="card dash-card">
+            <div class="dash-card-head">
+                <h3>Ingresos por categoría</h3>
+            </div>
+            {% if metricas.ventas_por_categoria %}
+            <div class="hbars">
+                {% for c in metricas.ventas_por_categoria %}
+                <div class="hbar">
+                    <span class="hbar-label">{{ c.nombre }}</span>
+                    <div class="hbar-track">
+                        <div class="hbar-fill accent" style="width:{{ c.pct }}%;"></div>
+                    </div>
+                    <span class="hbar-value">S/ {{ "%.0f"|format(c.monto) }}</span>
+                </div>
+                {% endfor %}
+                <p class="text-muted text-sm" style="margin-top:12px;">Participación sobre el total {{ "%.1f"|format(metricas.ventas_por_categoria[0].pct) }}% para la líder.</p>
+            </div>
+            {% else %}
+            <div class="empty-mini">Sin ventas registradas por categoría.</div>
+            {% endif %}
+        </div>
+    </div>
+    </div>
+    </div>
+</div>
+
+<!-- ===================== Gráficos 2: reparaciones + métodos ===================== -->
+<div class="dash-group" data-collapsible>
+    <div class="collapse-head">
+        <h2 class="section-title">Taller y pagos</h2>
+        <button class="collapse-btn" type="button" data-toggle-collapse aria-expanded="true">▾</button>
+    </div>
+    <div class="collapse-body">
+        <div class="dash-row">
+    <div class="dash-col">
+        <div class="card dash-card">
+            <div class="dash-card-head">
+                <h3>Reparaciones por estado</h3>
+            </div>
+            {% if metricas.reparaciones_estado %}
+            <div class="hbars">
+                {% for r in metricas.reparaciones_estado %}
+                <div class="hbar">
+                    <span class="hbar-label">{{ r.label }}</span>
+                    <div class="hbar-track">
+                        <div class="hbar-fill" style="width: {{ (r.count / (metricas.reparaciones_estado|map(attribute='count')|max) * 100)|round(1) }}%;"></div>
+                    </div>
+                    <span class="hbar-value">{{ r.count }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-mini">Aún no hay reparaciones en el sistema.</div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="dash-col">
+        <div class="card dash-card">
+            <div class="dash-card-head">
+                <h3>Ingresos por método de pago</h3>
+            </div>
+            {% if metricas.metodos_pago %}
+            <div class="hbars">
+                {% for m in metricas.metodos_pago %}
+                <div class="hbar">
+                    <span class="hbar-label">{{ m.nombre }}</span>
+                    <div class="hbar-track">
+                        <div class="hbar-fill" style="width: {{ m.pct_max }}%;"></div>
+                    </div>
+                    <span class="hbar-value">S/ {{ "%.0f"|format(m.monto) }} · {{ m.share }}%</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-mini">Sin pagos confirmados aún.</div>
+            {% endif %}
+        </div>
+    </div>
+    </div>
+    </div>
+</div>
+
+<!-- ===================== Tablas: top productos + clientes ===================== -->
+<div class="dash-group" data-collapsible>
+    <div class="collapse-head">
+        <h2 class="section-title">Top productos y clientes</h2>
+        <button class="collapse-btn" type="button" data-toggle-collapse aria-expanded="true">▾</button>
+    </div>
+    <div class="collapse-body">
+        <div class="dash-row">
+    <div class="dash-col">
+        <div class="card dash-card" style="padding: 0;">
+            <div class="dash-card-head" style="padding: 20px 24px 0;">
+                <h3>Top productos vendidos</h3>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr><th>Producto</th><th class="text-end">Unidades</th><th class="text-end">Ingresos</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for p in metricas.top_productos %}
+                        <tr>
+                            <td class="fw-semibold">{{ p.nombre }}</td>
+                            <td class="text-end">{{ p.cantidad }}</td>
+                            <td class="text-end">S/ {{ "%.2f"|format(p.ingresos) }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="3" class="text-muted">Sin ventas todavía.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="dash-col">
+        <div class="card dash-card" style="padding: 0;">
+            <div class="dash-card-head" style="padding: 20px 24px 0;">
+                <h3>Top clientes por gasto</h3>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead>
+                        <tr><th>Cliente</th><th class="text-end">Pedidos</th><th class="text-end">Total</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for c in metricas.top_clientes %}
+                        <tr>
+                            <td class="fw-semibold">{{ c.nombre }}</td>
+                            <td class="text-end">{{ c.n_pedidos }}</td>
+                            <td class="text-end">S/ {{ "%.2f"|format(c.total) }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="3" class="text-muted">Sin clientes con compras.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    </div>
+    </div>
+</div>
+
+<!-- ===================== Alertas ===================== -->
+<div class="dash-group" data-collapsible>
+    <div class="collapse-head">
+        <h2 class="section-title">Qué hacer hoy</h2>
+        <button class="collapse-btn" type="button" data-toggle-collapse aria-expanded="true">▾</button>
+    </div>
+    <div class="collapse-body">
+        <section class="insight-block" style="margin-bottom: 0;">
+    {% if metricas.alertas %}
+    <div class="insight-list">
+        {% for a in metricas.alertas %}
+        <div class="insight-item {{ a.tipo }}">
+            <span class="insight-icon">{{ a.icono }}</span>
+            <div class="insight-body">
+                <strong>{{ a.titulo }}</strong>
+                <span>{{ a.detalle }}</span>
+                {% if a.url %}
+                <a class="btn btn-sm btn-outline" href="{{ url_for(a.url) }}">{{ a.url_label }} →</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-mini">El negocio está al día. No hay alertas pendientes.</div>
+    {% endif %}
+        </section>
+    </div>
+</div>
+
+{% if metricas.stock_bajo %}
+<div class="dash-group" data-collapsible>
+    <div class="collapse-head">
+        <h2 class="section-title">Alerta de stock bajo (≤ 10 unidades)</h2>
+        <button class="collapse-btn" type="button" data-toggle-collapse aria-expanded="true">▾</button>
+    </div>
+    <div class="collapse-body">
+<section style="margin-bottom: 28px;">
+    <div class="card" style="padding: 0;">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr><th>Producto</th><th class="text-end">Stock</th><th class="text-end">Precio venta</th></tr>
+                </thead>
+                <tbody>
+                    {% for s in metricas.stock_bajo %}
+                    <tr>
+                        <td class="fw-semibold">{{ s.nombre }}</td>
+                        <td class="text-end">
+                            {% if s.critico %}
+                            <span class="badge text-bg-danger">{{ s.stock }} · crítico</span>
+                            {% else %}
+                            <span class="badge text-bg-warning">{{ s.stock }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end">S/ {{ "%.2f"|format(s.precio) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+        </section>
+    </div>
+</div>
+{% endif %}
+
+{% if metricas.ventas_recientes %}
+<div class="dash-group" data-collapsible>
+    <div class="collapse-head">
+        <h2 class="section-title">Ventas recientes <a class="btn btn-sm btn-outline-primary ms-2" href="{{ url_for('ventas.listado') }}">Ver todas las ventas →</a></h2>
+        <button class="collapse-btn" type="button" data-toggle-collapse aria-expanded="true">▾</button>
+    </div>
+    <div class="collapse-body">
+<section style="margin-bottom: 28px;">
+    <div class="card" style="padding: 0;">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead>
+                    <tr><th>Pedido</th><th>Fecha</th><th class="text-end">Total</th></tr>
+                </thead>
+                <tbody>
+                    {% for v in metricas.ventas_recientes %}
+                    <tr>
+                        <td class="fw-semibold">{{ v.codigo }}</td>
+                        <td>{{ v.fecha }}</td>
+                        <td class="text-end">S/ {{ "%.2f"|format(v.total) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+        </section>
+    </div>
+</div>
+{% endif %}
+
+<div class="dash-group" data-collapsible>
+    <div class="collapse-head">
+        <h2 class="section-title">Registro del sistema</h2>
+        <button class="collapse-btn" type="button" data-toggle-collapse aria-expanded="true">▾</button>
+    </div>
+    <div class="collapse-body">
+        <section class="cards">
     {% for stat in stats %}
-        <div class="col">
-            <div class="card h-100 shadow-sm text-center">
-                <div class="card-body">
-                    <div class="stat-icon">{{ stat.icon }}</div>
-                    <div class="display-6 fw-bold">{{ stat.value }}</div>
-                    <div class="text-secondary small">{{ stat.label }}</div>
-                </div>
-            </div>
+        <div class="card card-stat" style="align-items:center; text-align:center;" role="button" tabindex="0"
+             data-registro="{{ stat.tabla }}" title="Ver {{ stat.label }}">
+            <div class="stat-icon" style="font-size: 2rem;">{{ stat.icon }}</div>
+            <div class="stat-value" style="font-size: 1.8rem; font-weight: 700; margin: 4px 0 2px;">{{ stat.value }}</div>
+            <div class="stat-label">{{ stat.label }}</div>
+            <span class="stat-ver">Ver contenido →</span>
         </div>
     {% endfor %}
-</section>
+        </section>
+    </div>
+</div>
 
-<h2 class="h5 fw-semibold mb-3">Módulos del sistema</h2>
-<section class="row row-cols-1 row-cols-md-3 g-4">
-    {% for modulo in modulos %}
-        <div class="col">
-            <div class="card h-100 shadow-sm">
-                <div class="card-body">
-                    <div class="display-6">{{ modulo.icon }}</div>
-                    <h3 class="card-title h6 mt-2 mb-1">{{ modulo.nombre }}</h3>
-                    <p class="card-text text-secondary small">{{ modulo.descripcion }}</p>
+<div class="modal fade" id="modal-registro" tabindex="-1" aria-hidden="true" aria-labelledby="modal-registro-label">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modal-registro-label">Detalle</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body p-0" id="registro-modal-body">
+                <div class="p-3 border-bottom d-none" id="registro-modal-buscar">
+                    <input type="search" class="form-control form-control-sm" id="registro-modal-q"
+                           autocomplete="off" placeholder="Buscar...">
                 </div>
-                <div class="card-footer bg-transparent border-0 pt-0">
-                    <a class="btn btn-primary" href="{{ url_for(modulo.url) }}">Abrir</a>
+                <div id="registro-modal-tabla">
+                    <div class="text-center p-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Cargando...</span>
+                        </div>
+                        <p class="mt-3 mb-0 text-muted">Cargando contenido...</p>
+                    </div>
                 </div>
             </div>
+            <div class="modal-footer flex-wrap gap-2">
+                <span class="me-auto text-muted small" id="registro-modal-total"></span>
+                <div class="btn-group btn-group-sm" id="registro-modal-paginacion" role="group" aria-label="Paginación"></div>
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="dash-group" data-collapsible>
+    <div class="collapse-head">
+        <h2 class="section-title">Módulos del sistema</h2>
+        <button class="collapse-btn" type="button" data-toggle-collapse aria-expanded="true">▾</button>
+    </div>
+    <div class="collapse-body">
+        <section class="cards">
+    {% for modulo in modulos %}
+        <div class="card">
+            <div class="card-icon">{{ modulo.icon }}</div>
+            <h3>{{ modulo.nombre }}</h3>
+            <p>{{ modulo.descripcion }}</p>
+            {% if modulo.modal %}
+            <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#modal-{{ modulo.modal }}">Abrir</button>
+            {% else %}
+            <a class="btn btn-primary" href="{{ url_for(modulo.url) }}">Abrir</a>
+            {% endif %}
         </div>
     {% endfor %}
-</section>
+        </section>
+    </div>
+</div>
+<div class="modal fade" id="modal-supabase" tabindex="-1" aria-hidden="true" aria-labelledby="modal-supabase-label">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modal-supabase-label">Estado de Supabase</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+            </div>
+            <div class="modal-body text-center" id="supabase-modal-body">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Verificando...</span>
+                </div>
+                <p class="mt-3 mb-0">Verificando la conexión con la base de datos...</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% include "partials/dashboard_scripts.html" %}
+<script>
+(function () {
+    var base = "{{ url_for('admin.registro_detalle', tabla='__tabla__') }}";
+    var modalEl = document.getElementById('modal-registro');
+    var zona = document.getElementById('registro-modal-tabla');
+    var zonaBuscar = document.getElementById('registro-modal-buscar');
+    var input = document.getElementById('registro-modal-q');
+    var titulo = document.getElementById('modal-registro-label');
+    var total = document.getElementById('registro-modal-total');
+    var paginacion = document.getElementById('registro-modal-paginacion');
+    if (!modalEl || !zona) return;
+    var modal = new bootstrap.Modal(modalEl);
+    var tablaActual = '';
+    var paginaActual = 1;
+    var timer = null;
+
+    function escapar(texto) {
+        var d = document.createElement('div');
+        d.textContent = texto == null ? '' : String(texto);
+        return d.innerHTML;
+    }
+
+    function paginasHtml(datos) {
+        if (datos.paginas < 2) return '';
+        var html = '';
+        var ini = Math.max(1, datos.pagina - 2);
+        var fin = Math.min(datos.paginas, ini + 4);
+        ini = Math.max(1, fin - 4);
+        function btn(p, txt, activo, disabled) {
+            return '<button type="button" class="btn btn-outline-secondary' + (activo ? ' active' : '')
+                + '" data-pag="' + p + '"' + (disabled ? ' disabled' : '') + '>' + txt + '</button>';
+        }
+        html += btn(datos.pagina - 1, '&laquo;', false, datos.pagina === 1);
+        for (var p = ini; p <= fin; p++) html += btn(p, String(p), p === datos.pagina, false);
+        html += btn(datos.pagina + 1, '&raquo;', false, datos.pagina === datos.paginas);
+        return html;
+    }
+
+    function pintar(datos) {
+        if (!datos.ok) {
+            zona.innerHTML = '<div class="p-4"><div class="alert alert-danger mb-0">'
+                + escapar(datos.detalle || 'No se pudo cargar el contenido.') + '</div></div>';
+            total.textContent = '';
+            paginacion.innerHTML = '';
+            return;
+        }
+        titulo.textContent = datos.titulo + ' (' + datos.total + ')';
+        paginacion.innerHTML = paginasHtml(datos);
+
+        if (!datos.filas.length) {
+            zona.innerHTML = '<div class="text-center p-5 text-muted">'
+                + (datos.total === 0 ? 'No hay registros que coincidan con la búsqueda.'
+                    : 'Todav&iacute;a no hay registros en esta tabla.') + '</div>';
+            total.textContent = '';
+            return;
+        }
+
+        var html = '<div class="table-responsive"><table class="table table-sm table-hover align-middle mb-0">'
+            + '<thead class="table-light"><tr>';
+        datos.encabezados.forEach(function (h) { html += '<th>' + escapar(h) + '</th>'; });
+        html += '<th></th></tr></thead><tbody>';
+        datos.filas.forEach(function (fila) {
+            html += '<tr>';
+            fila.celdas.forEach(function (c) { html += '<td>' + escapar(c) + '</td>'; });
+            html += '<td class="text-end">';
+            if (fila.badge) {
+                html += '<span class="badge ' + escapar(fila.badge.clase) + '">'
+                    + escapar(fila.badge.texto) + '</span>';
+            }
+            html += '</td></tr>';
+        });
+        html += '</tbody></table></div>';
+        zona.innerHTML = html;
+        total.textContent = datos.total + ' registro(s) · página ' + datos.pagina + ' de ' + datos.paginas;
+    }
+
+    function cargar(tabla, pagina, q) {
+        paginaActual = pagina || 1;
+        zona.innerHTML = '<div class="text-center p-5"><div class="spinner-border text-primary" role="status">'
+            + '<span class="visually-hidden">Cargando...</span></div>'
+            + '<p class="mt-3 mb-0 text-muted">Cargando contenido...</p></div>';
+        total.textContent = '';
+        var url = base.replace('__tabla__', encodeURIComponent(tabla))
+            + '?pagina=' + paginaActual + (q ? '&q=' + encodeURIComponent(q) : '');
+        fetch(url, { headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                pintar(d);
+                if (d.ok) {
+                    zonaBuscar.classList.toggle('d-none', !d.placeholder);
+                    if (d.placeholder && input) input.placeholder = d.placeholder;
+                }
+            })
+            .catch(function () {
+                zona.innerHTML = '<div class="p-4"><div class="alert alert-danger mb-0">'
+                    + 'No se pudo consultar la base de datos.</div></div>';
+            });
+    }
+
+    function abrir(tabla) {
+        tablaActual = tabla;
+        if (input) input.value = '';
+        zonaBuscar.classList.add('d-none');
+        cargar(tabla, 1, '');
+        modal.show();
+    }
+
+    paginacion.addEventListener('click', function (ev) {
+        var b = ev.target.closest('[data-pag]');
+        if (!b || b.disabled) return;
+        cargar(tablaActual, parseInt(b.dataset.pag, 10), input ? input.value : '');
+    });
+
+    if (input) {
+        input.addEventListener('input', function () {
+            clearTimeout(timer);
+            timer = setTimeout(function () {
+                cargar(tablaActual, 1, input.value);
+            }, 250);
+        });
+        input.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Enter') {
+                ev.preventDefault();
+                clearTimeout(timer);
+                cargar(tablaActual, 1, input.value);
+            }
+        });
+    }
+
+    document.querySelectorAll('[data-registro]').forEach(function (card) {
+        card.addEventListener('click', function () { abrir(card.dataset.registro); });
+        card.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Enter' || ev.key === ' ') {
+                ev.preventDefault();
+                abrir(card.dataset.registro);
+            }
+        });
+    });
+})();
+</script>
+<script>
+(function () {
+    var modal = document.getElementById('modal-supabase');
+    if (!modal) return;
+    var body = document.getElementById('supabase-modal-body');
+
+    modal.addEventListener('show.bs.modal', function () {
+        body.innerHTML = '<div class="spinner-border text-primary" role="status">'
+            + '<span class="visually-hidden">Verificando...</span></div>'
+            + '<p class="mt-3 mb-0">Verificando la conexi&oacute;n con la base de datos...</p>';
+        fetch("{{ url_for('supabase.status') }}", { headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (d) { render(d.ok, d.detalle || ''); })
+            .catch(function () { render(false, 'No se pudo verificar la conexi&oacute;n con Supabase.'); });
+    });
+
+    function render(ok, detalle) {
+        var icono = ok
+            ? '<div style="font-size:3rem;line-height:1;">&#9989;</div>'
+            + '<h5 class="mt-3 mb-1 text-success">Base de datos funcionando correctamente</h5>'
+            : '<div style="font-size:3rem;line-height:1;">&#10060;</div>'
+            + '<h5 class="mt-3 mb-1 text-danger">Base de datos con problemas</h5>';
+        body.innerHTML = icono
+            + '<p class="mb-0 text-muted">' + (detalle || '') + '</p>';
+    }
+})();
+</script>
 {% endblock %}

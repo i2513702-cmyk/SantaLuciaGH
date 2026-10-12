@@ -18,10 +18,16 @@
         {% endif %}
 
         {% set emp = usuario.empleados or {} %}
-        {% if emp.get('nombres') or emp.get('apellidos') %}
+        {% set cli = usuario.clientes or {} %}
+        {% if usuario.get('rol') == 'CLIENTE' and (cli.get('nombres') or cli.get('apellidos')) %}
+            <p class="text-secondary small mb-3">
+                Cliente vinculado: <strong>{{ cli.get('nombres', '') }} {{ cli.get('apellidos', '') }}</strong>
+                (ID {{ usuario.get('cliente_id') }})
+            </p>
+        {% elif emp.get('nombres') or emp.get('apellidos') %}
             <p class="text-secondary small mb-3">
                 Empleado vinculado: <strong>{{ emp.get('nombres', '') }} {{ emp.get('apellidos', '') }}</strong>
-                (ID {{ usuario.empleado_id }})
+                (ID {{ usuario.get('empleado_id') }})
             </p>
         {% endif %}
 
@@ -37,11 +43,19 @@
                 <input type="email" class="form-control" id="correo" name="correo" required
                        value="{{ usuario.get('correo', '') }}">
             </div>
-            <div class="mb-3">
-                <label for="empleado_id" class="form-label">ID de empleado</label>
-                <input type="number" class="form-control" id="empleado_id" name="empleado_id" required
-                       value="{{ usuario.get('empleado_id', '') }}">
-            </div>
+            {% if usuario.get('rol') == 'CLIENTE' %}
+                <div class="mb-3">
+                    <label for="cliente_id" class="form-label">ID de cliente</label>
+                    <input type="number" class="form-control" id="cliente_id" name="cliente_id" required
+                           value="{{ usuario.get('cliente_id', '') }}">
+                </div>
+            {% else %}
+                <div class="mb-3">
+                    <label for="empleado_id" class="form-label">ID de empleado</label>
+                    <input type="number" class="form-control" id="empleado_id" name="empleado_id" required
+                           value="{{ usuario.get('empleado_id', '') }}">
+                </div>
+            {% endif %}
             <div class="mb-3">
                 <label for="rol" class="form-label">Rol</label>
                 <select class="form-select" id="rol" name="rol">

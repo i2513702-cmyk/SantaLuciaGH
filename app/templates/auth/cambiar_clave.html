@@ -3,26 +3,94 @@
 {% block title %}Cambiar contraseña — {{ app_name }}{% endblock %}
 
 {% block content %}
-<div class="card shadow-sm mx-auto" style="max-width: 400px;">
-    <div class="card-body p-4">
-        <h1 class="h4 fw-semibold mb-4">Cambiar contraseña</h1>
+<div class="auth-box" style="max-width: 460px;">
+    <h1>Cambiar contraseña</h1>
+    <p class="text-muted text-sm text-center mb-3">Tu clave se guarda hasheada con bcrypt en la base de datos.</p>
 
-        {% if error %}
-            <div class="alert alert-danger py-2">{{ error }}</div>
-        {% endif %}
+    <form method="POST" action="{{ url_for('auth.cambiar_clave') }}" id="form-clave">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
-        <form method="POST" action="{{ url_for('auth.cambiar_clave') }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <div class="mb-3">
-                <label for="nueva" class="form-label">Nueva contraseña</label>
-                <input type="password" class="form-control" id="nueva" name="nueva" required minlength="8" placeholder="Mínimo 8 caracteres">
+        <div class="mb-3">
+            <label for="actual" class="form-label">Contraseña actual</label>
+            <div class="input-group">
+                <input type="password" class="form-control" id="actual" name="actual" required autocomplete="current-password" placeholder="Tu contraseña actual">
+                <button class="btn btn-outline-secondary" type="button" data-toggle-pass="actual" tabindex="-1" aria-label="Ver contraseña actual">👁</button>
             </div>
-            <button type="submit" class="btn btn-primary w-100">Guardar</button>
-        </form>
+        </div>
 
-        <p class="text-center small text-secondary mt-3 mb-0">
-            <a href="{{ url_for('auth.panel') }}">← Volver al panel</a>
-        </p>
-    </div>
+        <div class="mb-3">
+            <label for="nueva" class="form-label">Nueva contraseña</label>
+            <div class="input-group">
+                <input type="password" class="form-control" id="nueva" name="nueva" required minlength="8" autocomplete="new-password" placeholder="Mínimo 8 caracteres">
+                <button class="btn btn-outline-secondary" type="button" data-toggle-pass="nueva" tabindex="-1" aria-label="Ver nueva contraseña">👁</button>
+            </div>
+            <div class="meter mt-2" id="meter" aria-hidden="true">
+                <span class="meter-bar" id="meter-bar"></span>
+            </div>
+            <small class="text-secondary" id="meter-text">Usa al menos 8 caracteres.</small>
+        </div>
+
+        <div class="mb-3">
+            <label for="confirmar" class="form-label">Confirmar nueva contraseña</label>
+            <div class="input-group">
+                <input type="password" class="form-control" id="confirmar" name="confirmar" required minlength="8" autocomplete="new-password" placeholder="Repite la nueva contraseña">
+                <button class="btn btn-outline-secondary" type="button" data-toggle-pass="confirmar" tabindex="-1" aria-label="Ver confirmación">👁</button>
+            </div>
+            <small class="invalid-feedback" id="match-msg">La confirmación no coincide.</small>
+        </div>
+
+        <button type="submit" class="btn btn-primary w-100">Guardar nueva contraseña</button>
+    </form>
+
+    <p class="hint">
+        <a href="{{ url_for('main.perfil') }}">← Volver a mi perfil</a>
+    </p>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    // Mostrar / ocultar contraseña
+    document.querySelectorAll('[data-toggle-pass]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var input = document.getElementById(btn.getAttribute('data-toggle-pass'));
+            if (!input) return;
+            input.type = input.type === 'password' ? 'text' : 'password';
+        });
+    });
+
+    // Medidor de fortaleza de contraseña
+    var nueva = document.getElementById('nueva');
+    var bar = document.getElementById('meter-bar');
+    var texto = document.getElementById('meter-text');
+    if (nueva && bar) {
+        nueva.addEventListener('input', function () {
+            var v = nueva.value;
+            var score = 0;
+            if (v.length >= 8) score++;
+            if (v.length >= 12) score++;
+            if (/[A-Z]/.test(v) && /[a-z]/.test(v)) score++;
+            if (/\d/.test(v)) score++;
+            if (/[^A-Za-z0-9]/.test(v)) score++;
+            var map = {0: ['#e2e8f0', ''], 1: ['#dc2626', 'Débil'], 2: ['#d97706', 'Aceptable'], 3: ['#f59e0b', 'Buena'], 4: ['#16a34a', 'Muy buena'], 5: ['#16a34a', 'Excelente']};
+            var r = map[Math.min(score, 5)];
+            bar.style.width = (score / 5 * 100) + '%';
+            bar.style.background = r[0];
+            texto.textContent = r[1] || 'Usa al menos 8 caracteres.';
+        });
+    }
+
+    // Validación de confirmación en vivo
+    var confirmar = document.getElementById('confirmar');
+    if (nueva && confirmar) {
+        var check = function () {
+            var ok = confirmar.value === nueva.value && confirmar.value.length >= 8;
+            confirmar.classList.toggle('is-invalid', !ok && confirmar.value.length > 0);
+        };
+        nueva.addEventListener('input', check);
+        confirmar.addEventListener('input', check);
+    }
+})();
+</script>
 {% endblock %}

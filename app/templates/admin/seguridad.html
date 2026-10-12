@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Seguridad — {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+    <div>
+        <h1 class="h3 fw-bold mb-1">{{ icono('seg-titulo', 'shield-lock', 28) }} Seguridad de acceso</h1>
+        <p class="text-secondary mb-0">
+            Tras {{ max_intentos }} fallos hay una espera de {{ espera_min }} min; {{ fallos_bloqueo }} fallos más bloquean la IP hasta que la desbloquees aquí.
+        </p>
+    </div>
+    <span class="kpi-pill {{ 'text-bg-danger' if n_bloqueadas else 'text-bg-success' }}">{{ n_bloqueadas }} IP bloqueada(s)</span>
+</div>
+
+<div class="card no-hover mb-4">
+    <div class="table-responsive">
+        <table class="table align-middle mb-0">
+            <thead><tr><th>IP</th><th>Estado</th><th>Fallos</th><th>Último usuario</th><th>Último intento</th><th>Desbloqueo</th><th class="text-end">Acción</th></tr></thead>
+            <tbody>
+            {% for i in ips %}
+                <tr>
+                    <td class="fw-semibold">{{ i.ip }}</td>
+                    <td>{% if i.bloqueada %}<span class="badge text-bg-danger">Bloqueada</span>{% else %}<span class="badge text-bg-warning">Con fallos</span>{% endif %}</td>
+                    <td>{{ i.intentos_fallidos }}</td>
+                    <td>{{ i.ultimo_usuario or '—' }}</td>
+                    <td class="small text-secondary">{{ (i.ultimo_intento or '')[:16].replace('T', ' ') or '—' }}</td>
+                    <td class="small text-secondary">{% if i.desbloqueada_por %}{{ i.desbloqueada_por }}{% else %}—{% endif %}</td>
+                    <td class="text-end">
+                        {% if i.bloqueada or i.intentos_fallidos %}
+                        <form method="POST" action="{{ url_for('seguridad.desbloquear') }}" class="d-inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="ip" value="{{ i.ip }}">
+                            <button class="btn btn-sm btn-outline-success"><i class="bi bi-unlock"></i> Desbloquear</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="7" class="text-center text-secondary py-5">Sin intentos fallidos registrados.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card no-hover">
+    <div class="card-body">
+        <h2 class="h6 fw-bold">Bloquear una IP manualmente</h2>
+        <form method="POST" action="{{ url_for('seguridad.bloquear') }}" class="row g-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="col-sm-8 col-md-5"><input name="ip" class="form-control" placeholder="Ej: 190.12.34.56" required></div>
+            <div class="col-auto"><button class="btn btn-outline-danger"><i class="bi bi-slash-circle"></i> Bloquear</button></div>
+        </form>
+    </div>
+</div>
+{% endblock %}

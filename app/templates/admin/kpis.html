@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block title %}Indicadores (KPIs) — {{ app_name }}{% endblock %}
+
+{% block content %}
+<section class="panel-head">
+    <div>
+        <h1>Indicadores del negocio</h1>
+        <p>Seis KPIs calculados con los datos reales de Supabase ·
+            <span class="text-muted text-sm" id="kpi-actualizado">Calculando…</span></p>
+    </div>
+    <div class="panel-actions">
+        <a class="btn btn-outline no-print" id="kpi-csv" href="{{ kpis_csv_url }}">⬇ Descargar CSV</a>
+        <button class="btn btn-outline no-print" type="button" onclick="window.print()">🖨 Imprimir</button>
+        <a class="btn btn-primary" href="{{ url_for('admin.dashboard') }}">Volver al panel</a>
+    </div>
+</section>
+
+{% if kpi_periodo_error %}
+<div class="alert alert-error no-print">{{ kpi_periodo_error }} Se muestra el periodo por defecto.</div>
+{% endif %}
+{% if kpi_error %}
+<div class="alert alert-error" id="kpi-error" data-visible="1">{{ kpi_error }}</div>
+{% else %}
+<div class="alert alert-error" id="kpi-error" hidden></div>
+{% endif %}
+
+{# ---------------- filtros de periodo (sin recargar la pagina) ------------ #}
+<form class="kpi-filters no-print" id="kpi-filtros" method="get" action="{{ url_for('kpi.panel') }}">
+    <div class="kpi-filtro">
+        <label for="kpi-desde">Desde</label>
+        <input type="date" id="kpi-desde" name="desde" value="{{ kpi_periodo.split('|')[0] }}">
+    </div>
+    <div class="kpi-filtro">
+        <label for="kpi-hasta">Hasta</label>
+        <input type="date" id="kpi-hasta" name="hasta" value="{{ kpi_periodo.split('|')[1] }}">
+    </div>
+    <div class="kpi-filtro kpi-filtro-rangos">
+        <span class="kpi-filtro-label">Rangos rápidos</span>
+        <div class="kpi-chips">
+            {% for v in kpi_ventanas %}
+            <button type="button" class="chip" data-kpi-rango
+                    data-desde="{{ v.desde }}" data-hasta="{{ v.hasta }}">{{ v.etiqueta }}</button>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="kpi-filtro-acciones">
+        <button class="btn btn-primary" type="submit">Aplicar</button>
+        <span class="kpi-carga" id="kpi-carga" hidden>Calculando…</span>
+    </div>
+</form>
+
+{# ---------------- franja de cumplimiento ---------------- #}
+<section class="kpi-strip" id="kpi-strip" hidden>
+    <div class="kpi-strip-main">
+        <div class="kpi-strip-label">Cumplimiento de metas</div>
+        <div class="kpi-strip-valor" id="kpi-strip-valor">—</div>
+        <div class="kpi-strip-track"><div class="kpi-strip-fill" id="kpi-strip-fill"></div></div>
+    </div>
+    <div class="kpi-strip-pie" id="kpi-strip-pie"></div>
+</section>
+
+{# ---------------- tarjetas ---------------- #}
+<section class="kpi-grid" id="kpi-grid">
+    {% for d in kpi_defs %}
+    <article class="kpi-card" data-kpi="{{ d.codigo }}" data-estado="cargando">
+        <div class="kpi-icon">{{ d.icono }}</div>
+        <div class="kpi-label">
+            {{ d.nombre }}
+            <span class="kpi-help" tabindex="0" data-help="{{ d.ayuda }}">?</span>
+        </div>
+        <div class="kpi-value" data-campo="valor">—</div>
+        <div class="kpi-sub" data-campo="sub">{{ d.subtitulo }}</div>
+        <div class="kpi-meta">Meta: <b>{{ d.meta_texto }}</b></div>
+        <div class="kpi-pie">
+            <span class="badge" data-campo="estado">Calculando…</span>
+            <span class="kpi-trend trend-flat" data-campo="variacion">—</span>
+        </div>
+        <div class="kpi-tendencia" data-campo="spark"></div>
+    </article>
+    {% endfor %}
+</section>
+
+{# ---------------- graficos ---------------- #}
+<section class="kpi-charts">
+    <div class="dash-col col-wide">
+        <div class="dash-card" data-grafico="KPI-01">
+            <div class="dash-card-head">
+                <h3>Evolución del tiempo de primera atención</h3>
+                <span class="chart-legend"><i class="lg lg-primary"></i>promedio mensual (h)</span>
+            </div>
+            <div class="chart-body" data-rol="serie"></div>
+            <div class="chart-hint">La línea punteada es la meta (24 h). Los meses sin citas no se dibujan.</div>
+            <div class="chart-hbars" data-rol="distribucion"></div>
+        </div>
+    </div>
+    <div class="dash-col">
+        <div class="dash-card" data-grafico="KPI-02">
+            <div class="dash-card-head"><h3>Citas dentro de 24 h</h3></div>
+            <div class="chart-body" data-rol="serie"></div>
+            <div data-rol="barra" class="chart-stack"></div>
+        </div>
+    </div>
+    <div class="dash-col">
+        <div class="dash-card" data-grafico="KPI-03">
+            <div class="dash-card-head"><h3>Embudo de la tienda web</h3></div>
+            <div data-rol="embudo" class="chart-stack"></div>
+        </div>
+    </div>
+    <div class="dash-col">
+        <div class="dash-card" data-grafico="KPI-04">
+            <div class="dash-card-head"><h3>Disponibilidad del catálogo</h3></div>
+            <div class="chart-body" data-rol="serie"></div>
+            <div data-rol="lista" class="chart-list"></div>
+        </div>
+    </div>
+    <div class="dash-col">
+        <div class="dash-card" data-grafico="KPI-05">
+            <div class="dash-card-head"><h3>Carritos: convertidos vs. abandonados</h3></div>
+            <div data-rol="barra" class="chart-stack"></div>
+            <div class="chart-body" data-rol="serie"></div>
+        </div>
+    </div>
+    <div class="dash-col col-wide">
+        <div class="dash-card" data-grafico="KPI-06">
+            <div class="dash-card-head"><h3>Entrega de notificaciones</h3></div>
+            <div class="chart-body" data-rol="serie"></div>
+            <div data-rol="errores" class="chart-hbars"></div>
+        </div>
+    </div>
+</section>
+
+{# ---------------- sin JavaScript ---------------- #}
+<noscript>
+    <div class="alert alert-warn">
+        Activa JavaScript para ver los gráficos. Los valores del periodo actual son:
+    </div>
+    <table class="kpi-tabla">
+        <thead>
+            <tr><th>KPI</th><th>Indicador</th><th>Valor</th><th>Meta</th><th>Estado</th></tr>
+        </thead>
+        <tbody>
+        {% for k in (kpi.kpis if kpi else []) %}
+            <tr>
+                <td>{{ k.codigo }}</td>
+                <td>{{ k.nombre }}</td>
+                <td>{{ 'Sin datos' if k.valor is none else (k.valor ~ ' ' ~ k.unidad) }}</td>
+                <td>{{ k.meta }} {{ k.unidad }}</td>
+                <td>{{ 'Cumple' if k.cumple else ('Sin datos' if k.valor is none else 'No cumple') }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</noscript>
+
+<script>
+    window.KPI_BOOT = {
+        jsonUrl: {{ kpis_json_url | tojson }},
+        csvUrl: {{ kpis_csv_url | tojson }},
+        periodo: {{ kpi_periodo | tojson }}
+    };
+</script>
+{% endblock %}
+
+{% block scripts %}
+{% include "partials/dashboard_scripts.html" %}
+<script src="{{ url_for('static', filename='js/kpis.js') }}"></script>
+{% endblock %}

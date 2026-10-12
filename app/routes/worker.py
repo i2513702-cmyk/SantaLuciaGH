@@ -1,9 +1,22 @@
-"""Panel del técnico/worker (datos reales vía API REST de Supabase)."""
+"""Panel del técnico/worker (datos reales vía API REST de Supabase).
 
-from flask import Blueprint, render_template
+Además de las reparaciones, muestra las citas asignadas al técnico
+logueado y permite gestionar su disponibilidad (agenda_tecnicos).
+"""
+
+from flask import (
+    Blueprint,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 
 from app.decorators import roles_required
-from app.supabase_client import get_reader
+from app.supabase_client import error_postgrest, get_admin_client, get_reader
 
 bp = Blueprint("worker", __name__)
 
@@ -25,11 +38,27 @@ EN_SERVICIO = ("RECIBIDO", "DIAGNOSTICO", "ESPERANDO_APROBACION",
                "APROBADO", "ESPERANDO_REPUESTO", "EN_REPARACION",
                "REPARADO", "LISTO_ENTREGA")
 
+ESTADO_CITA_LABEL = {
+    "PENDIENTE": "Pendiente",
+    "CONFIRMADA": "Confirmada",
+    "EN_ATENCION": "En atención",
+    "COMPLETADA": "Completada",
+    "CANCELADA": "Cancelada",
+}
+
 
 def _clase_estado(estado: str) -> str:
     if estado in ("ENTREGADO", "REPARADO", "LISTO_ENTREGA"):
         return "badge-ok"
     if estado in ("EN_REPARACION", "DIAGNOSTICO", "APROBADO"):
+        return "badge-warn"
+    return "badge-muted"
+
+
+def _clase_estado_cita(estado: str) -> str:
+    if estado == "COMPLETADA":
+        return "badge-ok"
+    if estado in ("CONFIRMADA", "EN_ATENCION"):
         return "badge-warn"
     return "badge-muted"
 
@@ -45,9 +74,113 @@ def _contar(tabla: str, **filtros):
         return None
 
 
+def _tecnico_actual():
+    """Devuelve el tecnico del usuario logueado (via usuarios->empleados->tecnicos)."""
+    usuario_id = session.get("usuario_id")
+    if not usuario_id:
+        return None
+    try:
+        emp = (
+            get_reader()
+            .table("usuarios")
+            .select("empleado_id")
+            .eq("id", usuario_id)
+            .limit(1)
+            .execute()
+        ).data or [{}]
+        empleado_id = (emp[0] or {}).get("empleado_id")
+        if not empleado_id:
+            return None
+        tec = (
+            get_reader()
+            .table("tecnicos")
+            .select("id,empleado_id,especialidad,empleados(nombres,apellidos)")
+            .eq("empleado_id", empleado_id)
+            .limit(1)
+            .execute()
+        ).data or [None]
+        return tec[0]
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _citas_tecnico(tecnico_id):
+    """Citas (reservas) asignadas al técnico."""
+    try:
+        resp = (
+            get_reader()
+            .table("reservas")
+            .select(
+                "id,fecha_reserva,hora_inicio,hora_fin,estado,tipo_atencion,motivo,"
+                "clientes(nombres,apellidos,telefono,numero_documento,razon_social),"
+                "electrodomesticos(modelo,numero_serie,marcas(nombre),tipos_electrodomestico(nombre))"
+            )
+            .eq("tecnico_id", tecnico_id)
+            .order("fecha_reserva", desc=True)
+            .order("hora_inicio", desc=True)
+            .limit(30)
+            .execute()
+        )
+        filas = resp.data or []
+    except Exception:  # noqa: BLE001
+        return []
+    citas = []
+    for r in filas:
+        estado = r.get("estado") or "PENDIENTE"
+        cliente = r.get("clientes") or {}
+        equipo = r.get("electrodomesticos") or {}
+        citas.append({
+            "id": r.get("id"),
+            "fecha": (r.get("fecha_reserva") or "")[:10],
+            "hora": r.get("hora_inicio"),
+            "hora_fin": r.get("hora_fin"),
+            "estado": ESTADO_CITA_LABEL.get(estado, estado),
+            "badge_class": _clase_estado_cita(estado),
+            "tipo_atencion": r.get("tipo_atencion"),
+            "motivo": r.get("motivo"),
+            "cliente_nombre": cliente.get("razon_social")
+            or " ".join(filter(None, [cliente.get("nombres"), cliente.get("apellidos")])),
+            "cliente_telefono": cliente.get("telefono"),
+            "equipo": " ".join(filter(None, [
+                (equipo.get("tipos_electrodomestico") or {}).get("nombre"),
+                (equipo.get("marcas") or {}).get("nombre"),
+                equipo.get("modelo"),
+            ])),
+        })
+    return citas
+
+
+def _disponibilidad_tecnico(tecnico_id):
+    """Franjas de disponibilidad del técnico en agenda_tecnicos."""
+    try:
+        resp = (
+            get_reader()
+            .table("agenda_tecnicos")
+            .select("id,fecha,hora_inicio,hora_fin,disponible")
+            .eq("tecnico_id", tecnico_id)
+            .order("fecha", desc=True)
+            .order("hora_inicio")
+            .limit(40)
+            .execute()
+        )
+        filas = resp.data or []
+    except Exception:  # noqa: BLE001
+        return []
+    return [{
+        "id": r.get("id"),
+        "fecha": (r.get("fecha") or "")[:10],
+        "hora_inicio": r.get("hora_inicio"),
+        "hora_fin": r.get("hora_fin"),
+        "disponible": r.get("disponible"),
+    } for r in filas]
+
+
 @bp.route("/worker")
 @roles_required("worker")
 def dashboard():
+    tecnico = _tecnico_actual()
+    tecnico_id = (tecnico or {}).get("id")
+
     try:
         reparaciones = (
             get_reader()
@@ -72,10 +205,157 @@ def dashboard():
             "ingreso": (r.get("fecha_ingreso") or "")[:10],
         })
 
+    citas_asignadas = _citas_tecnico(tecnico_id) if tecnico_id else []
     stats = [
-        {"label": "Reparaciones en servicio", "value": _contar("reparaciones", estado="EN_REPARACION") or 0, "icon": "🔧"},
-        {"label": "Listas para entrega", "value": _contar("reparaciones", estado="LISTO_ENTREGA") or 0, "icon": "📦"},
-        {"label": "Entregadas", "value": _contar("reparaciones", estado="ENTREGADO") or 0, "icon": "✅"},
-        {"label": "Clientes", "value": _contar("clientes") or 0, "icon": "👥"},
+        {"label": "Reparaciones en servicio", "value": _contar("reparaciones", estado="EN_REPARACION") or 0, "icon": "🔧", "filtro": "EN_REPARACION"},
+        {"label": "Listas para entrega", "value": _contar("reparaciones", estado="LISTO_ENTREGA") or 0, "icon": "📦", "filtro": "LISTO_ENTREGA"},
+        {"label": "Entregadas", "value": _contar("reparaciones", estado="ENTREGADO") or 0, "icon": "✅", "filtro": "ENTREGADO"},
+        {"label": "Citas asignadas", "value": len(citas_asignadas), "icon": "📅", "filtro": "CITAS"},
     ]
-    return render_template("worker/dashboard.html", stats=stats, ordenes=ordenes)
+    return render_template(
+        "worker/dashboard.html",
+        stats=stats,
+        ordenes=ordenes,
+        tecnico=tecnico,
+        citas=citas_asignadas,
+        disponibilidad=_disponibilidad_tecnico(tecnico_id) if tecnico_id else [],
+        es_tecnico=tecnico is not None,
+    )
+
+
+RESUMEN_POR_PAGINA = 10
+
+
+def _paginar(filas: list, q: str, campo_busqueda: str) -> tuple:
+    """Filtra por `campo_busqueda` y devuelve (page_rows, meta) de 10 en 10."""
+    q = (q or "").strip()
+    if q:
+        filas = [f for f in filas if q.lower() in (f["busqueda"] or "").lower()]
+
+    total = len(filas)
+    paginas = max(1, -(-total // RESUMEN_POR_PAGINA))
+    try:
+        pagina = int(request.args.get("pagina") or 1)
+    except ValueError:
+        pagina = 1
+    pagina = min(max(pagina, 1), paginas)
+    inicio = (pagina - 1) * RESUMEN_POR_PAGINA
+
+    return filas[inicio:inicio + RESUMEN_POR_PAGINA], {
+        "pagina": pagina,
+        "paginas": paginas,
+        "total": total,
+        "por_pagina": RESUMEN_POR_PAGINA,
+    }
+
+
+@bp.get("/worker/resumen/<clave>")
+@roles_required("worker")
+def resumen_detalle(clave):
+    """JSON paginado y filtrable del detalle de una tarjeta del 'Resumen'."""
+    if clave == "CITAS":
+        tecnico = _tecnico_actual()
+        citas = _citas_tecnico((tecnico or {}).get("id")) if tecnico else []
+        formateadas = [{
+            "celdas": [c["fecha"], c["hora"] or "—", c["cliente_nombre"], c["equipo"] or "—"],
+            "badge": {"texto": c["estado"], "clase": c["badge_class"]},
+            "busqueda": c["cliente_nombre"],
+        } for c in citas]
+        pagina, meta = _paginar(formateadas, request.args.get("q"), "cliente_nombre")
+        return jsonify({
+            "ok": True,
+            "titulo": "Citas asignadas",
+            "encabezados": ["Fecha", "Hora", "Cliente", "Equipo", "Estado"],
+            "filas": [{"celdas": f["celdas"], "badge": f["badge"]} for f in pagina],
+            "placeholder": "Buscar por cliente...",
+            **meta,
+        })
+
+    estados = {
+        "EN_REPARACION": "Reparaciones en servicio",
+        "LISTO_ENTREGA": "Listas para entrega",
+        "ENTREGADO": "Entregadas",
+    }
+    if clave not in estados:
+        return jsonify({"ok": False, "detalle": "Indicador no encontrado."}), 404
+
+    try:
+        filas = (
+            get_reader()
+            .table("reparaciones")
+            .select("id,problema,tipo_atencion,estado,fecha_ingreso")
+            .eq("estado", clave)
+            .order("fecha_ingreso", desc=True)
+            .execute()
+        ).data or []
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({"ok": False, "detalle": error_postgrest(exc)}), 502
+
+    formateadas = [{
+        "celdas": [
+            f"OS-{r.get('id')}",
+            r.get("problema") or "—",
+            (r.get("fecha_ingreso") or "")[:10] or "—",
+            r.get("tipo_atencion") or "—",
+        ],
+        "badge": {"texto": ESTADOS_LABEL.get(r.get("estado") or "", r.get("estado") or "—"),
+                  "clase": _clase_estado(r.get("estado") or "")},
+        "busqueda": r.get("problema") or "",
+    } for r in filas]
+
+    pagina, meta = _paginar(formateadas, request.args.get("q"), "problema")
+    return jsonify({
+        "ok": True,
+        "titulo": estados[clave],
+        "encabezados": ["Orden", "Problema", "Ingreso", "Atención", "Estado"],
+        "filas": [{"celdas": f["celdas"], "badge": f["badge"]} for f in pagina],
+        "placeholder": "Buscar por problema...",
+        **meta,
+    })
+
+
+@bp.post("/worker/agenda/agregar")
+@roles_required("worker")
+def agenda_agregar():
+    """Agrega una franja de disponibilidad para el técnico logueado."""
+    tecnico = _tecnico_actual()
+    if not tecnico:
+        flash("Tu cuenta no está vinculada a un técnico.", "error")
+        return redirect(url_for("worker.dashboard"))
+
+    fecha = (request.form.get("fecha") or "").strip()
+    hora_inicio = (request.form.get("hora_inicio") or "").strip()
+    hora_fin = (request.form.get("hora_fin") or "").strip()
+    if not fecha or len(fecha) != 10:
+        flash("Indica la fecha de tu disponibilidad.", "error")
+    elif hora_inicio >= hora_fin:
+        flash("La hora de fin debe ser mayor que la de inicio.", "error")
+    else:
+        try:
+            get_admin_client().table("agenda_tecnicos").insert({
+                "tecnico_id": tecnico["id"],
+                "fecha": fecha,
+                "hora_inicio": hora_inicio,
+                "hora_fin": hora_fin,
+                "disponible": True,
+            }).execute()
+            flash("Disponibilidad agregada.", "success")
+        except Exception as exc:  # noqa: BLE001
+            flash(f"No se pudo agregar la franja: {exc}", "error")
+    return redirect(url_for("worker.dashboard"))
+
+
+@bp.post("/worker/agenda/<int:franja_id>/quitar")
+@roles_required("worker")
+def agenda_quitar(franja_id):
+    """Elimina una franja de disponibilidad del técnico logueado."""
+    tecnico = _tecnico_actual()
+    if not tecnico:
+        flash("Tu cuenta no está vinculada a un técnico.", "error")
+        return redirect(url_for("worker.dashboard"))
+    try:
+        get_admin_client().table("agenda_tecnicos").delete().eq("id", franja_id).execute()
+        flash("Franja de disponibilidad eliminada.", "success")
+    except Exception as exc:  # noqa: BLE001
+        flash(f"No se pudo eliminar la franja: {exc}", "error")
+    return redirect(url_for("worker.dashboard"))

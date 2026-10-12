@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block title %}Citas de servicio — {{ app_name }}{% endblock %}
+
+{% block content %}
+<section class="panel-head">
+    <div>
+        <h1>Citas de servicio</h1>
+        <p>Asigna un técnico a cada cita agendada.</p>
+    </div>
+</section>
+
+{% if citas %}
+    <div class="table-wrap">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Fecha</th>
+                    <th>Hora</th>
+                    <th>Cliente</th>
+                    <th>Equipo</th>
+                    <th>Atención</th>
+                    <th>Técnico</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for c in citas %}
+                <tr>
+                    <td>{{ c.fecha }}</td>
+                    <td>{{ c.hora }} – {{ c.hora_fin }}</td>
+                    <td>
+                        <strong>{{ c.cliente_nombre or '—' }}</strong>
+                        <div class="text-secondary small">{{ c.cliente_documento or '' }} {{ c.cliente_telefono or '' }}</div>
+                    </td>
+                    <td>{{ c.equipo or '—' }}
+                        {% if c.motivo %}<div class="text-secondary small">{{ c.motivo }}</div>{% endif %}
+                    </td>
+                    <td>{{ c.tipo_atencion }}</td>
+                    <td>
+                        <form method="POST" action="{{ url_for('admin.citas_asignar_tecnico', reserva_id=c.id) }}" class="d-flex gap-2" style="align-items:center;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <select name="tecnico_id" class="form-select form-select-sm">
+                                <option value="">Sin asignar</option>
+                                {% for t in tecnicos %}
+                                    <option value="{{ t.id }}" {% if c.tecnico_id == t.id %}selected{% endif %}>
+                                        {{ (t.empleados or {}).get('nombres', '') }} {{ (t.empleados or {}).get('apellidos', '') }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" class="btn btn-sm btn-outline">Guardar</button>
+                        </form>
+                    </td>
+                    <td><span class="badge {{ c.badge_class }}">{{ c.estado }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% else %}
+    <div class="empty-state">
+        <p>No hay citas registradas todavía.</p>
+    </div>
+{% endif %}
+{% endblock %}

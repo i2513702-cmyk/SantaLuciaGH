@@ -16,7 +16,7 @@
                     <th>ID</th>
                     <th>Usuario</th>
                     <th>Correo</th>
-                    <th>Empleado</th>
+                    <th>Persona</th>
                     <th>Rol</th>
                     <th>Estado</th>
                     <th class="text-end">Acciones</th>
@@ -29,9 +29,15 @@
                     <td class="fw-semibold">{{ u.nombre_usuario }}</td>
                     <td>{{ u.correo }}</td>
                     <td>
-                        {% set emp = u.empleados or {} %}
-                        {{ emp.get('nombres', '') }} {{ emp.get('apellidos', '') }}
-                        <span class="text-secondary small">(ID {{ u.empleado_id }})</span>
+                        {% if u.rol == 'CLIENTE' %}
+                            {% set per = u.clientes or {} %}
+                            {{ per.get('nombres', '') }} {{ per.get('apellidos', '') }}
+                            <span class="text-secondary small">(ID {{ u.get('cliente_id') }})</span>
+                        {% else %}
+                            {% set per = u.empleados or {} %}
+                            {{ per.get('nombres', '') }} {{ per.get('apellidos', '') }}
+                            <span class="text-secondary small">(ID {{ u.empleado_id }})</span>
+                        {% endif %}
                     </td>
                     <td>
                         {% set badges = {
@@ -40,7 +46,8 @@
                             'TECNICO': 'info',
                             'RECEPCIONISTA': 'primary',
                             'VENDEDOR': 'success',
-                            'ALMACENERO': 'secondary'
+                            'ALMACENERO': 'secondary',
+                            'CLIENTE': 'dark'
                         } %}
                         <span class="badge text-bg-{{ badges.get(u.rol, 'secondary') }}">{{ u.rol }}</span>
                     </td>

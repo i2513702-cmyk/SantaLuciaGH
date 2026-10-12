@@ -1,0 +1,12 @@
+<script>
+(function () {
+    document.querySelectorAll('[data-collapsible]').forEach(function (group) {
+        var btn = group.querySelector('[data-toggle-collapse]');
+        if (!btn) return;
+        btn.addEventListener('click', function () {
+            var collapsed = group.classList.toggle('is-collapsed');
+            btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        });
+    });
+})();
+</script>

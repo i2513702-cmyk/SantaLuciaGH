@@ -1,0 +1,12 @@
+{% macro avatar(nombre='', url='', size='md', extra='') -%}
+{%- set partes = (nombre or '').strip().split() -%}
+{%- set iniciales = ((partes[0][0] ~ (partes[1][0] if partes|length > 1 else '')) if partes else '?')|upper -%}
+<div class="avatar avatar-{{ size }} {{ extra }}" data-avatar-name="{{ nombre or '' }}"
+     role="img" aria-label="Avatar de {{ nombre or 'usuario' }}">
+    {%- if url %}
+    <img src="{{ url }}" alt="Foto de {{ nombre or '' }}">
+    {%- else %}
+    <span class="avatar-initials">{{ iniciales }}</span>
+    {%- endif %}
+</div>
+{%- endmacro %}

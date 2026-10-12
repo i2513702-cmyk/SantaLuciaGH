@@ -50,13 +50,15 @@
         <p>Trabajamos con las principales marcas del mercado</p>
         <div class="section-divider"></div>
     </div>
+    {% set marcas_copias = 4 %}
     <div class="marcas-viewport">
-        <div class="marcas-track">
-            {% for marca in marcas %}
-                <div class="marca-card">{{ marca.nombre }}</div>
-            {% endfor %}
-            {% for marca in marcas %}
-                <div class="marca-card">{{ marca.nombre }}</div>
+        <div class="marcas-track" style="--marcas-grupos: {{ marcas_copias }}">
+            {% for grupo in range(marcas_copias) %}
+                <div class="marcas-group"{% if grupo > 0 %} aria-hidden="true"{% endif %}>
+                    {% for marca in marcas %}
+                        <div class="marca-card">{{ marca.nombre }}</div>
+                    {% endfor %}
+                </div>
             {% endfor %}
         </div>
     </div>
@@ -249,4 +251,8 @@
     </div>
 </section>
 
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/marcas.js') }}"></script>
 {% endblock %}

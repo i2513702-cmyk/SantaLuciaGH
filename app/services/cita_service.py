@@ -6,8 +6,9 @@ Crea/actualiza un `cliente`, registra su `electrodomestico` y guarda la
 
 import logging
 from datetime import date as date_cls
+from datetime import datetime, timedelta, timezone
 
-from app.supabase_client import get_admin_client
+from app.supabase_client import get_admin_client, get_reader
 
 log = logging.getLogger(__name__)
 
@@ -23,6 +24,11 @@ class CitaError(Exception):
 
 def _fecha_hoy():
     return date_cls.today()
+
+
+def _ahora() -> str:
+    """Marca de tiempo en UTC, igual que usa el carrito."""
+    return datetime.now(timezone.utc).isoformat()
 
 
 def _plus_one_hour(hora: str) -> str:
@@ -62,6 +68,204 @@ def validar(datos: dict) -> None:
     hora = datos.get("hora_inicio", "").strip()
     if hora not in HORARIOS:
         raise CitaError("Selecciona un horario disponible.")
+
+    if hora not in horarios_disponibles(fecha):
+        raise CitaError(
+            "En esa fecha y hora no hay un técnico disponible. "
+            "Elige otra hora o fecha."
+        )
+
+
+def horarios_disponibles(fecha: str) -> list:
+    """Horas de HORARIOS cubiertas por al menos un técnico disponible.
+
+    Un técnico cubre la franja [hora_inicio, hora_fin) de `agenda_tecnicos`
+    para la fecha indicada. Devuelve la lista de horas seleccionables.
+    """
+    try:
+        resp = (
+            get_reader()
+            .table("agenda_tecnicos")
+            .select("hora_inicio,hora_fin")
+            .eq("fecha", fecha)
+            .eq("disponible", True)
+            .execute()
+        )
+    except Exception:  # noqa: BLE001
+        return []
+    franjas = resp.data or []
+    disponibles = []
+    for hora in HORARIOS:
+        if any(_cubre_franja(franja, hora) for franja in franjas):
+            disponibles.append(hora)
+    return disponibles
+
+
+def _cubre_franja(franja: dict, hora: str) -> bool:
+    inicio = (franja.get("hora_inicio") or "")[:5]
+    fin = (franja.get("hora_fin") or "")[:5]
+    if not inicio:
+        return False
+    if not fin or fin <= inicio:
+        return True
+    return inicio <= hora < fin
+
+
+def datos_usuario(usuario_id) -> dict:
+    """Datos del usuario logueado para autollenar 'Tus datos'.
+
+    Un cliente registrado se vincula al usuario vía `clientes` (cliente_id);
+    los roles internos vía `empleados` (empleado_id).
+    """
+    if not usuario_id:
+        return {}
+    try:
+        u = (
+            get_reader()
+            .table("usuarios")
+            .select("empleado_id,cliente_id")
+            .eq("id", usuario_id)
+            .limit(1)
+            .execute()
+            .data
+            or [{}]
+        )[0]
+    except Exception:  # noqa: BLE001
+        return {}
+
+    relacion, campo_id = ("clientes", "cliente_id") if u.get("cliente_id") else ("empleados", "empleado_id")
+    persona_id = u.get(campo_id)
+    if not persona_id:
+        return {}
+    columnas = "tipo_documento_id,numero_documento,nombres,apellidos,telefono,correo"
+    try:
+        persona = (
+            get_reader()
+            .table(relacion)
+            .select(columnas)
+            .eq("id", persona_id)
+            .limit(1)
+            .execute()
+            .data
+            or [None]
+        )[0]
+    except Exception:  # noqa: BLE001
+        return {}
+    if not persona:
+        return {}
+    return {
+        "tipo_documento_id": persona.get("tipo_documento_id") or 1,
+        "numero_documento": persona.get("numero_documento") or "",
+        "nombres": persona.get("nombres") or "",
+        "apellidos": persona.get("apellidos") or "",
+        "telefono": persona.get("telefono") or "",
+        "correo": persona.get("correo") or "",
+    }
+
+
+def seed_demo() -> dict:
+    """Crea técnicos desde los usuarios con rol TECNICO y su agenda demo.
+
+    Solo inserta lo que falta: no duplica técnicos existentes (mismo
+    empleado_id) ni franjas ya registradas para (tecnico_id, fecha).
+    """
+    db = get_admin_client()
+    resultado = {"tecnicos_creados": 0, "agenda_agregada": 0, "error": None}
+
+    try:
+        usuarios = (
+            get_reader()
+            .table("usuarios")
+            .select("id,empleado_id,activo")
+            .eq("rol", "TECNICO")
+            .execute()
+            .data
+            or []
+        )
+    except Exception as exc:  # noqa: BLE001
+        resultado["error"] = f"No se pudieron leer los usuarios TECNICO: {exc}"
+        log.error(resultado["error"])
+        return resultado
+
+    try:
+        existentes = (
+            get_reader()
+            .table("tecnicos")
+            .select("id,empleado_id")
+            .execute()
+            .data
+            or []
+        )
+    except Exception as exc:  # noqa: BLE001
+        resultado["error"] = f"No se pudo leer la tabla tecnicos: {exc}"
+        log.error(resultado["error"])
+        return resultado
+
+    por_empleado = {t["empleado_id"]: t["id"] for t in existentes if t.get("empleado_id")}
+
+    for u in usuarios:
+        emp_id = u.get("empleado_id")
+        if not emp_id or u.get("activo") is False:
+            continue
+
+        tecnico_id = por_empleado.get(emp_id)
+        if tecnico_id is None:
+            try:
+                resp = db.from_("tecnicos").insert(
+                    {"empleado_id": emp_id, "especialidad": "Electrodomésticos"}
+                ).execute()
+                tecnico_id = (resp.data or [{}])[0].get("id")
+                if tecnico_id:
+                    por_empleado[emp_id] = tecnico_id
+                    resultado["tecnicos_creados"] += 1
+            except Exception as exc:  # noqa: BLE001
+                resultado["error"] = f"Técnico empleado {emp_id}: {exc}"
+                log.error(resultado["error"])
+                continue
+
+        if not tecnico_id:
+            continue
+
+        hoy = _fecha_hoy()
+        for delta in range(1, 8):
+            dia = hoy + timedelta(days=delta)
+            if dia.weekday() == 6:  # domingo = descanso
+                continue
+            fecha = dia.isoformat()
+            try:
+                ya_existe = (
+                    get_reader()
+                    .table("agenda_tecnicos")
+                    .select("id")
+                    .eq("tecnico_id", tecnico_id)
+                    .eq("fecha", fecha)
+                    .limit(1)
+                    .execute()
+                    .data
+                    or []
+                )
+            except Exception as exc:  # noqa: BLE001
+                resultado["error"] = f"Agenda {fecha}: {exc}"
+                log.error(resultado["error"])
+                continue
+            if ya_existe:
+                continue
+            try:
+                db.from_("agenda_tecnicos").insert(
+                    {
+                        "tecnico_id": tecnico_id,
+                        "fecha": fecha,
+                        "hora_inicio": "09:00",
+                        "hora_fin": "18:00",
+                        "disponible": True,
+                    }
+                ).execute()
+                resultado["agenda_agregada"] += 1
+            except Exception as exc:  # noqa: BLE001
+                resultado["error"] = f"Franja {tecnico_id}/{fecha}: {exc}"
+                log.error(resultado["error"])
+
+    return resultado
 
 
 def _normalizar(datos: dict) -> dict:
@@ -190,3 +394,30 @@ def agendar(datos: dict) -> dict:
         raise CitaError(
             "No se pudo guardar la cita en este momento. Verifica la conexión y vuelve a intentar."
         ) from exc
+
+
+def marcar_primera_atencion(reserva_id) -> bool:
+    """Sella la hora de la primera atención de la cita (soporte del KPI-01/02).
+
+    Se escribe una sola vez: el UPDATE filtra por `fecha_primera_atencion IS
+    NULL`, así que volver a llamarlo no pisa la marca original. Por eso el tiempo
+    de respuesta se mide contra el primer contacto, no contra el último.
+
+    Es idempotente y nunca rompe el flujo: si Supabase falla, la cita se sigue
+    gestionando y el KPI solo pierde ese dato.
+    """
+    if not reserva_id:
+        return False
+    try:
+        resp = (
+            get_admin_client()
+            .table("reservas")
+            .update({"fecha_primera_atencion": _ahora()})
+            .eq("id", reserva_id)
+            .is_("fecha_primera_atencion", None)
+            .execute()
+        )
+        return bool(resp.data)
+    except Exception:  # noqa: BLE001
+        log.warning("No se pudo marcar la primera atención de la reserva %s", reserva_id)
+        return False

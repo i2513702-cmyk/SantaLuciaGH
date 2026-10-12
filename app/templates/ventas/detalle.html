@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% from "partials/estado_badge.html" import estado_badge %}
+{% block title %}Pedido {{ venta.codigo_pedido or venta.id }} — {{ app_name }}{% endblock %}
+
+{% block content %}
+<a class="small text-decoration-none" href="{{ url_for('ventas.listado') }}"><i class="bi bi-arrow-left"></i> Volver a ventas</a>
+<div class="d-flex flex-wrap align-items-center gap-3 my-3">
+    <h1 class="h3 fw-bold mb-0">Pedido {{ venta.codigo_pedido or ('#' ~ venta.id) }}</h1>
+    {{ estado_badge(venta.estado) }}
+    <span class="text-secondary small ms-auto">{{ (venta.fecha_venta or '')[:16].replace('T', ' ') }}</span>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="card no-hover mb-4"><div class="card-body p-0">
+            <div class="table-responsive"><table class="table align-middle mb-0">
+                <thead><tr><th>Producto</th><th class="text-end">Cant.</th><th class="text-end">Precio</th><th class="text-end">Subtotal</th></tr></thead>
+                <tbody>{% for i in items %}
+                    <tr><td class="fw-semibold">{{ i.nombre }}</td><td class="text-end">{{ i.cantidad }}</td>
+                        <td class="text-end">S/ {{ "%.2f"|format(i.precio_unitario or 0) }}</td>
+                        <td class="text-end fw-bold">S/ {{ "%.2f"|format(i.subtotal or 0) }}</td></tr>
+                {% else %}<tr><td colspan="4" class="text-center text-secondary py-4">Sin líneas de detalle.</td></tr>{% endfor %}</tbody>
+            </table></div>
+        </div></div>
+        {% if pagos %}
+        <div class="card no-hover"><div class="card-body">
+            <h2 class="h6 fw-bold mb-3"><i class="bi bi-credit-card"></i> Pagos</h2>
+            {% for p in pagos %}
+                <div class="d-flex justify-content-between align-items-center border-bottom py-2">
+                    <span>{{ (p.pasarela or 'Pago')|capitalize }} · <small class="text-secondary">{{ (p.fecha_pago or p.fecha_creacion or '')[:16].replace('T',' ') }}</small></span>
+                    <span>{{ estado_badge(p.estado) }} <strong class="ms-2">S/ {{ "%.2f"|format(p.monto or 0) }}</strong></span>
+                </div>
+            {% endfor %}
+        </div></div>
+        {% endif %}
+    </div>
+    <div class="col-lg-4">
+        <div class="card no-hover mb-4"><div class="card-body">
+            <h2 class="h6 fw-bold mb-3">Resumen</h2>
+            <div class="d-flex justify-content-between"><span class="text-secondary">Subtotal</span><span>S/ {{ "%.2f"|format(venta.subtotal or 0) }}</span></div>
+            <div class="d-flex justify-content-between"><span class="text-secondary">Descuento</span><span>- S/ {{ "%.2f"|format(venta.descuento or 0) }}</span></div>
+            <div class="d-flex justify-content-between"><span class="text-secondary">Envío</span><span>S/ {{ "%.2f"|format(venta.costo_envio or 0) }}</span></div>
+            <hr><div class="d-flex justify-content-between h5 mb-0"><span>Total</span><span class="text-primary fw-bold">S/ {{ "%.2f"|format(venta.total or 0) }}</span></div>
+        </div></div>
+        <div class="card no-hover"><div class="card-body small">
+            <h2 class="h6 fw-bold mb-3">Cliente y entrega</h2>
+            <div class="mb-1"><i class="bi bi-person"></i> {{ nombre_cliente or (usuario.nombre_usuario if usuario) or 'Cliente web' }}</div>
+            {% if cliente and cliente.telefono %}<div class="mb-1"><i class="bi bi-telephone"></i> {{ cliente.telefono }}</div>{% endif %}
+            {% if (cliente and cliente.correo) or (usuario and usuario.correo) %}<div class="mb-1"><i class="bi bi-envelope"></i> {{ (cliente.correo if cliente and cliente.correo) or usuario.correo }}</div>{% endif %}
+            <div class="mb-1 text-capitalize"><i class="bi bi-shop"></i> {{ (venta.canal_venta or '—')|lower }} · {{ (venta.tipo_entrega or '—')|lower|replace('_',' ') }}</div>
+            {% if venta.observaciones %}<div class="mt-2 text-secondary"><i class="bi bi-chat-left-text"></i> {{ venta.observaciones }}</div>{% endif %}
+        </div></div>
+    </div>
+</div>
+{% endblock %}
