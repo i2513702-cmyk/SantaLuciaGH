@@ -31,6 +31,8 @@ def is_configured(service: bool = False) -> bool:
 
 
 def _crear(url, key):
+    if url and not url.endswith("/"):
+        url = f"{url}/"
     return create_client(
         url, key, options=ClientOptions(postgrest_client_timeout=_TIMEOUT)
     )

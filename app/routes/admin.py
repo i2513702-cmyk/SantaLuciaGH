@@ -647,6 +647,12 @@ def dashboard():
             "url": "admin.productos",
         },
         {
+            "nombre": "Configuración de la tienda",
+            "descripcion": "Cambiar el logo de Santa Lucía e imágenes del catálogo",
+            "icon": "🖼️",
+            "url": "admin.configuracion",
+        },
+        {
             "nombre": "Usuarios",
             "descripcion": "Administración de cuentas del sistema",
             "icon": "🔐",
@@ -830,7 +836,9 @@ def producto_nuevo():
     valores = None
     if request.method == "POST":
         try:
-            producto_service.crear_producto(request.form)
+            producto_service.crear_producto(
+                request.form, imagen=request.files.get("imagen")
+            )
             flash("Producto creado correctamente.", "success")
             return redirect(url_for("admin.productos"))
         except (AppError, ValidationError) as exc:
@@ -850,7 +858,12 @@ def producto_editar(producto_id):
     valores = None
     if request.method == "POST":
         try:
-            producto_service.actualizar_producto(producto_id, request.form)
+            producto_service.actualizar_producto(
+                producto_id,
+                request.form,
+                imagen=request.files.get("imagen"),
+                quitar_imagen=request.form.get("quitar_imagen") == "on",
+            )
             flash("Producto actualizado correctamente.", "success")
             return redirect(url_for("admin.productos"))
         except (AppError, ValidationError) as exc:
@@ -881,3 +894,45 @@ def producto_eliminar(producto_id):
     except Exception:  # noqa: BLE001
         flash("No se pudo eliminar el producto.", "error")
     return redirect(url_for("admin.productos"))
+
+
+@bp.route("/admin/configuracion", methods=["GET", "POST"])
+@roles_required("admin")
+def configuracion():
+    """Marca de la tienda: cambiar el logo de Santa Lucía (Supabase Storage).
+
+    El logo se sube al bucket `logos` con nombre estable `logo.<ext>` y se
+    muestra en toda la web vía su URL pública; si no hay logo subido se usa
+    el archivo estático por defecto.
+    """
+    from app.services import storage_service
+
+    error = None
+    exitoso = None
+
+    if request.method == "POST":
+        accion = request.form.get("accion")
+        try:
+            if accion == "logo":
+                logo = request.files.get("logo")
+                if not logo or not getattr(logo, "filename", ""):
+                    raise ValidationError("Selecciona un archivo de imagen para el logo.")
+                storage_service.subir_logo(logo)
+                exitoso = "Logo actualizado: se mostrará en toda la web."
+            elif accion == "quitar_logo":
+                storage_service.quitar_logo()
+                exitoso = "Logo restaurado al predeterminado."
+            else:
+                raise ValidationError("Acción no reconocida.")
+        except (AppError, ValidationError) as exc:
+            error = exc.message if isinstance(exc, AppError) else str(exc)
+        except Exception:  # noqa: BLE001
+            error = "No se pudo procesar la imagen. Revisa el formato (PNG/JPG/WebP/SVG) y el tamaño (máx 2 MB)."
+
+    return render_template(
+        "admin/configuracion.html",
+        logo_url=storage_service.obtener_logo_url(),
+        logo_default=url_for("static", filename="img/logo.svg"),
+        error=error,
+        exitoso=exitoso,
+    )

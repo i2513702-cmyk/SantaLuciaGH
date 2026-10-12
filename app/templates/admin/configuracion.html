@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Configuración de la tienda — {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between mb-4">
+    <div>
+        <h1 class="h3 fw-semibold mb-1">Configuración de la tienda</h1>
+        <p class="text-secondary mb-0">Marca e imágenes del catálogo, guardadas en Supabase Storage.</p>
+    </div>
+    <a class="btn btn-outline-primary" href="{{ url_for('admin.dashboard') }}">← Volver al panel</a>
+</div>
+
+{% if exitoso %}
+    <div class="alert alert-success py-2">{{ exitoso }}</div>
+{% endif %}
+{% if error %}
+    <div class="alert alert-danger py-2">{{ error }}</div>
+{% endif %}
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-body p-4">
+                <h2 class="h5 fw-semibold mb-3">Logo de {{ app_name }}</h2>
+                <p class="text-secondary small">
+                    Se muestra en la barra superior, el pie de página y el inicio de sesión.
+                    Formatos permitidos: PNG, JPG, WEBP o SVG · máx 2 MB.
+                </p>
+
+                <div class="text-center bg-light border rounded-3 p-3 mb-3">
+                    <img src="{{ logo_url or logo_default }}" alt="Logo actual"
+                         style="max-height:110px; max-width:100%; object-fit:contain;">
+                    <p class="text-secondary small mb-0 mt-2">
+                        {% if logo_url %}Logo personalizado (Supabase Storage){% else %}Logo predeterminado{% endif %}
+                    </p>
+                </div>
+
+                <form method="POST" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="accion" value="logo">
+                    <div class="mb-3">
+                        <label for="logo" class="form-label">Subir nuevo logo</label>
+                        <input type="file" class="form-control" id="logo" name="logo"
+                               accept="image/png,image/jpeg,image/webp,image/svg+xml" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Guardar logo</button>
+                </form>
+
+                {% if logo_url %}
+                    <form method="POST" class="mt-2"
+                          onsubmit="return confirm('¿Restaurar el logo predeterminado? Se eliminará el logo subido.');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="accion" value="quitar_logo">
+                        <button type="submit" class="btn btn-outline-secondary btn-sm">Restaurar logo predeterminado</button>
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-body p-4">
+                <h2 class="h5 fw-semibold mb-3">Imágenes de productos</h2>
+                <p class="text-secondary small mb-3">
+                    Cada producto tiene su propia imagen, que se sube desde el formulario de
+                    <strong>Productos → Nuevo / Editar</strong>. Las imágenes viven en el bucket
+                    público <code>productos</code> de Supabase Storage y se muestran en la tienda
+                    y en los destacados del inicio.
+                </p>
+                <a class="btn btn-outline-primary" href="{{ url_for('admin.productos') }}">Gestionar productos</a>
+
+                <hr class="my-4">
+                <h3 class="h6 fw-semibold">Requisito de la base de datos</h3>
+                <p class="text-secondary small mb-2">
+                    La tabla <code>productos</code> necesita la columna <code>imagen_url</code>.
+                    Si al subir una imagen ves un aviso, ejecuta una vez en el
+                    <em>SQL Editor</em> de Supabase:
+                </p>
+                <pre class="bg-dark text-light rounded p-3 small mb-0"><code>ALTER TABLE public.productos
+ADD COLUMN IF NOT EXISTS imagen_url text;</code></pre>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

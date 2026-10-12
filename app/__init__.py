@@ -51,6 +51,12 @@ def create_app() -> Flask:
 
     calentar()
 
+    # --- Storage: asegurar que existan los buckets de imágenes (idempotente) ---
+    from app.services import storage_service
+
+    for _bucket in (storage_service.BUCKET_PRODUCTOS, storage_service.BUCKET_LOGOS):
+        storage_service.asegurar_bucket(_bucket)
+
     # --- Limpiar carritos vencidos en segundo plano al arrancar ---
     from app.services.carrito_service import iniciar_purga
 
@@ -99,10 +105,13 @@ def create_app() -> Flask:
         # personal interno nunca ve un carrito propio en la cabecera.
         carrito_n = session.get("carrito_n", 0) if puede_comprar(rol) else 0
 
+        from app.services import storage_service
+
         return {
             "app_name": app.config["APP_NAME"],
             "app_tagline": app.config["APP_TAGLINE"],
             "logo_path": app.config["LOGO_PATH"],
+            "logo_url": storage_service.obtener_logo_url(),
             "footer_bg": app.config["FOOTER_BG_PATH"],
             "rol": rol,
             "rol_panel": map_rol(rol),
