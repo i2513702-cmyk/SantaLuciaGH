@@ -158,8 +158,10 @@
                 mostrar('Trabajador ya registrado: <strong>' + (emp.nombres || '') + ' ' + (emp.apellidos || '') +
                         '</strong> (ID ' + emp.id + '). Se vinculará su nueva cuenta.', true);
             } else {
-                mostrar('Datos autollenados desde la API (' + (d.proveedor || 'API') +
-                        '). No había un empleado con ese documento: se creará al guardar.', true);
+                var persona = d.nombre_completo || d.razon_social ||
+                    ((d.nombres || '') + ' ' + (d.apellido_paterno || '') + ' ' + (d.apellido_materno || '')).trim();
+                mostrar('El documento existe (<strong>' + (persona || num) + '</strong>), pero no hay un empleado ' +
+                        'registrado con ese número: se registrará automáticamente antes de vincular la cuenta.', true);
             }
         })
         .catch(function () { mostrar('Error de conexión al consultar la API.', false); })
