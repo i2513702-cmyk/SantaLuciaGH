@@ -1,4 +1,4 @@
-S"""Fábrica de la aplicación (patrón Application Factory)."""
+"""Fábrica de la aplicación (patrón Application Factory)."""
 
 import os
 

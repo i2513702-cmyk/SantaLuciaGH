@@ -110,7 +110,10 @@
             <span>¿Primera vez? <a class="fw-semibold" href="{{ url_for('auth.registrarse') }}">Crea tu cuenta gratis</a></span>
             <span><i class="bi bi-shield-check text-success"></i> Acceso protegido</span>
         </div>
-        <p class="small text-secondary mt-2 mb-0">¿No puedes ingresar? Pide ayuda al administrador.</p>
+        <p class="small text-secondary mt-2 mb-0">
+            <a class="fw-semibold" href="{{ url_for('auth.recuperar_clave') }}"><i class="bi bi-key"></i> ¿Olvidaste tu contraseña?</a>
+            <span class="mx-1">·</span>¿No puedes ingresar? Pide ayuda al administrador.
+        </p>
     </section>
 </div>
 {% endblock %}
