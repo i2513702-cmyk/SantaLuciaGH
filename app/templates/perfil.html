@@ -6,7 +6,25 @@
 {% from "partials/avatar.html" import avatar %}
 
 <section class="card profile-head">
-    {{ avatar(nombre_completo or usuario_nombre, size='xl') }}
+    <div class="profile-avatar-edit">
+        {{ avatar(nombre_completo or usuario_nombre, url=avatar_url, size='xl') }}
+        <form method="POST" action="{{ url_for('main.perfil_avatar') }}"
+              enctype="multipart/form-data" class="profile-avatar-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <label class="btn btn-sm btn-primary mb-0">
+                {{ icono('camara', 'camera-fill', 15) }}<span>Cambiar foto</span>
+                <input type="file" name="avatar" accept="image/png,image/jpeg,image/webp"
+                       onchange="this.form.submit()" hidden>
+            </label>
+        </form>
+        {% if avatar_url %}
+        <form method="POST" action="{{ url_for('main.perfil_avatar') }}" class="profile-avatar-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="accion" value="quitar">
+            <button type="submit" class="btn btn-sm btn-outline-secondary">Quitar foto</button>
+        </form>
+        {% endif %}
+    </div>
     <div class="profile-id">
         <h1>{{ nombre_completo or usuario_nombre }}</h1>
         <p class="profile-role">

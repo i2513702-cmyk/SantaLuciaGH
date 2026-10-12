@@ -3,6 +3,7 @@
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 
 from app.decorators import ROLES_DB, es_no_comprador, login_required
+from app.exceptions import AppError, ValidationError
 from app.services import tracking_service
 from app.supabase_client import get_reader
 
@@ -339,3 +340,33 @@ def perfil():
         compras=compras,
         mostrar_historial=not sin_compra,
     )
+
+
+@bp.post("/perfil/avatar")
+@login_required
+def perfil_avatar():
+    """Sube o elimina la foto de perfil del usuario (Supabase Storage)."""
+    from app.services import storage_service
+
+    usuario_id = session.get("usuario_id")
+    accion = request.form.get("accion")
+    try:
+        if accion == "quitar":
+            storage_service.quitar_avatar(usuario_id)
+            flash("Foto de perfil eliminada.", "success")
+        else:
+            archivo = request.files.get("avatar")
+            if not archivo or not getattr(archivo, "filename", ""):
+                raise ValidationError("Selecciona una imagen para tu foto de perfil.")
+            url = storage_service.subir_avatar(archivo, usuario_id)
+            session["avatar_url"] = url
+            flash("Foto de perfil actualizada.", "success")
+    except (AppError, ValidationError) as exc:
+        flash(exc.message if isinstance(exc, AppError) else str(exc), "error")
+    except Exception:  # noqa: BLE001
+        flash(
+            "No se pudo actualizar la foto de perfil. Revisa el formato "
+            "(PNG/JPG/WEBP) y el tamaño (máx 2 MB).",
+            "error",
+        )
+    return redirect(url_for("main.perfil"))

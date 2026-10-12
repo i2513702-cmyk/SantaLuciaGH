@@ -72,13 +72,13 @@
                             <div class="dropdown nav-user">
                                 <button class="nav-user-toggle" type="button" id="menuUsuario"
                                         data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false">
-                                    {{ avatar(nombre, size='md') }}
+                                    {{ avatar(nombre, url=avatar_url, size='md') }}
                                     <span class="nav-user-name d-none d-sm-inline">{{ nombre }}</span>
                                     <i class="bi bi-chevron-down nav-user-caret"></i>
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end nav-user-menu" aria-labelledby="menuUsuario">
                                     <li class="nav-user-menu-head">
-                                        {{ avatar(nombre, size='md') }}
+                                        {{ avatar(nombre, url=avatar_url, size='md') }}
                                         <span class="nav-user-menu-id">
                                             <span class="nav-user-menu-name">{{ nombre }}</span>
                                             <span class="nav-user-menu-role">{{ rol_label or rol }}</span>
