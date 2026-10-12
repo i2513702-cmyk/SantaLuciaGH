@@ -293,6 +293,74 @@ def cambiar_clave(nombre_usuario: str, clave_actual: str, clave_nueva: str) -> N
         raise ValidationError(error_postgrest(exc)) from exc
 
 
+def _normalizar_documento(valor) -> str:
+    """Normaliza un documento para compararlo sin espacios, guiones ni puntos."""
+    return "".join(ch for ch in str(valor or "").strip().upper() if ch.isalnum())
+
+
+def _documento_de_usuario(usuario: dict) -> str:
+    """Devuelve el número de documento asociado al usuario (cliente o empleado)."""
+    if usuario.get("cliente_id"):
+        tabla, fila_id = "clientes", usuario["cliente_id"]
+    elif usuario.get("empleado_id"):
+        tabla, fila_id = "empleados", usuario["empleado_id"]
+    else:
+        return ""
+    try:
+        resp = (
+            get_reader()
+            .table(tabla)
+            .select("numero_documento")
+            .eq("id", fila_id)
+            .limit(1)
+            .execute()
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise ValidationError(error_postgrest(exc)) from exc
+    return (resp.data[0].get("numero_documento") if resp.data else "") or ""
+
+
+def recuperar_clave(identificador: str, numero_documento: str, clave_nueva: str) -> None:
+    """Restablece la contraseña validando la identidad con el documento.
+
+    Se usa desde el login (sin sesión): el usuario indica su nombre de usuario
+    o correo y el número de documento registrado en su cuenta (cliente o
+    empleado). Si ambos coinciden, se guarda la nueva contraseña como hash
+    bcrypt. El mensaje de error es genérico para no revelar qué cuentas existen.
+    """
+    identificador = (identificador or "").strip()
+    numero_documento = (numero_documento or "").strip()
+    if not identificador or not numero_documento:
+        raise ValidationError(
+            "Debes indicar tu usuario o correo y tu número de documento."
+        )
+    if not clave_nueva or len(clave_nueva) < 8:
+        raise ValidationError("La nueva contraseña debe tener al menos 8 caracteres.")
+
+    error_identidad = ValidationError(
+        "Los datos no coinciden con ninguna cuenta. Revisa tu usuario y documento."
+    )
+
+    usuario = _buscar_usuario(identificador)
+    if not usuario or usuario.get("activo") is False:
+        raise error_identidad
+
+    documento_registrado = _documento_de_usuario(usuario)
+    if (
+        not documento_registrado
+        or _normalizar_documento(documento_registrado)
+        != _normalizar_documento(numero_documento)
+    ):
+        raise error_identidad
+
+    try:
+        _tabla_escritura().update({"password": hash_password(clave_nueva)}).eq(
+            "id", usuario["id"]
+        ).execute()
+    except Exception as exc:  # noqa: BLE001
+        raise ValidationError(error_postgrest(exc)) from exc
+
+
 def _encontrar_cliente(tipo_documento_id: int, numero_documento: str, correo: str = ""):
     """Busca un cliente por documento (o correo) en la tabla `clientes`."""
     try:
