@@ -35,10 +35,10 @@
                             <tr>
                                 <td>
                                     <div class="d-flex align-items-center gap-3">
-                                        <div class="ratio ratio-1x1" style="width:52px;">
+                                        <div class="ratio ratio-1x1" style="width:56px; border-radius:10px; overflow:hidden;">
                                             <img src="{% if item.imagen_url %}{{ item.imagen_url }}{% else %}{{ url_for('static', filename='img/placeholder-product.svg') }}{% endif %}"
                                                  alt="{{ item.nombre }}"
-                                                 class="rounded-3 border object-fit-cover">
+                                                 class="w-100 h-100 object-fit-cover">
                                         </div>
                                         <div>
                                             <div class="fw-semibold">{{ item.nombre }}</div>
@@ -134,10 +134,10 @@
                             <tr>
                                 <td>
                                     <div class="d-flex align-items-center gap-2">
-                                        <div class="ratio ratio-1x1" style="width:40px;">
+                                        <div class="ratio ratio-1x1" style="width:44px; border-radius:8px; overflow:hidden;">
                                             <img src="{% if item.imagen_url %}{{ item.imagen_url }}{% else %}{{ url_for('static', filename='img/placeholder-product.svg') }}{% endif %}"
                                                  alt="{{ item.nombre }}"
-                                                 class="rounded-2 border object-fit-cover">
+                                                 class="w-100 h-100 object-fit-cover">
                                         </div>
                                         <div>{{ item.nombre }} <span class="text-muted">× {{ item.cantidad }}</span></div>
                                     </div>
