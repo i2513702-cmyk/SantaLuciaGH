@@ -1894,6 +1894,26 @@ h1, h2, h3, .brand-name, .kpi-value, .stat-value {
 
 .profile-head .avatar { border-width: 4px; }
 
+/* Foto de perfil editable */
+.profile-avatar-edit {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    flex: none;
+}
+
+.profile-avatar-edit .profile-avatar-form { margin: 0; }
+
+.profile-avatar-edit .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    padding: 5px 12px;
+    white-space: nowrap;
+}
+
 .profile-id h1 { margin: 0 0 2px; font-size: 1.6rem; }
 
 .profile-role {
