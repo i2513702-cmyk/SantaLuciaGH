@@ -353,6 +353,7 @@ def perfil_avatar():
     try:
         if accion == "quitar":
             storage_service.quitar_avatar(usuario_id)
+            session.pop("avatar_url", None)
             flash("Foto de perfil eliminada.", "success")
         else:
             archivo = request.files.get("avatar")

@@ -122,10 +122,9 @@ def create_app() -> Flask:
             "puede_ventas": rol in ROLES_VENTAS,
             "nombre": session.get("nombre"),
             "avatar_url": (
-                storage_service.obtener_avatar_url(session.get("usuario_id"))
-                if session.get("usuario_id")
-                else None
-            ),
+                session.get("avatar_url")
+                or storage_service.obtener_avatar_url(session.get("usuario_id"))
+            ) if session.get("usuario_id") else None,
             "carrito_n": carrito_n,
             "csrf_token": get_csrf(),
         }
