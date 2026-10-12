@@ -63,7 +63,11 @@
                     </div>
                     <div class="col-md-6">
                         <label for="password" class="form-label">Contraseña (mínimo 8 caracteres)</label>
-                        <input type="password" class="form-control" id="password" name="password" required minlength="8">
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="password" name="password" required minlength="8">
+                            <button type="button" class="btn btn-outline-secondary" id="btn_ver_password"
+                                    tabindex="-1" aria-label="Mostrar u ocultar contraseña">👁</button>
+                        </div>
                     </div>
                 </div>
             </fieldset>
@@ -135,6 +139,18 @@
     docInput.addEventListener('keydown', function (e) {
         if (e.key === 'Enter') { e.preventDefault(); btn.click(); }
     });
+
+    // ── Mostrar / ocultar contraseña ──
+    var btnVer = document.getElementById('btn_ver_password');
+    var passInput = document.getElementById('password');
+    if (btnVer && passInput) {
+        btnVer.addEventListener('click', function () {
+            var visible = passInput.type === 'text';
+            passInput.type = visible ? 'password' : 'text';
+            btnVer.textContent = visible ? '👁' : '🙈';
+            passInput.focus();
+        });
+    }
 })();
 </script>
 {% endblock %}
