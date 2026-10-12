@@ -1,0 +1,66 @@
+/* Santa Lucia — tema Bootstrap (se carga despues de style.css y lo refina) */
+:root {
+    --primary: #1d4ed8; --primary-light: #3b82f6; --primary-dark: #1e3a8a;
+    --accent: #f59e0b; --accent-light: #fbbf24;
+    --bg: #f4f7fe; --surface-alt: #eaf0fd; --border: #dde5f5;
+    --radius: 16px; --radius-sm: 12px; --radius-lg: 24px;
+    --shadow: 0 6px 18px rgba(29,78,216,.10); --shadow-lg: 0 18px 44px rgba(29,78,216,.18);
+    --grad: linear-gradient(135deg, #0b1b4d 0%, #1d4ed8 55%, #06b6d4 120%);
+    --bs-primary: #1d4ed8; --bs-primary-rgb: 29,78,216; --bs-link-color: #1d4ed8;
+    --bs-body-font-family: "Inter", "Segoe UI", system-ui, sans-serif; --bs-border-radius: 12px;
+}
+body { background: var(--bg); }
+h1, h2, h3, .brand-name, .display-1, .display-6 { font-family: "Space Grotesk", "Inter", sans-serif; letter-spacing: -.01em; }
+main.container { padding-top: 28px; padding-bottom: 40px; }
+@media (max-width: 768px) { .container { padding: 0 16px; } }
+
+/* Navbar */
+.navbar.sl-nav { height: auto; padding: 8px 0; background: #fff; backdrop-filter: none; /* un ancestro con backdrop-filter rompe el offcanvas fixed */
+    border-bottom: 1px solid var(--border); box-shadow: 0 2px 14px rgba(15,23,42,.05); }
+.sl-nav .brand-logo { width: 42px; height: 42px; }
+.sl-nav .nav-link { font-weight: 600; font-size: .9rem; color: var(--text-secondary); border-radius: 999px; padding: 8px 14px !important; transition: .2s; }
+.sl-nav .nav-link:hover { color: var(--primary); background: var(--surface-alt); }
+.sl-nav .nav-link.active { color: #fff; background: var(--primary); box-shadow: 0 4px 12px rgba(29,78,216,.3); }
+.sl-nav .nav-cart .badge { position: absolute; top: -2px; right: -4px; background: var(--accent); color: #0f172a; font-size: .68rem; }
+.sl-nav .nav-user-name { font-size: .85rem; font-weight: 600; color: var(--text-secondary); }
+.icono-img { object-fit: contain; display: inline-block; }
+@media (min-width: 992px) { .sl-nav .offcanvas-body { display: flex; flex-grow: 1; } }
+
+/* Botones (compatibles con las variantes de Bootstrap) */
+.btn { border: var(--bs-btn-border-width, 1px) solid var(--bs-btn-border-color, transparent); border-radius: 999px; font-weight: 600; }
+.btn-primary { background: linear-gradient(135deg, #1d4ed8, #3b82f6); border-color: transparent; color: #fff; }
+.btn-primary:hover { background: linear-gradient(135deg, #1e3a8a, #1d4ed8); color: #fff; }
+.btn-outline { border: 2px solid var(--border); }
+.btn-accent { box-shadow: 0 6px 16px rgba(245,158,11,.35); }
+
+/* Tarjetas, formularios, tablas */
+.card, .product-card, .servicio-card, .testimonio-card, .categoria-card { border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); transition: transform .2s, box-shadow .2s; }
+.card:hover, .product-card:hover, .servicio-card:hover, .categoria-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+.card.no-hover:hover { transform: none; box-shadow: var(--shadow); }
+.form-control, .form-select { border-radius: 12px; padding: .65rem .9rem; border-color: var(--border); }
+.form-control:focus, .form-select:focus { border-color: var(--primary-light); box-shadow: 0 0 0 .25rem rgba(59,130,246,.18); }
+.table > :not(caption) > * > * { padding: .8rem .9rem; }
+.table thead th { background: var(--surface-alt); color: var(--primary-dark); font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; border: 0; }
+.alert { border: 0; border-radius: 14px; box-shadow: var(--shadow); }
+.badge { font-weight: 600; }
+
+/* Hero y secciones */
+.hero { background: var(--grad); color: #fff; }
+.stats-bar { box-shadow: var(--shadow-lg); border-radius: var(--radius); }
+.stat-value { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.section-header h2 { font-weight: 800; }
+.servicio-icon, .categoria-icon { border-radius: 16px; }
+.footer { background: #0b1b4d; }
+@keyframes subir { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+main > * { animation: subir .45s ease both; }
+
+/* Login / registro */
+.auth-wrap { max-width: 980px; margin: 8px auto; border-radius: 28px; overflow: hidden; box-shadow: var(--shadow-lg); background: #fff; }
+.auth-side { background: var(--grad); color: #fff; padding: 44px 36px; position: relative; overflow: hidden; }
+.auth-side::after { content: ""; position: absolute; width: 320px; height: 320px; right: -120px; bottom: -120px; border-radius: 50%; background: rgba(255,255,255,.1); }
+.auth-side li { display: flex; gap: 12px; align-items: center; margin-bottom: 14px; font-weight: 500; }
+.auth-chip { width: 40px; height: 40px; border-radius: 12px; background: rgba(255,255,255,.16); display: grid; place-items: center; flex: none; }
+.auth-form { padding: 44px 36px; }
+.input-group-text { background: var(--surface-alt); border-color: var(--border); border-radius: 12px 0 0 12px; color: var(--primary); }
+.input-group > .form-control { border-radius: 0 12px 12px 0; }
+.kpi-pill { border-radius: 999px; padding: .25rem .75rem; font-weight: 700; font-size: .78rem; }

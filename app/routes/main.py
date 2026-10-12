@@ -2,7 +2,7 @@
 
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 
-from app.decorators import ROLES_DB, es_administrativo, login_required
+from app.decorators import ROLES_DB, es_no_comprador, login_required
 from app.services import tracking_service
 from app.supabase_client import get_reader
 
@@ -217,16 +217,16 @@ def tienda():
 def perfil():
     """Cuenta del usuario logueado.
 
-    Los clientes ven además su historial de compras. El personal administrativo
+    Los clientes ven además su historial de compras. El personal interno
     solo accede a la gestión de su cuenta: no compra, así que no se consulta ni
     se muestra historial de pedidos.
     """
     usuario_id = session.get("usuario_id")
     usuario_nombre = session.get("nombre") or session.get("username")
-    es_admin = es_administrativo(session.get("rol"))
+    sin_compra = es_no_comprador(session.get("rol"))
     compras = []
 
-    if not es_admin:
+    if not sin_compra:
         try:
             resp = (
                 get_reader()
@@ -282,5 +282,5 @@ def perfil():
         usuario_nombre=usuario_nombre,
         rol_label=ROLES_DB.get(session.get("rol") or "") or (session.get("rol") or ""),
         compras=compras,
-        mostrar_historial=not es_admin,
+        mostrar_historial=not sin_compra,
     )

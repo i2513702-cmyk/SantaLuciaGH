@@ -40,6 +40,17 @@ class Config:
     DEFAULT_PRODUCT_IMAGE = "img/producto-default.svg"
     FOOTER_BG_PATH = "img/fondo-footer.svg"
 
+    # Seguridad del login (por IP): a los N fallos hay espera; pasada la espera,
+    # M fallos mas bloquean la IP hasta que un administrador la desbloquee.
+    LOGIN_MAX_INTENTOS = int(_float_env("LOGIN_MAX_INTENTOS", 3))
+    LOGIN_ESPERA_MIN = int(_float_env("LOGIN_ESPERA_MIN", 5))
+    LOGIN_FALLOS_BLOQUEO = int(_float_env("LOGIN_FALLOS_BLOQUEO", 2))
+    TRUST_PROXY = os.getenv("TRUST_PROXY", "0") == "1"
+
+    # Iconos: si existe static/img/icons/<nombre>.(svg|png|webp|jpg) se usa la imagen;
+    # si no, el icono de Bootstrap Icons.
+    ICONS_DIR = "img/icons"
+
     # Límite de subida de archivos (2 MB)
     MAX_CONTENT_LENGTH = 2 * 1024 * 1024
     UPLOAD_FOLDER = "app/static/img/uploads"

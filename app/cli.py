@@ -61,3 +61,11 @@ def register_cli(app):
         click.echo(f"  valor:   {fila['valor']} %")
         click.echo(f"  detalle: {fila['numerador']}/{fila['denominador']} productos con stock")
         click.echo("-----------------------")
+    @app.cli.command("ip:desbloquear")
+    @click.argument("ip")
+    def ip_desbloquear(ip):
+        """Desbloquea una IP por consola (recuperacion si el admin quedo bloqueado)."""
+        from app.services import login_guard
+
+        login_guard.desbloquear(ip, "cli")
+        click.echo(f"IP {ip} desbloqueada.")

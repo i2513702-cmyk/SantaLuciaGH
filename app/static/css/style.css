@@ -479,7 +479,13 @@ h4 { font-size: 1rem; font-weight: 600; }
     margin: 12px auto 0;
 }
 
-/* ---------- Marcas (carrusel automático) ---------- */
+/* ---------- Marcas (carrusel automático en bucle) ----------
+   El track repite el grupo de tarjetas varias veces y la animación avanza
+   EXACTAMENTE un grupo de ancho (--marcas-grupos grupos idénticos), no la
+   mitad del track: así, al reiniciarse, la siguiente vuelta coloca cada tarjeta
+   justo donde estaba la anterior y no queda ningún hueco intermedio.
+   El `gap` va dentro del grupo (con padding final) para que el espacio entre
+   grupos sea idéntico al espacio entre tarjetas. */
 .marcas-viewport {
     overflow: hidden;
     padding: 8px 0;
@@ -489,16 +495,25 @@ h4 { font-size: 1rem; font-weight: 600; }
 
 .marcas-track {
     display: flex;
-    gap: 20px;
     width: max-content;
-    animation: marcas-scroll 22s linear infinite;
+    animation: marcas-scroll var(--marcas-duracion, 22s) linear infinite;
+}
+
+.marcas-group {
+    display: flex;
+    gap: 20px;
+    padding-right: 20px;
 }
 
 .marcas-track:hover { animation-play-state: paused; }
 
 @keyframes marcas-scroll {
     from { transform: translateX(0); }
-    to   { transform: translateX(-50%); }
+    to   { transform: translateX(calc(-100% / var(--marcas-grupos, 4))); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .marcas-track { animation: none; }
 }
 
 .marca-card {
@@ -1333,7 +1348,8 @@ h4 { font-size: 1rem; font-weight: 600; }
     .stats-bar { gap: 24px; flex-wrap: wrap; }
     .stat-value { font-size: 1.4rem; }
     .section { padding: 56px 0; }
-    .marcas-track { gap: 12px; animation-duration: 18s; }
+    .marcas-track { animation-duration: 18s; }
+    .marcas-group { gap: 12px; padding-right: 12px; }
     .marca-card { width: 120px; height: 60px; font-size: 0.9rem; }
     .categorias-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
     .contacto-grid { grid-template-columns: 1fr; gap: 24px; }
