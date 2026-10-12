@@ -5,15 +5,39 @@ service_role key (get_admin_client), igual que el resto del proyecto.
 """
 
 from app.exceptions import NotFoundError, ValidationError
+from app.services import storage_service
 from app.supabase_client import error_postgrest, get_admin_client, get_reader
 
 TIPO_PRODUCTOS = ("REPUESTO", "PRODUCTO")
 
 SELECT_PRODUCTO = (
     "id,codigo,nombre,descripcion,tipo_producto,marca_id,categoria_id,modelo,"
+    "precio_compra,precio_venta,precio_promocional,unidad_medida,imagen_url,activo,"
+    "marcas(nombre),categorias(nombre)"
+)
+
+# Igual que SELECT_PRODUCTO pero sin `imagen_url` (para cuando la columna aún
+# no existe en la base de datos, antes de aplicar la migración SQL).
+SELECT_PRODUCTO_SIN_IMAGEN = (
+    "id,codigo,nombre,descripcion,tipo_producto,marca_id,categoria_id,modelo,"
     "precio_compra,precio_venta,precio_promocional,unidad_medida,activo,"
     "marcas(nombre),categorias(nombre)"
 )
+
+
+def _leer_productos(construir):
+    """Ejecuta la consulta con `imagen_url`; si la columna no existe, reintenta.
+
+    Permite que el panel siga funcionando antes de aplicar la migración SQL de
+    `imagen_url` (simplemente no habrá imágenes hasta entonces).
+    """
+    ultimo_error = None
+    for select in (SELECT_PRODUCTO, SELECT_PRODUCTO_SIN_IMAGEN):
+        try:
+            return construir(select).execute().data or []
+        except Exception as exc:  # noqa: BLE001
+            ultimo_error = exc
+    raise ultimo_error
 
 
 def _existe(tabla: str, id_valor: int) -> bool:
@@ -96,27 +120,27 @@ def _validar_y_mapear(datos) -> dict:
 def listar_productos() -> list:
     """Devuelve todos los productos (activos e inactivos) con marca y categoría."""
     try:
-        resp = get_reader().table("productos").select(SELECT_PRODUCTO).order("id").execute()
+        return _leer_productos(
+            lambda sel: get_reader().table("productos").select(sel).order("id")
+        )
     except Exception as exc:  # noqa: BLE001
         raise ValidationError(error_postgrest(exc)) from exc
-    return resp.data or []
 
 
 def obtener_producto(producto_id: int) -> dict:
     try:
-        resp = (
-            get_reader()
+        filas = _leer_productos(
+            lambda sel: get_reader()
             .table("productos")
-            .select(SELECT_PRODUCTO)
+            .select(sel)
             .eq("id", producto_id)
             .limit(1)
-            .execute()
         )
     except Exception as exc:  # noqa: BLE001
         raise ValidationError(error_postgrest(exc)) from exc
-    if not resp.data:
+    if not filas:
         raise NotFoundError("El producto no existe o fue eliminado.")
-    return resp.data[0]
+    return filas[0]
 
 
 def listar_marcas() -> list:
@@ -135,16 +159,48 @@ def listar_categorias() -> list:
     return resp.data or []
 
 
-def crear_producto(datos: dict) -> dict:
+def _guardar_imagen(producto_id: int, imagen) -> str | None:
+    """Sube la imagen del producto a Storage y guarda su URL en la BD.
+
+    Si la columna `imagen_url` aún no existe (falta la migración SQL) lanza
+    un ValidationError con la instrucción exacta para crearla.
+    """
+    if not imagen or not getattr(imagen, "filename", ""):
+        return None
+    url = storage_service.subir_imagen_producto(imagen, producto_id)
+    try:
+        resp = (
+            get_admin_client()
+            .table("productos")
+            .update({"imagen_url": url})
+            .eq("id", producto_id)
+            .execute()
+        )
+    except Exception as exc:  # noqa: BLE001
+        msg = error_postgrest(exc) or str(exc)
+        if "imagen_url" in msg or "PGRST204" in msg:
+            raise ValidationError(
+                "Falta la columna `imagen_url` en la tabla productos. "
+                "Ejecuta en Supabase (SQL Editor): "
+                "ALTER TABLE public.productos ADD COLUMN IF NOT EXISTS imagen_url text;"
+            ) from exc
+        raise ValidationError(msg) from exc
+    return url
+
+
+def crear_producto(datos: dict, imagen=None) -> dict:
     fila = _validar_y_mapear(datos)
     try:
         resp = get_admin_client().table("productos").insert(fila).execute()
     except Exception as exc:  # noqa: BLE001
         raise ValidationError(error_postgrest(exc)) from exc
-    return resp.data[0]
+    producto = resp.data[0]
+    if imagen and getattr(imagen, "filename", ""):
+        producto["imagen_url"] = _guardar_imagen(producto["id"], imagen)
+    return producto
 
 
-def actualizar_producto(producto_id: int, datos: dict) -> dict:
+def actualizar_producto(producto_id: int, datos: dict, imagen=None, quitar_imagen: bool = False) -> dict:
     if not _existe("productos", producto_id):
         raise NotFoundError("El producto no existe o fue eliminado.")
     fila = _validar_y_mapear(datos)
@@ -158,7 +214,27 @@ def actualizar_producto(producto_id: int, datos: dict) -> dict:
         )
     except Exception as exc:  # noqa: BLE001
         raise ValidationError(error_postgrest(exc)) from exc
-    return resp.data[0] if resp.data else {}
+    producto = resp.data[0] if resp.data else {}
+
+    if quitar_imagen:
+        try:
+            get_admin_client().table("productos").update(
+                {"imagen_url": None}
+            ).eq("id", producto_id).execute()
+            producto["imagen_url"] = None
+        except Exception as exc:  # noqa: BLE001
+            msg = error_postgrest(exc) or str(exc)
+            if "imagen_url" in msg or "PGRST204" in msg:
+                raise ValidationError(
+                    "Falta la columna `imagen_url` en la tabla productos. "
+                    "Ejecuta en Supabase (SQL Editor): "
+                    "ALTER TABLE public.productos ADD COLUMN IF NOT EXISTS imagen_url text;"
+                ) from exc
+            raise ValidationError(msg) from exc
+    elif imagen and getattr(imagen, "filename", ""):
+        producto["imagen_url"] = _guardar_imagen(producto_id, imagen)
+
+    return producto
 
 
 def eliminar_producto(producto_id: int) -> None:

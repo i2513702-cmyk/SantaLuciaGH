@@ -18,7 +18,7 @@
             <div class="alert alert-danger py-2">{{ error }}</div>
         {% endif %}
 
-        <form method="POST"
+        <form method="POST" enctype="multipart/form-data"
               action="{{ url_for('admin.producto_editar', producto_id=producto.id) if editando else url_for('admin.producto_nuevo') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="row g-3">
@@ -36,6 +36,28 @@
                 <div class="col-12">
                     <label for="descripcion" class="form-label">Descripción</label>
                     <textarea class="form-control" id="descripcion" name="descripcion" rows="2">{{ producto.get('descripcion', '') }}</textarea>
+                </div>
+
+                <div class="col-md-6">
+                    <label for="imagen" class="form-label">Imagen del producto</label>
+                    <input type="file" class="form-control" id="imagen" name="imagen"
+                           accept="image/png,image/jpeg,image/webp,image/svg+xml">
+                    <div class="form-text">PNG, JPG, WEBP o SVG · máx 2 MB. Se guarda en Supabase Storage.</div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label d-block">Vista previa</label>
+                    {% if producto.get('imagen_url') %}
+                        <img src="{{ producto.imagen_url }}" alt="{{ producto.get('nombre', 'Producto') }}"
+                             class="img-thumbnail" style="max-height:96px;">
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="checkbox" id="quitar_imagen" name="quitar_imagen" value="on">
+                            <label class="form-check-label" for="quitar_imagen">Quitar imagen actual</label>
+                        </div>
+                    {% else %}
+                        <img src="{{ url_for('static', filename='img/producto-default.svg') }}" alt="Sin imagen"
+                             class="img-thumbnail" style="max-height:96px; opacity:.6;">
+                        <p class="text-secondary small mt-2 mb-0">Sin imagen: se muestra una por defecto.</p>
+                    {% endif %}
                 </div>
 
                 <div class="col-md-4">

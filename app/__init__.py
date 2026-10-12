@@ -24,7 +24,7 @@ def create_app() -> Flask:
     bcrypt.init_app(app)
 
     # --- Blueprints ---
-    from app.routes import admin, api, auth, carrito, checkout, citas, kpi, main, seguridad, ventas, worker
+    from app.routes import admin, api, auth, carrito, checkout, citas, identidad, kpi, main, seguridad, ventas, worker
     from app.routes.supabase import bp as supabase_bp
 
     app.register_blueprint(main.bp)
@@ -39,6 +39,7 @@ def create_app() -> Flask:
     app.register_blueprint(ventas.bp)
     app.register_blueprint(supabase_bp)
     app.register_blueprint(api.bp)
+    app.register_blueprint(identidad.bp)
 
     # --- Comandos CLI ---
     from app.cli import register_cli
@@ -49,6 +50,12 @@ def create_app() -> Flask:
     from app.supabase_client import calentar
 
     calentar()
+
+    # --- Storage: asegurar que existan los buckets de imágenes (idempotente) ---
+    from app.services import storage_service
+
+    for _bucket in (storage_service.BUCKET_PRODUCTOS, storage_service.BUCKET_LOGOS):
+        storage_service.asegurar_bucket(_bucket)
 
     # --- Limpiar carritos vencidos en segundo plano al arrancar ---
     from app.services.carrito_service import iniciar_purga
@@ -98,10 +105,14 @@ def create_app() -> Flask:
         # personal interno nunca ve un carrito propio en la cabecera.
         carrito_n = session.get("carrito_n", 0) if puede_comprar(rol) else 0
 
+        from app.services import storage_service
+
         return {
             "app_name": app.config["APP_NAME"],
             "app_tagline": app.config["APP_TAGLINE"],
             "logo_path": app.config["LOGO_PATH"],
+            "logo_url": storage_service.obtener_logo_url(),
+            "footer_bg_url": storage_service.obtener_fondo_url(),
             "footer_bg": app.config["FOOTER_BG_PATH"],
             "rol": rol,
             "rol_panel": map_rol(rol),

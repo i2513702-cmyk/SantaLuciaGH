@@ -39,8 +39,17 @@
                     {% for item in items %}
                         <tr>
                             <td>
-                                {{ item.nombre }}
-                                {% if item.marca %}<span class="badge text-bg-secondary">{{ item.marca }}</span>{% endif %}
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="ratio ratio-1x1" style="width:72px; border-radius:10px; overflow:hidden;">
+                                        <img src="{% if item.imagen_url %}{{ item.imagen_url }}{% else %}{{ url_for('static', filename='img/placeholder-product.svg') }}{% endif %}"
+                                             alt="{{ item.nombre }}"
+                                             class="w-100 h-100 object-fit-cover">
+                                    </div>
+                                    <div>
+                                        <div class="fw-semibold">{{ item.nombre }}</div>
+                                        {% if item.marca %}<div class="small text-secondary">{{ item.marca }}</div>{% endif %}
+                                    </div>
+                                </div>
                             </td>
                             <td>{{ item.precio_unitario }}</td>
                             <td>

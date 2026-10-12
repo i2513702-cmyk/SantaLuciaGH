@@ -16,6 +16,35 @@ def _precio(valor):
         return "—"
 
 
+# Columnas del catálogo. Se leen con `imagen_url`; si esa columna aún no
+# existe en Supabase (migración pendiente), se reintenta sin ella para no
+# romper la tienda ni los destacados del inicio.
+_COLS_CATALOGO = (
+    "id,nombre,descripcion,modelo,tipo_producto,imagen_url,"
+    "marca_id,categoria_id,precio_venta,precio_promocional,"
+    "marcas(nombre),categorias(nombre)"
+)
+_COLS_CATALOGO_SIN_IMG = (
+    "id,nombre,descripcion,modelo,tipo_producto,"
+    "marca_id,categoria_id,precio_venta,precio_promocional,"
+    "marcas(nombre),categorias(nombre)"
+)
+
+
+def _leer_productos_activos(limite=None) -> list:
+    """Lee el catálogo activo, incluyendo la imagen del producto si existe."""
+    reader = get_reader()
+    for cols in (_COLS_CATALOGO, _COLS_CATALOGO_SIN_IMG):
+        try:
+            q = reader.table("productos").select(cols).eq("activo", True).order("nombre")
+            if limite:
+                q = q.limit(limite)
+            return q.execute().data or []
+        except Exception:  # noqa: BLE001
+            continue
+    return []
+
+
 def _cargar_home_data() -> dict:
     """Carga datos públicos para la landing y la tienda."""
     reader = get_reader()
@@ -42,13 +71,7 @@ def _cargar_home_data() -> dict:
         {"id": c["id"], "nombre": c["nombre"]}
         for c in _q("categorias", "id,nombre", orden="id")
     ]
-    productos_raw = _q(
-        "productos",
-        "id,nombre,precio_venta,precio_promocional,marcas(nombre),categorias(nombre)",
-        filtros={"activo": True},
-        orden="nombre",
-        lim=6,
-    )
+    productos_raw = _leer_productos_activos(limite=6)
     productos = []
     for p in productos_raw:
         original = _precio(p.get("precio_venta"))
@@ -56,6 +79,7 @@ def _cargar_home_data() -> dict:
         productos.append({
             "id": p.get("id"),
             "nombre": p.get("nombre"),
+            "imagen_url": p.get("imagen_url"),
             "marca": (p.get("marcas") or {}).get("nombre"),
             "categoria": (p.get("categorias") or {}).get("nombre"),
             "precio_ahora": promocional or original,
@@ -100,22 +124,7 @@ def tienda():
     marca_id = request.args.get("marca", "").strip()
     solo_ofertas = request.args.get("oferta") == "on"
 
-    try:
-        resp = (
-            get_reader()
-            .table("productos")
-            .select(
-                "id,nombre,descripcion,modelo,tipo_producto,"
-                "marca_id,categoria_id,precio_venta,precio_promocional,"
-                "marcas(nombre),categorias(nombre)"
-            )
-            .eq("activo", True)
-            .order("nombre")
-            .execute()
-        )
-        filas = resp.data or []
-    except Exception:  # noqa: BLE001
-        filas = []
+    filas = _leer_productos_activos()
 
     try:
         categorias_tabla = (
@@ -135,6 +144,7 @@ def tienda():
         productos.append({
             "id": p.get("id"),
             "nombre": p.get("nombre"),
+            "imagen_url": p.get("imagen_url"),
             "marca": (p.get("marcas") or {}).get("nombre"),
             "categoria": (p.get("categorias") or {}).get("nombre"),
             "marca_id": p.get("marca_id"),

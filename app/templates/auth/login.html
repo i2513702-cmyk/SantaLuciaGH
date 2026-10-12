@@ -53,7 +53,7 @@
 
 <div class="login-shell">
     <aside class="login-brand">
-        <img class="logo mb-4" src="{{ url_for('static', filename=logo_path) }}" alt="Logo {{ app_name }}">
+        <img class="logo mb-4" src="{{ logo_url or url_for('static', filename=logo_path) }}" alt="Logo {{ app_name }}">
         <h2 class="fw-bold display-6 mb-2">Tu taller, bajo control.</h2>
         <p class="opacity-75 mb-5">Ventas, inventario y citas técnicas en un solo lugar, para decidir con datos.</p>
         <ul class="list-unstyled mb-0">

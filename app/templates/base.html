@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block title %}{{ app_name }}{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,7 +19,7 @@
     <nav class="navbar navbar-expand-lg sl-nav sticky-top">
         <div class="container-fluid px-3 px-lg-5">
             <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('admin.dashboard') if es_admin else url_for('main.home') }}">
-                <img src="{{ url_for('static', filename=logo_path) }}" alt="Logo {{ app_name }}" class="brand-logo">
+                <img src="{{ logo_url or url_for('static', filename=logo_path) }}" alt="Logo {{ app_name }}" class="brand-logo">
                 <span class="brand-name">Santa Lucía <span>Servicio Técnico</span></span>
             </a>
             <button class="navbar-toggler border-0" type="button" data-bs-toggle="offcanvas" data-bs-target="#menuPrincipal" aria-controls="menuPrincipal" aria-label="Abrir menú">
@@ -97,12 +98,12 @@
     </main>
 
     {% block footer %}
-    <footer class="footer">
+    <footer class="footer"{% if footer_bg_url %} style="background-image: linear-gradient(rgba(9,21,60,.86), rgba(9,21,60,.86)), url('{{ footer_bg_url }}'); background-size: cover; background-position: center; background-repeat: no-repeat;"{% endif %}>
         <div class="container">
             <div class="footer-grid">
                 <div class="footer-brand-col">
                     <div class="footer-brand">
-                        <img src="{{ url_for('static', filename=logo_path) }}" alt="Logo {{ app_name }}" class="footer-brand-logo">
+                        <img src="{{ logo_url or url_for('static', filename=logo_path) }}" alt="Logo {{ app_name }}" class="footer-brand-logo">
                         <span class="footer-brand-name">{{ app_name }} Servicio Técnico</span>
                     </div>
                     <p class="footer-desc">Diagnóstico honesto, garantía de 90 días y atención a domicilio o en taller. Todo para tu hogar y más.</p>
