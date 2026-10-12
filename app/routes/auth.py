@@ -170,6 +170,40 @@ def cambiar_clave():
     return render_template("auth/cambiar_clave.html")
 
 
+@bp.route("/recuperar_clave", methods=["GET", "POST"])
+def recuperar_clave():
+    """Recupera/restablece la contraseña desde el login, sin sesión.
+
+    Verifica la identidad con el número de documento registrado en la cuenta
+    (cliente o empleado) y guarda la nueva contraseña como hash bcrypt.
+    """
+    if "usuario_id" in session:
+        return redirect(url_for("auth.panel"))
+
+    error = None
+    if request.method == "POST":
+        identificador = request.form.get("identificador", "").strip()
+        documento = request.form.get("documento", "").strip()
+        nueva = request.form.get("nueva", "")
+        confirmar = request.form.get("confirmar", "")
+        if nueva != confirmar:
+            error = "La confirmación no coincide con la nueva contraseña."
+        else:
+            try:
+                rest_auth_service.recuperar_clave(identificador, documento, nueva)
+                flash(
+                    "Contraseña restablecida correctamente. Ya puedes iniciar sesión.",
+                    "success",
+                )
+                return redirect(url_for("auth.login"))
+            except (AppError, ValidationError) as exc:
+                error = exc.message if isinstance(exc, AppError) else str(exc)
+            except Exception:  # noqa: BLE001
+                error = "No se pudo restablecer la contraseña. Inténtalo de nuevo."
+
+    return render_template("auth/recuperar_clave.html", error=error)
+
+
 @bp.route("/sistema/usuarios")
 @login_required
 @admin_required

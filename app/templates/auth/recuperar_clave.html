@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block title %}Recuperar contraseña — {{ app_name }}{% endblock %}
+{% block nav %}{% endblock %}
+{% block footer %}{% endblock %}
+{% block main_wrap %}login-main{% endblock %}
+
+{% block head %}
+<style>
+    body { background: #0b1b4d; }
+    .login-main { flex: 1; min-height: 100vh; position: relative; display: grid; place-items: center; padding: 24px 16px; overflow: hidden;
+        background: linear-gradient(120deg, #0b1b4d, #1d4ed8, #06b6d4, #1e3a8a); background-size: 300% 300%; animation: fondo 16s ease infinite; }
+    .login-main > * { animation: none; }
+    .orb { position: absolute; border-radius: 50%; filter: blur(2px); opacity: .22; background: #fff; animation: flotar 12s ease-in-out infinite; }
+    .orb.o1 { width: 280px; height: 280px; left: -80px; top: 8%; }
+    .orb.o2 { width: 170px; height: 170px; right: 8%; top: 12%; animation-delay: -4s; background: #fbbf24; opacity: .25; }
+    .orb.o3 { width: 360px; height: 360px; right: -120px; bottom: -100px; animation-delay: -7s; }
+    .recuperar-back { position: absolute; top: 18px; left: 22px; color: #fff; text-decoration: none; font-weight: 600; opacity: .85; z-index: 3; }
+    .recuperar-back:hover { color: #fff; opacity: 1; }
+    .recuperar-card { position: relative; z-index: 2; width: min(480px, 100%); border-radius: 28px; background: rgba(255,255,255,.97);
+        box-shadow: 0 40px 90px rgba(0,0,0,.45); padding: 44px 40px; animation: entrar .8s cubic-bezier(.2,.9,.3,1.1) both; }
+    .recuperar-card .logo { width: 56px; height: 56px; background: #fff; border-radius: 16px; padding: 8px; box-shadow: 0 6px 16px rgba(11,27,77,.18); }
+    .recuperar-card .btn-recuperar { position: relative; overflow: hidden; padding: 13px; font-size: 1rem; box-shadow: 0 10px 24px rgba(29,78,216,.35); transition: transform .2s, box-shadow .2s; }
+    .recuperar-card .btn-recuperar:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(29,78,216,.45); }
+    .recuperar-card .btn-recuperar::after { content: ""; position: absolute; top: 0; left: -120%; width: 60%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,.45), transparent); transform: skewX(-20deg); animation: brillo 3.5s infinite; }
+    @keyframes fondo { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+    @keyframes flotar { 0%,100% { transform: translateY(0) scale(1); } 50% { transform: translateY(-34px) scale(1.06); } }
+    @keyframes entrar { from { opacity: 0; transform: translateY(40px) scale(.95); } to { opacity: 1; transform: none; } }
+    @keyframes brillo { 0% { left: -120%; } 40%,100% { left: 160%; } }
+    @media (max-width: 520px) { .recuperar-card { padding: 34px 22px; border-radius: 22px; } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<span class="orb o1"></span><span class="orb o2"></span><span class="orb o3"></span>
+<a class="recuperar-back" href="{{ url_for('auth.login') }}"><i class="bi bi-arrow-left"></i> Volver al inicio de sesión</a>
+
+<div class="recuperar-card">
+    <div class="d-flex align-items-center gap-3 mb-3">
+        <img class="logo" src="{{ url_for('static', filename=logo_path) }}" alt="Logo {{ app_name }}">
+        <div>
+            <h1 class="h4 fw-bold mb-0">Recuperar contraseña</h1>
+            <p class="text-secondary small mb-0">Verifica tu identidad y define una nueva.</p>
+        </div>
+    </div>
+
+    <p class="small text-secondary">
+        Ingresa tu <strong>usuario o correo</strong> y el <strong>número de documento</strong>
+        (DNI/RUC) registrado en tu cuenta. Si los datos coinciden, podrás crear una nueva contraseña.
+    </p>
+
+    {% if error %}
+        <div class="alert alert-danger d-flex align-items-start gap-2 py-2" role="alert" aria-live="assertive">
+            <i class="bi bi-exclamation-triangle mt-1"></i>
+            <div>{{ error }}</div>
+        </div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('auth.recuperar_clave') }}" id="formRecuperar" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+        <div class="form-floating mb-3">
+            <input type="text" class="form-control" id="identificador" name="identificador" required autofocus
+                   autocomplete="username" placeholder="Usuario o correo"
+                   value="{{ request.form.get('identificador', '') }}">
+            <label for="identificador"><i class="bi bi-person"></i> Usuario o correo</label>
+        </div>
+
+        <div class="form-floating mb-3">
+            <input type="text" class="form-control" id="documento" name="documento" required
+                   autocomplete="off" placeholder="Número de documento"
+                   value="{{ request.form.get('documento', '') }}">
+            <label for="documento"><i class="bi bi-card-text"></i> Número de documento (DNI/RUC)</label>
+        </div>
+
+        <div class="mb-1">
+            <div class="input-group">
+                <div class="form-floating flex-grow-1">
+                    <input type="password" class="form-control" id="nueva" name="nueva" required minlength="8"
+                           autocomplete="new-password" placeholder="Nueva contraseña" style="border-radius:12px 0 0 12px">
+                    <label for="nueva"><i class="bi bi-lock"></i> Nueva contraseña</label>
+                </div>
+                <button class="btn btn-outline-secondary" type="button" data-toggle-pass="nueva" tabindex="-1" aria-label="Ver nueva contraseña"><i class="bi bi-eye"></i></button>
+            </div>
+            <div class="meter mt-2" aria-hidden="true"><span class="meter-bar" id="meter-bar"></span></div>
+            <small class="text-secondary" id="meter-text">Usa al menos 8 caracteres.</small>
+        </div>
+
+        <div class="mb-3">
+            <div class="input-group">
+                <div class="form-floating flex-grow-1">
+                    <input type="password" class="form-control" id="confirmar" name="confirmar" required minlength="8"
+                           autocomplete="new-password" placeholder="Confirmar contraseña" style="border-radius:12px 0 0 12px">
+                    <label for="confirmar"><i class="bi bi-shield-lock"></i> Confirmar contraseña</label>
+                </div>
+                <button class="btn btn-outline-secondary" type="button" data-toggle-pass="confirmar" tabindex="-1" aria-label="Ver confirmación"><i class="bi bi-eye"></i></button>
+            </div>
+            <small class="text-danger d-none" id="match-msg">La confirmación no coincide.</small>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-recuperar w-100 mb-3" id="btnRecuperar">
+            <span class="txt">Restablecer contraseña <i class="bi bi-check2-circle"></i></span>
+            <span class="cargando d-none"><span class="spinner-border spinner-border-sm"></span> Guardando…</span>
+        </button>
+    </form>
+
+    <p class="small text-secondary mb-0 text-center">
+        <i class="bi bi-info-circle"></i> ¿No recuerdas tu documento? Pide ayuda al administrador.
+    </p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    // Mostrar / ocultar contraseña
+    document.querySelectorAll('[data-toggle-pass]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var input = document.getElementById(btn.getAttribute('data-toggle-pass'));
+            if (!input) return;
+            var mostrar = input.type === 'password';
+            input.type = mostrar ? 'text' : 'password';
+            btn.firstElementChild.className = 'bi bi-' + (mostrar ? 'eye-slash' : 'eye');
+        });
+    });
+
+    // Medidor de fortaleza de contraseña
+    var nueva = document.getElementById('nueva');
+    var bar = document.getElementById('meter-bar');
+    var texto = document.getElementById('meter-text');
+    if (nueva && bar) {
+        nueva.addEventListener('input', function () {
+            var v = nueva.value;
+            var score = 0;
+            if (v.length >= 8) score++;
+            if (v.length >= 12) score++;
+            if (/[A-Z]/.test(v) && /[a-z]/.test(v)) score++;
+            if (/\d/.test(v)) score++;
+            if (/[^A-Za-z0-9]/.test(v)) score++;
+            var map = {0: ['#e2e8f0', ''], 1: ['#dc2626', 'Débil'], 2: ['#d97706', 'Aceptable'], 3: ['#f59e0b', 'Buena'], 4: ['#16a34a', 'Muy buena'], 5: ['#16a34a', 'Excelente']};
+            var r = map[Math.min(score, 5)];
+            bar.style.width = (score / 5 * 100) + '%';
+            bar.style.background = r[0];
+            texto.textContent = r[1] || 'Usa al menos 8 caracteres.';
+        });
+    }
+
+    // Validación de confirmación en vivo
+    var confirmar = document.getElementById('confirmar');
+    var matchMsg = document.getElementById('match-msg');
+    var check = function () {
+        if (!nueva || !confirmar || !matchMsg) return;
+        var ok = confirmar.value === nueva.value && confirmar.value.length >= 8;
+        var mostrarError = !ok && confirmar.value.length > 0;
+        confirmar.classList.toggle('is-invalid', mostrarError);
+        matchMsg.classList.toggle('d-none', !mostrarError);
+    };
+    if (nueva && confirmar) {
+        nueva.addEventListener('input', check);
+        confirmar.addEventListener('input', check);
+    }
+
+    // Estado de carga al enviar
+    var form = document.getElementById('formRecuperar'), btn = document.getElementById('btnRecuperar');
+    form.addEventListener('submit', function (e) {
+        if (confirmar.value !== nueva.value) {
+            e.preventDefault();
+            check();
+            confirmar.focus();
+            return;
+        }
+        btn.disabled = true;
+        btn.querySelector('.txt').classList.add('d-none');
+        btn.querySelector('.cargando').classList.remove('d-none');
+    });
+})();
+</script>
+{% endblock %}

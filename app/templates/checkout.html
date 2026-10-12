@@ -6,15 +6,12 @@
 <section class="d-flex flex-wrap align-items-center justify-content-between mb-4">
     <div>
         <h1 class="h3 fw-semibold mb-1">Finalizar compra</h1>
-        <p class="text-secondary mb-0">Revisa tu pedido, elige la forma de pago y simula el pago.</p>
+        <p class="text-secondary mb-0">Revisa tu pedido, elige la forma de pago.</p>
     </div>
     <a class="btn btn-outline-primary" href="{{ url_for('carrito.ver') }}">Volver al carrito</a>
 </section>
 
-<div class="alert alert-warning d-flex align-items-center gap-2">
-    <span>🧪</span>
-    <span><strong>Modo simulación:</strong> el pago es una demo, no se cobra nada real.</span>
-</div>
+
 
 <div class="row g-4">
     <div class="col-lg-7">
@@ -165,7 +162,7 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="usar_cliente" value="0">
             <div class="card shadow-sm">
-                <div class="card-header fw-semibold">Forma de pago (simulada)</div>
+                <div class="card-header fw-semibold">Forma de pago</div>
                 <div class="card-body">
                     <div class="mb-3">
                         <label class="form-label">Tipo de comprobante</label>
@@ -188,8 +185,8 @@
                     {% endfor %}
                 </div>
                 <div class="card-footer d-grid">
-                    <button type="submit" class="btn btn-primary btn-lg">💳 Pagar {{ total }} (simular)</button>
-                    <small class="text-muted text-center mt-2">Pago simulado: se registrará en la base de datos y aparecerá en tu historial de compras.</small>
+                    <button type="submit" class="btn btn-primary btn-lg">💳 Pagar {{ total }} </button>
+                    <small class="text-muted text-center mt-2">Se mostrará en tu historial de compras.</small>
                 </div>
             </div>
         </form>
