@@ -1,10 +1,11 @@
-"""Subida de imágenes a Supabase Storage (catálogo de productos y marca/logo).
+"""Subida de imágenes a Supabase Storage (catálogo de productos y marca).
 
 Los archivos se guardan en buckets públicos y se enlazan por URL pública:
 
 - bucket `productos` -> imágenes de productos (URL guardada en `imagen_url`).
-- bucket `logos`    -> logo de Santa Lucía (archivo `logo.<ext>` con nombre
-  estable para poder sobrescribirlo al cambiar el logo).
+- bucket `logos`     -> marca de Santa Lucía:
+    - `logo.<ext>`   -> logo (barra superior, pie y login).
+    - `footer.<ext>` -> imagen de fondo del pie de página.
 
 Sin dependencias nuevas: usamos el cliente de supabase-py que ya existe.
 """
@@ -21,6 +22,7 @@ log = logging.getLogger(__name__)
 BUCKET_PRODUCTOS = "productos"
 BUCKET_LOGOS = "logos"
 PREFIJO_LOGO = "logo."
+PREFIJO_FONDO = "footer."
 
 EXTENSIONES = {"png", "jpg", "jpeg", "webp", "svg"}
 CONTENT_TYPES = {
@@ -31,10 +33,11 @@ CONTENT_TYPES = {
     "svg": "image/svg+xml",
 }
 
-# Logo: se descubre una sola vez (la subida lo invalida).
-_logo_revisado = False
-_logo_archivo: str | None = None
-_logo_url: str | None = None
+# Piezas de marca con nombre estable (para poder sobrescribirlas).
+_PIEZAS = {"logo": PREFIJO_LOGO, "fondo": PREFIJO_FONDO}
+
+# Estado por pieza: {"revisado": bool, "archivo": str|None, "url": str|None}
+_estado = {clave: {"revisado": False, "archivo": None, "url": None} for clave in _PIEZAS}
 
 
 def _bucket(bucket: str):
@@ -92,65 +95,97 @@ def subir_imagen_producto(archivo, producto_id: int) -> str:
 
 
 # --------------------------------------------------------------------------
-# Logo de Santa Lucía
+# Marca: logo y fondo del pie de página (bucket `logos`)
 # --------------------------------------------------------------------------
 
-def _descubrir_logo() -> str | None:
-    """Busca en el bucket logos un archivo `logo.*` y devuelve su ruta."""
+def _listar_bucket() -> list:
     try:
-        items = _bucket(BUCKET_LOGOS).list("", {"limit": 20})
-        for item in items or []:
-            nombre = item.get("name") or ""
-            if nombre.startswith(PREFIJO_LOGO):
-                return nombre
+        return _bucket(BUCKET_LOGOS).list("", {"limit": 50}) or []
     except Exception:  # noqa: BLE001
-        log.debug("No se pudo revisar el logo en storage", exc_info=True)
+        log.debug("No se pudo listar el bucket %s", BUCKET_LOGOS, exc_info=True)
+        return []
+
+
+def _descubrir(prefijo: str) -> str | None:
+    """Devuelve el nombre del archivo que empieza con `prefijo`, si existe."""
+    for item in _listar_bucket():
+        nombre = item.get("name") or ""
+        if nombre.startswith(prefijo):
+            return nombre
     return None
 
 
+def _url_pieza(clave: str) -> str | None:
+    """URL pública de una pieza de marca; se descubre una sola vez."""
+    info = _estado[clave]
+    if not info["revisado"]:
+        info["archivo"] = _descubrir(_PIEZAS[clave])
+        info["url"] = (
+            url_publica(BUCKET_LOGOS, info["archivo"]) if info["archivo"] else None
+        )
+        info["revisado"] = True
+    return info["url"]
+
+
+def _subir_pieza(clave: str, archivo) -> str:
+    """Sobrescribe una pieza de marca (nombre estable) y devuelve su URL."""
+    prefijo = _PIEZAS[clave]
+    url, ruta = subir_imagen(BUCKET_LOGOS, prefijo.rstrip("."), archivo, upsert=True)
+
+    # Limpia versiones viejas con otra extensión (logo.png vs logo.jpg…).
+    for item in _listar_bucket():
+        nombre = item.get("name") or ""
+        if nombre.startswith(prefijo) and nombre != ruta:
+            try:
+                _bucket(BUCKET_LOGOS).remove([nombre])
+            except Exception:  # noqa: BLE001
+                pass
+
+    _estado[clave] = {"revisado": True, "archivo": ruta, "url": url}
+    return url
+
+
+def _quitar_pieza(clave: str) -> None:
+    """Elimina una pieza de marca subida (vuelve al valor por defecto)."""
+    info = _estado[clave]
+    archivo = info["archivo"] or _descubrir(_PIEZAS[clave])
+    if archivo:
+        try:
+            _bucket(BUCKET_LOGOS).remove([archivo])
+        except Exception:  # noqa: BLE001
+            pass
+    _estado[clave] = {"revisado": True, "archivo": None, "url": None}
+
+
+# --- API pública: logo -----------------------------------------------------
+
 def obtener_logo_url() -> str | None:
     """URL pública del logo si ya se subió uno; None si se usa el estático."""
-    global _logo_revisado, _logo_archivo, _logo_url
-    if not _logo_revisado:
-        _logo_revisado = True
-        _logo_archivo = _descubrir_logo()
-        _logo_url = (
-            url_publica(BUCKET_LOGOS, _logo_archivo) if _logo_archivo else None
-        )
-    return _logo_url
+    return _url_pieza("logo")
 
 
 def subir_logo(archivo) -> str:
     """Sobrescribe el logo en storage y devuelve su URL pública."""
-    global _logo_revisado, _logo_archivo, _logo_url
-
-    # Cualquier extensión permitida se guarda con prefijo estable `logo.`
-    url, ruta = subir_imagen(BUCKET_LOGOS, "logo", archivo, upsert=True)
-
-    # Limpia logos viejos con otra extensión para no acumular `logo.png`,
-    # `logo.jpg`, etc.
-    try:
-        for item in _bucket(BUCKET_LOGOS).list("", {"limit": 20}) or []:
-            nombre = item.get("name") or ""
-            if nombre.startswith(PREFIJO_LOGO) and nombre != ruta:
-                _bucket(BUCKET_LOGOS).remove([nombre])
-    except Exception:  # noqa: BLE001
-        pass
-
-    _logo_revisado = True
-    _logo_archivo = ruta
-    _logo_url = url
-    return url
+    return _subir_pieza("logo", archivo)
 
 
 def quitar_logo() -> None:
     """Elimina el logo subido; se vuelve al logo estático por defecto."""
-    global _logo_revisado, _logo_archivo, _logo_url
-    try:
-        if _logo_archivo:
-            _bucket(BUCKET_LOGOS).remove([_logo_archivo])
-    except Exception:  # noqa: BLE001
-        pass
-    _logo_revisado = True
-    _logo_archivo = None
-    _logo_url = None
+    _quitar_pieza("logo")
+
+
+# --- API pública: fondo del pie de página ----------------------------------
+
+def obtener_fondo_url() -> str | None:
+    """URL pública del fondo del pie si ya se subió uno; None si no hay."""
+    return _url_pieza("fondo")
+
+
+def subir_fondo(archivo) -> str:
+    """Sobrescribe el fondo del pie de página y devuelve su URL pública."""
+    return _subir_pieza("fondo", archivo)
+
+
+def quitar_fondo() -> None:
+    """Elimina el fondo del pie subido; se vuelve al color por defecto."""
+    _quitar_pieza("fondo")

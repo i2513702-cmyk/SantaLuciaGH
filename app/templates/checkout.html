@@ -33,7 +33,19 @@
                     <tbody>
                         {% for item in items %}
                             <tr>
-                                <td>{{ item.nombre }}{% if item.marca %} <span class="badge text-bg-secondary">{{ item.marca }}</span>{% endif %}</td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-3">
+                                        <div class="ratio ratio-1x1" style="width:52px;">
+                                            <img src="{% if item.imagen_url %}{{ item.imagen_url }}{% else %}{{ url_for('static', filename='img/placeholder-product.svg') }}{% endif %}"
+                                                 alt="{{ item.nombre }}"
+                                                 class="rounded-3 border object-fit-cover">
+                                        </div>
+                                        <div>
+                                            <div class="fw-semibold">{{ item.nombre }}</div>
+                                            {% if item.marca %}<div class="small text-secondary">{{ item.marca }}</div>{% endif %}
+                                        </div>
+                                    </div>
+                                </td>
                                 <td class="text-end">{{ item.precio_unitario }}</td>
                                 <td class="text-center">{{ item.cantidad }}</td>
                                 <td class="text-end fw-semibold">{{ item.subtotal }}</td>
@@ -120,7 +132,16 @@
                     <tbody>
                         {% for item in items %}
                             <tr>
-                                <td>{{ item.nombre }} <span class="text-muted">× {{ item.cantidad }}</span></td>
+                                <td>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <div class="ratio ratio-1x1" style="width:40px;">
+                                            <img src="{% if item.imagen_url %}{{ item.imagen_url }}{% else %}{{ url_for('static', filename='img/placeholder-product.svg') }}{% endif %}"
+                                                 alt="{{ item.nombre }}"
+                                                 class="rounded-2 border object-fit-cover">
+                                        </div>
+                                        <div>{{ item.nombre }} <span class="text-muted">× {{ item.cantidad }}</span></div>
+                                    </div>
+                                </td>
                                 <td class="text-end">{{ item.subtotal }}</td>
                             </tr>
                         {% endfor %}

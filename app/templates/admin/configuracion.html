@@ -25,7 +25,7 @@
                 <h2 class="h5 fw-semibold mb-3">Logo de {{ app_name }}</h2>
                 <p class="text-secondary small">
                     Se muestra en la barra superior, el pie de página y el inicio de sesión.
-                    Formatos permitidos: PNG, JPG, WEBP o SVG · máx 2 MB.
+                    Formatos: PNG, JPG, WEBP o SVG · máx 2 MB.
                 </p>
 
                 <div class="text-center bg-light border rounded-3 p-3 mb-3">
@@ -62,12 +62,53 @@
     <div class="col-lg-6">
         <div class="card shadow-sm h-100">
             <div class="card-body p-4">
+                <h2 class="h5 fw-semibold mb-3">Fondo del pie de página</h2>
+                <p class="text-secondary small">
+                    Imagen de fondo del pie (se aplica un degradado azul encima para que el
+                    texto siga siendo legible). Formatos: PNG, JPG, WEBP o SVG · máx 2 MB.
+                </p>
+
+                <div class="rounded-3 mb-3 d-flex align-items-center justify-content-center"
+                     style="min-height:120px; border:1px solid #dee2e6;
+                            {% if fondo_url %}background-image: linear-gradient(rgba(9,21,60,.86), rgba(9,21,60,.86)), url('{{ fondo_url }}'); background-size:cover; background-position:center;
+                            {% else %}background:#0b1b4d;{% endif %}">
+                    <span class="text-white-50 small">
+                        {% if fondo_url %}Fondo personalizado{% else %}Color predeterminado{% endif %}
+                    </span>
+                </div>
+
+                <form method="POST" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="accion" value="fondo">
+                    <div class="mb-3">
+                        <label for="fondo" class="form-label">Subir imagen de fondo</label>
+                        <input type="file" class="form-control" id="fondo" name="fondo"
+                               accept="image/png,image/jpeg,image/webp,image/svg+xml" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Guardar fondo</button>
+                </form>
+
+                {% if fondo_url %}
+                    <form method="POST" class="mt-2"
+                          onsubmit="return confirm('¿Restaurar el fondo predeterminado? Se eliminará la imagen subida.');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="accion" value="quitar_fondo">
+                        <button type="submit" class="btn btn-outline-secondary btn-sm">Restaurar fondo predeterminado</button>
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-body p-4">
                 <h2 class="h5 fw-semibold mb-3">Imágenes de productos</h2>
                 <p class="text-secondary small mb-3">
                     Cada producto tiene su propia imagen, que se sube desde el formulario de
                     <strong>Productos → Nuevo / Editar</strong>. Las imágenes viven en el bucket
-                    público <code>productos</code> de Supabase Storage y se muestran en la tienda
-                    y en los destacados del inicio.
+                    público <code>productos</code> de Supabase Storage y se muestran en la tienda,
+                    los destacados del inicio, el carrito y el checkout.
                 </p>
                 <a class="btn btn-outline-primary" href="{{ url_for('admin.productos') }}">Gestionar productos</a>
 

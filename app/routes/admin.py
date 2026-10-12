@@ -899,11 +899,11 @@ def producto_eliminar(producto_id):
 @bp.route("/admin/configuracion", methods=["GET", "POST"])
 @roles_required("admin")
 def configuracion():
-    """Marca de la tienda: cambiar el logo de Santa Lucía (Supabase Storage).
+    """Marca de la tienda: logo y fondo del pie (Supabase Storage).
 
-    El logo se sube al bucket `logos` con nombre estable `logo.<ext>` y se
-    muestra en toda la web vía su URL pública; si no hay logo subido se usa
-    el archivo estático por defecto.
+    Se suben al bucket `logos` con nombres estables (`logo.<ext>` y
+    `footer.<ext>`) y se muestran en toda la web vía su URL pública; si no hay
+    archivo subido se usa el logo estático y el color de fondo por defecto.
     """
     from app.services import storage_service
 
@@ -922,6 +922,15 @@ def configuracion():
             elif accion == "quitar_logo":
                 storage_service.quitar_logo()
                 exitoso = "Logo restaurado al predeterminado."
+            elif accion == "fondo":
+                fondo = request.files.get("fondo")
+                if not fondo or not getattr(fondo, "filename", ""):
+                    raise ValidationError("Selecciona un archivo de imagen para el fondo.")
+                storage_service.subir_fondo(fondo)
+                exitoso = "Fondo del pie actualizado."
+            elif accion == "quitar_fondo":
+                storage_service.quitar_fondo()
+                exitoso = "Fondo del pie restaurado al predeterminado."
             else:
                 raise ValidationError("Acción no reconocida.")
         except (AppError, ValidationError) as exc:
@@ -933,6 +942,7 @@ def configuracion():
         "admin/configuracion.html",
         logo_url=storage_service.obtener_logo_url(),
         logo_default=url_for("static", filename="img/logo.svg"),
+        fondo_url=storage_service.obtener_fondo_url(),
         error=error,
         exitoso=exitoso,
     )

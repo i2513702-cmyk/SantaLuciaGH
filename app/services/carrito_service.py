@@ -379,22 +379,42 @@ def agregar(carrito_id: int, producto_id: int, cantidad: int) -> dict:
     return resultado
 
 
+_SELECT_ITEM = (
+    "id,carrito_id,producto_id,cantidad,"
+    "productos(id,nombre,precio_venta,precio_promocional,imagen_url,"
+    "marcas(nombre),categorias(nombre))"
+)
+# Fallback si la columna `imagen_url` aún no existe en `productos`.
+_SELECT_ITEM_SIN_IMAGEN = (
+    "id,carrito_id,producto_id,cantidad,"
+    "productos(id,nombre,precio_venta,precio_promocional,"
+    "marcas(nombre),categorias(nombre))"
+)
+
+
 def listar(carrito_id: int) -> list:
     """Devuelve los items del carrito con datos vivos del producto."""
     try:
         resp = (
             get_reader()
             .table("detalle_carrito")
-            .select(
-                "id,carrito_id,producto_id,cantidad,"
-                "productos(id,nombre,precio_venta,precio_promocional,marcas(nombre),categorias(nombre))"
-            )
+            .select(_SELECT_ITEM)
             .eq("carrito_id", carrito_id)
             .order("id")
             .execute()
         )
-    except Exception as exc:  # noqa: BLE001
-        raise ValidationError(error_postgrest(exc)) from exc
+    except Exception:  # noqa: BLE001
+        try:
+            resp = (
+                get_reader()
+                .table("detalle_carrito")
+                .select(_SELECT_ITEM_SIN_IMAGEN)
+                .eq("carrito_id", carrito_id)
+                .order("id")
+                .execute()
+            )
+        except Exception as exc:  # noqa: BLE001
+            raise ValidationError(error_postgrest(exc)) from exc
 
     items = []
     for r in resp.data or []:
@@ -407,6 +427,7 @@ def listar(carrito_id: int) -> list:
             "producto_id": r.get("producto_id"),
             "nombre": prod.get("nombre"),
             "marca": (prod.get("marcas") or {}).get("nombre"),
+            "imagen_url": prod.get("imagen_url"),
             "precio_unitario": f"S/ {precio:,.2f}",
             "precio_num": precio,
             "cantidad": cantidad,

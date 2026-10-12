@@ -98,7 +98,7 @@
     </main>
 
     {% block footer %}
-    <footer class="footer">
+    <footer class="footer"{% if footer_bg_url %} style="background-image: linear-gradient(rgba(9,21,60,.86), rgba(9,21,60,.86)), url('{{ footer_bg_url }}'); background-size: cover; background-position: center; background-repeat: no-repeat;"{% endif %}>
         <div class="container">
             <div class="footer-grid">
                 <div class="footer-brand-col">

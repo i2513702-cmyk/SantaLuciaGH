@@ -112,6 +112,7 @@ def create_app() -> Flask:
             "app_tagline": app.config["APP_TAGLINE"],
             "logo_path": app.config["LOGO_PATH"],
             "logo_url": storage_service.obtener_logo_url(),
+            "footer_bg_url": storage_service.obtener_fondo_url(),
             "footer_bg": app.config["FOOTER_BG_PATH"],
             "rol": rol,
             "rol_panel": map_rol(rol),
