@@ -129,6 +129,58 @@ def obtener_usuario(usuario_id: int) -> dict:
     return resp.data[0]
 
 
+def obtener_perfil(usuario_id: int) -> dict:
+    """Datos del usuario y de la persona vinculada (cliente o empleado).
+
+    Devuelve la fila del usuario con la relación `clientes`/`empleados`
+    embebida. Si la consulta con relaciones falla (por ejemplo, si el join aún
+    no está disponible), se reintenta solo con el usuario para no romper el
+    perfil.
+    """
+    base = "id,nombre_usuario,correo,rol,activo,ultimo_acceso,cliente_id,empleado_id"
+    con_persona = (
+        base
+        + ",clientes(nombres,apellidos,numero_documento,telefono,correo,tipo_documento_id)"
+        + ",empleados(nombres,apellidos,numero_documento,telefono,correo,cargo,tipo_documento_id)"
+    )
+    for cols in (con_persona, base):
+        try:
+            resp = (
+                get_reader()
+                .table(TABLA_USUARIOS)
+                .select(cols)
+                .eq("id", usuario_id)
+                .limit(1)
+                .execute()
+            )
+        except Exception:  # noqa: BLE001
+            continue
+        if resp.data:
+            return resp.data[0]
+    return {}
+
+
+def nombre_tipo_documento(tipo_documento_id) -> str:
+    """Devuelve el código o nombre del tipo de documento (DNI, RUC, ...) o ''."""
+    if not tipo_documento_id:
+        return ""
+    try:
+        resp = (
+            get_reader()
+            .table("tipo_documento")
+            .select("codigo,nombre")
+            .eq("id", tipo_documento_id)
+            .limit(1)
+            .execute()
+        )
+    except Exception:  # noqa: BLE001
+        return ""
+    if not resp.data:
+        return ""
+    fila = resp.data[0]
+    return fila.get("codigo") or fila.get("nombre") or ""
+
+
 def _existe_otro_usuario(campo: str, valor: str, usuario_id: int) -> bool:
     """True si otro usuario (distinto al indicado) ya usa ese campo."""
     try:
