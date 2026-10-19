@@ -14,7 +14,7 @@ from flask import (
 
 from app.decorators import ROLES_DB, roles_required
 from app.exceptions import AppError, NotFoundError, ValidationError
-from app.services import cita_service, producto_service
+from app.services import cita_service, producto_service, storage_service
 from app.supabase_client import get_reader
 
 bp = Blueprint("admin", __name__)
@@ -815,7 +815,23 @@ def _form_ctx(producto=None, valores=None):
             except (TypeError, ValueError):
                 datos[campo] = 0
         datos["activo"] = datos.get("activo") in (True, "on")
-    return {"producto": datos, "marcas": marcas, "categorias": categorias}
+    fotos = []
+    if datos.get("id"):
+        try:
+            principal = datos.get("imagen_url")
+            fotos = [
+                f
+                for f in storage_service.listar_fotos_producto(datos["id"], principal)
+                if f.get("nombre") and f["url"] != principal
+            ]
+        except Exception:  # noqa: BLE001
+            fotos = []
+    return {
+        "producto": datos,
+        "marcas": marcas,
+        "categorias": categorias,
+        "fotos": fotos,
+    }
 
 
 @bp.route("/admin/productos")
@@ -837,7 +853,9 @@ def producto_nuevo():
     if request.method == "POST":
         try:
             producto_service.crear_producto(
-                request.form, imagen=request.files.get("imagen")
+                request.form,
+                imagen=request.files.get("imagen"),
+                imagenes=request.files.getlist("imagenes"),
             )
             flash("Producto creado correctamente.", "success")
             return redirect(url_for("admin.productos"))
@@ -863,6 +881,8 @@ def producto_editar(producto_id):
                 request.form,
                 imagen=request.files.get("imagen"),
                 quitar_imagen=request.form.get("quitar_imagen") == "on",
+                imagenes=request.files.getlist("imagenes"),
+                quitar_fotos=request.form.getlist("quitar_foto"),
             )
             flash("Producto actualizado correctamente.", "success")
             return redirect(url_for("admin.productos"))
@@ -870,7 +890,8 @@ def producto_editar(producto_id):
             error = exc.message if isinstance(exc, AppError) else str(exc)
         except Exception:  # noqa: BLE001
             error = "No se pudo actualizar el producto. Revisa los datos e inténtalo de nuevo."
-        valores = request.form
+        valores = dict(request.form)
+        valores["id"] = producto_id
     else:
         try:
             valores = producto_service.obtener_producto(producto_id)
