@@ -15,7 +15,7 @@ from flask import (
 
 from app.decorators import ROLES_DB, es_no_comprador, login_required
 from app.exceptions import AppError, ValidationError
-from app.services import tracking_service
+from app.services import storage_service, tracking_service
 from app.supabase_client import get_reader
 
 bp = Blueprint("main", __name__)
@@ -293,8 +293,20 @@ def producto_detalle(producto_id):
     ][:4]
 
     tracking_service.registrar_visita(f"/producto/{producto_id}")
+    try:
+        galeria = [
+            f["url"]
+            for f in storage_service.listar_fotos_producto(
+                producto_id, producto.get("imagen_url")
+            )
+        ]
+    except Exception:  # noqa: BLE001
+        galeria = [producto["imagen_url"]] if producto.get("imagen_url") else []
     return render_template(
-        "producto_detalle.html", producto=producto, relacionados=relacionados
+        "producto_detalle.html",
+        producto=producto,
+        relacionados=relacionados,
+        galeria=galeria,
     )
 
 

@@ -626,15 +626,14 @@ h4 { font-size: 1rem; font-weight: 600; }
     box-shadow: var(--shadow);
 }
 
+/* La foto llena toda la caja, de borde a borde (sin relleno interno) */
 .product-img {
     position: relative;
     background: var(--surface-alt);
-    text-align: center;
-    padding: 24px;
-    height: 180px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    height: auto;
+    aspect-ratio: 4 / 3;
+    padding: 0;
+    overflow: hidden;
 }
 
 .product-img img {
@@ -642,6 +641,13 @@ h4 { font-size: 1rem; font-weight: 600; }
     height: 100%;
     object-fit: cover;
     object-position: center;
+    display: block;
+}
+
+/* El gráfico por defecto no debe recortarse: se centra con aire */
+.product-img img[src$="producto-default.svg"] {
+    object-fit: contain;
+    padding: 22px;
 }
 
 .offer-badge {
@@ -2329,7 +2335,7 @@ h1, h2, h3, .brand-name, .kpi-value, .stat-value {
    ============================================================ */
 
 /* ---------- enlaces dentro de la tarjeta de producto ---------- */
-.product-img-link { display: block; width: 100%; height: 100%; }
+.product-img-link { position: absolute; inset: 0; display: block; }
 .product-name a,
 .product-title-link { color: inherit; text-decoration: none; }
 .product-name a:hover,
@@ -2447,10 +2453,77 @@ h1, h2, h3, .brand-name, .kpi-value, .stat-value {
 }
 .pd-main-img {
     aspect-ratio: 1 / 1;
+    height: auto;
+    padding: 0;
     border-radius: var(--radius-lg);
+    overflow: hidden;
     box-shadow: var(--shadow);
 }
-.pd-main-img img { width: 100%; height: 100%; object-fit: cover; }
+.pd-main-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* ---------- galería de la ficha (varios ángulos) ---------- */
+.pd-galeria { display: flex; flex-direction: column; gap: 12px; }
+.pd-galeria-thumbs {
+    display: flex;
+    gap: 10px;
+    margin: 0;
+    padding: 2px 2px 6px;
+    list-style: none;
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+.pd-galeria-thumbs a {
+    display: block;
+    width: 76px;
+    height: 76px;
+    flex: 0 0 auto;
+    border: 2px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    background: var(--surface-alt);
+    transition: border-color .18s;
+}
+.pd-galeria-thumbs a:hover { border-color: var(--primary-light); }
+.pd-galeria-thumbs a[aria-current="true"] { border-color: var(--primary); }
+.pd-galeria-thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.pd-galeria-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 4;
+    width: 42px;
+    height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .92);
+    color: #0c2d48;
+    font-size: 1.1rem;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+}
+.pd-galeria-nav:hover { background: var(--primary-dark); color: #fff; border-color: var(--primary-dark); }
+.pd-galeria-prev { left: 12px; }
+.pd-galeria-next { right: 12px; }
+.pd-galeria-count {
+    position: absolute;
+    right: 12px;
+    bottom: 12px;
+    z-index: 4;
+    background: rgba(12, 45, 72, .78);
+    color: #fff;
+    font-size: .78rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+}
+@media (max-width: 480px) {
+    .pd-galeria-nav { width: 36px; height: 36px; }
+    .pd-galeria-thumbs a { width: 62px; height: 62px; }
+}
 
 .pd-title { font-size: 1.7rem; font-weight: 800; margin: 6px 0 12px; }
 .pd-meta { font-size: 0.8rem; letter-spacing: 0.04em; color: var(--muted); font-weight: 700; }
@@ -2767,3 +2840,128 @@ h1, h2, h3, .brand-name, .kpi-value, .stat-value {
 }
 .marca-card:hover .marca-logo { filter: grayscale(0) opacity(1); }
 .marca-nombre { font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+
+
+/* ============================================================
+   CATÁLOGO EN CARRUSEL + TARJETA CLICABLE
+   ============================================================ */
+
+/* Toda la tarjeta lleva a la ficha del producto */
+.product-card--link { position: relative; }
+.product-card--link .product-name a::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+}
+.product-card--link .product-body .btn { position: relative; z-index: 2; }
+
+.carrusel { position: relative; }
+
+.carrusel-track {
+    display: flex;
+    gap: 20px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    overscroll-behavior-x: contain;
+    padding: 4px 2px 18px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+.carrusel-track::-webkit-scrollbar { display: none; }
+.carrusel-track > * {
+    flex: 0 0 min(76vw, 250px);
+    scroll-snap-align: start;
+}
+@media (min-width: 768px) {
+    .carrusel-track > * { flex-basis: calc((100% - 40px) / 3); }
+}
+@media (min-width: 1200px) {
+    .carrusel-track > * { flex-basis: calc((100% - 60px) / 4); }
+}
+
+.carrusel-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 5;
+    width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: var(--surface);
+    color: #0c2d48;
+    font-size: 1.1rem;
+    cursor: pointer;
+    box-shadow: var(--shadow);
+    transition: background .18s, color .18s, border-color .18s;
+}
+.carrusel-nav:hover { background: var(--primary-dark); color: #fff; border-color: var(--primary-dark); }
+.carrusel-nav:disabled { opacity: .35; pointer-events: none; }
+.carrusel-prev { left: -20px; }
+.carrusel-next { right: -20px; }
+
+.carrusel-dots {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+}
+.carrusel-dots button {
+    width: 9px;
+    height: 9px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: var(--border);
+    cursor: pointer;
+    transition: background .18s;
+}
+.carrusel-dots button[aria-current="true"] { background: var(--primary); }
+
+@media (max-width: 991.98px) {
+    .carrusel-nav { display: none; }
+}
+
+
+/* ============================================================
+   ADMIN · fotos adicionales del producto (formulario)
+   ============================================================ */
+.fotos-actuales {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 14px;
+}
+.foto-actual {
+    width: 118px;
+    margin: 0;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    text-align: center;
+    cursor: pointer;
+}
+.foto-actual img {
+    width: 100%;
+    height: 80px;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+    display: block;
+}
+.foto-actual-quitar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 8px;
+    font-size: .82rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+.foto-actual input { margin: 0; }

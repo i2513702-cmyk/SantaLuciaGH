@@ -39,7 +39,7 @@
                 </div>
 
                 <div class="col-md-6">
-                    <label for="imagen" class="form-label">Imagen del producto</label>
+                    <label for="imagen" class="form-label">Imagen principal</label>
                     <input type="file" class="form-control" id="imagen" name="imagen"
                            accept="image/png,image/jpeg,image/webp,image/svg+xml">
                     <div class="form-text">PNG, JPG, WEBP o SVG · máx 2 MB. Se guarda en Supabase Storage.</div>
@@ -57,6 +57,29 @@
                         <img src="{{ url_for('static', filename='img/producto-default.svg') }}" alt="Sin imagen"
                              class="img-thumbnail" style="max-height:96px; opacity:.6;">
                         <p class="text-secondary small mt-2 mb-0">Sin imagen: se muestra una por defecto.</p>
+                    {% endif %}
+                </div>
+
+                <div class="col-12">
+                    <label for="imagenes" class="form-label">Fotos adicionales (otros ángulos)</label>
+                    <input type="file" class="form-control" id="imagenes" name="imagenes" multiple
+                           accept="image/png,image/jpeg,image/webp,image/svg+xml">
+                    <div class="form-text">
+                        Puedes elegir varias a la vez. PNG, JPG o WEBP · máx 2 MB cada una.
+                        Se muestran en la galería de la ficha del producto.
+                    </div>
+                    {% if fotos %}
+                    <div class="fotos-actuales">
+                        {% for f in fotos %}
+                        <label class="foto-actual">
+                            <img src="{{ f.url }}" alt="Foto adicional del producto" loading="lazy">
+                            <span class="foto-actual-quitar">
+                                <input type="checkbox" name="quitar_foto" value="{{ f.nombre }}">
+                                Quitar
+                            </span>
+                        </label>
+                        {% endfor %}
+                    </div>
                     {% endif %}
                 </div>
 

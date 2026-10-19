@@ -91,10 +91,115 @@ def subir_imagen(bucket: str, ruta_base: str, archivo, upsert: bool = False) -> 
 
 
 def subir_imagen_producto(archivo, producto_id: int) -> str:
-    """Sube la imagen de un producto y devuelve su URL pública."""
+    """Sube una foto del producto y devuelve su URL pública.
+
+    Cada subida crea un archivo nuevo con el prefijo `producto-<id>-`, así que
+    un producto puede acumular varias fotos (distintos ángulos).
+    """
     ruta_base = f"producto-{producto_id}-{uuid.uuid4().hex[:8]}"
-    url, _ = subir_imagen(BUCKET_PRODUCTOS, ruta_base, archivo)
+    url, ruta = subir_imagen(BUCKET_PRODUCTOS, ruta_base, archivo)
+    _cargar_fotos()
+    try:
+        pid = int(producto_id)
+        _fotos.setdefault(pid, []).append(ruta)
+        _fotos[pid].sort()
+    except (TypeError, ValueError):
+        pass
     return url
+
+
+# --------------------------------------------------------------------------
+# Fotos de producto: varias por producto (bucket `productos`)
+#
+# Se descubren listando el bucket por el prefijo `producto-<id>-`, igual que
+# el logo o los avatares. Así no hace falta añadir una columna nueva a la
+# tabla `productos`. La imagen de la columna `imagen_url` es la principal.
+# --------------------------------------------------------------------------
+
+_fotos: dict = {}            # producto_id -> [nombres de archivo, en orden]
+_fotos_cargado = False
+
+
+def _id_desde_foto(nombre: str):
+    """Extrae el id de producto de un nombre `producto-<id>-<aleatorio>.<ext>`."""
+    if not nombre or not nombre.startswith("producto-"):
+        return None
+    resto = nombre[len("producto-"):]
+    numero = resto.split("-", 1)[0]
+    return int(numero) if numero.isdigit() else None
+
+
+def _cargar_fotos() -> None:
+    """Lista el bucket de productos una sola vez y agrupa los archivos por id."""
+    global _fotos_cargado
+    if _fotos_cargado:
+        return
+    try:
+        items = _bucket(BUCKET_PRODUCTOS).list("", {"limit": 1000}) or []
+    except Exception:  # noqa: BLE001
+        log.debug("No se pudo listar el bucket %s", BUCKET_PRODUCTOS, exc_info=True)
+        items = []
+    for item in items:
+        nombre = item.get("name") or ""
+        pid = _id_desde_foto(nombre)
+        if pid is not None:
+            _fotos.setdefault(pid, []).append(nombre)
+    for nombres in _fotos.values():
+        nombres.sort()
+    _fotos_cargado = True
+
+
+def listar_fotos_producto(producto_id, principal: str | None = None) -> list:
+    """Fotos de un producto como [{"nombre": str|None, "url": str}].
+
+    La imagen principal (columna `imagen_url`) se coloca primero.
+    """
+    try:
+        pid = int(producto_id)
+    except (TypeError, ValueError):
+        return []
+    _cargar_fotos()
+    fotos = [
+        {"nombre": nombre, "url": url_publica(BUCKET_PRODUCTOS, nombre)}
+        for nombre in _fotos.get(pid, [])
+    ]
+    if principal:
+        for i, foto in enumerate(fotos):
+            if foto["url"] == principal:
+                fotos.insert(0, fotos.pop(i))
+                break
+        else:
+            fotos.insert(0, {"nombre": None, "url": principal})
+    return fotos
+
+
+def quitar_fotos_producto(producto_id, nombres) -> int:
+    """Elimina las fotos indicadas del producto y devuelve cuántas borró.
+
+    Solo elimina nombres que pertenezcan a ese producto (mismo prefijo), para
+    no borrar archivos de otros productos.
+    """
+    try:
+        pid = int(producto_id)
+    except (TypeError, ValueError):
+        return 0
+    prefijo = f"producto-{pid}-"
+    a_borrar = [
+        nombre
+        for nombre in (nombres or [])
+        if nombre and nombre.startswith(prefijo) and "/" not in nombre
+    ]
+    if not a_borrar:
+        return 0
+    try:
+        _bucket(BUCKET_PRODUCTOS).remove(a_borrar)
+    except Exception as exc:  # noqa: BLE001
+        raise ValidationError(f"No se pudieron eliminar algunas fotos: {exc}") from exc
+
+    _cargar_fotos()
+    restantes = [n for n in _fotos.get(pid, []) if n not in a_borrar]
+    _fotos[pid] = restantes
+    return len(a_borrar)
 
 
 # --------------------------------------------------------------------------
