@@ -22,28 +22,46 @@
         <!-- ── Tus datos ── -->
         <section class="cita-col">
             <h3 class="cita-col-title">🧑 &nbsp;Tus datos</h3>
-            <p style="color: var(--muted); font-size: 0.82rem; margin: 0 0 8px;">Datos de tu cuenta, no editables al agendar.</p>
+            <p class="cita-locked-note">
+                <i class="bi bi-lock-fill"></i>
+                Datos de tu cuenta. Están bloqueados: para cambiarlos, edita tu perfil.
+            </p>
             <input type="hidden" name="tipo_documento_id" value="{{ cliente.tipo_documento_id or 1 }}">
 
             <label for="numero_documento">Número de documento</label>
-            <input type="text" id="numero_documento" name="numero_documento" readonly
-                   value="{{ cliente.numero_documento or '' }}">
+            <div class="cita-field-locked">
+                <input type="text" id="numero_documento" name="numero_documento" readonly tabindex="-1"
+                       aria-readonly="true" value="{{ cliente.numero_documento or '' }}">
+                <i class="bi bi-lock-fill cita-lock-icon" aria-hidden="true"></i>
+            </div>
 
             <label for="nombres">Nombres</label>
-            <input type="text" id="nombres" name="nombres" readonly
-                   value="{{ cliente.nombres or '' }}">
+            <div class="cita-field-locked">
+                <input type="text" id="nombres" name="nombres" readonly tabindex="-1"
+                       aria-readonly="true" value="{{ cliente.nombres or '' }}">
+                <i class="bi bi-lock-fill cita-lock-icon" aria-hidden="true"></i>
+            </div>
 
             <label for="apellidos">Apellidos</label>
-            <input type="text" id="apellidos" name="apellidos" readonly
-                   value="{{ cliente.apellidos or '' }}">
+            <div class="cita-field-locked">
+                <input type="text" id="apellidos" name="apellidos" readonly tabindex="-1"
+                       aria-readonly="true" value="{{ cliente.apellidos or '' }}">
+                <i class="bi bi-lock-fill cita-lock-icon" aria-hidden="true"></i>
+            </div>
 
             <label for="telefono">Teléfono / WhatsApp</label>
-            <input type="tel" id="telefono" name="telefono" readonly
-                   value="{{ cliente.telefono or '' }}">
+            <div class="cita-field-locked">
+                <input type="tel" id="telefono" name="telefono" readonly tabindex="-1"
+                       aria-readonly="true" value="{{ cliente.telefono or '' }}">
+                <i class="bi bi-lock-fill cita-lock-icon" aria-hidden="true"></i>
+            </div>
 
             <label for="correo">Correo electrónico</label>
-            <input type="email" id="correo" name="correo" readonly
-                   value="{{ cliente.correo or '' }}">
+            <div class="cita-field-locked">
+                <input type="email" id="correo" name="correo" readonly tabindex="-1"
+                       aria-readonly="true" value="{{ cliente.correo or '' }}">
+                <i class="bi bi-lock-fill cita-lock-icon" aria-hidden="true"></i>
+            </div>
         </section>
 
         <!-- ── Tu equipo ── -->
@@ -117,10 +135,20 @@
             </div>
         </div>
         <div id="domicilio-box" class="cita-form-row" style="display:none;">
+            <div>
+                <label for="distrito">Distrito *</label>
+                <select id="distrito" name="distrito" data-solo-domicilio>
+                    <option value="">Selecciona el distrito</option>
+                    {% for d in distritos %}
+                        <option value="{{ d }}" {% if form and form.distrito == d %}selected{% endif %}>{{ d }}</option>
+                    {% endfor %}
+                </select>
+            </div>
             <div style="flex:1;">
                 <label for="calle">Dirección de atención *</label>
-                <input type="text" id="calle" name="calle" placeholder="Av/Calle/Jr, número, distrito"
-                       value="{{ form.calle if form else '' }}">
+                <input type="text" id="calle" name="calle" placeholder="Av/Calle/Jr, número, referencia"
+                       data-solo-domicilio value="{{ form.calle if form else '' }}">
+                <p style="color: var(--muted); font-size: 0.78rem; margin: 6px 0 0;">Solo atendemos a domicilio en los distritos listados.</p>
             </div>
         </div>
     </section>
@@ -168,14 +196,27 @@
             .catch(function () { callback([]); });
     }
 
-    document.addEventListener('input', function (e) {
+    function actualizarDomicilio() {
         var tipo = document.getElementById('tipo_atencion').value;
+        var esDomicilio = tipo === 'DOMICILIO';
         var box = document.getElementById('domicilio-box');
-        box.style.display = tipo === 'DOMICILIO' ? '' : 'none';
+        if (box) box.style.display = esDomicilio ? '' : 'none';
+        document.querySelectorAll('[data-solo-domicilio]').forEach(function (el) {
+            el.disabled = !esDomicilio;
+            el.required = esDomicilio;
+        });
+    }
+
+    document.addEventListener('input', function (e) {
+        actualizarDomicilio();
 
         if (e.target && e.target.id === 'fecha_reserva') {
             cargarDisponibles(aplicarDisponibles);
         }
+    });
+
+    document.addEventListener('change', function (e) {
+        if (e.target && e.target.id === 'tipo_atencion') actualizarDomicilio();
     });
 
     aplicarDisponibles(disponiblesIniciales);
@@ -212,6 +253,7 @@
         var selMarca = document.getElementById('marca_id');
         if (selTipo) mostrarOtroTipo(selTipo);
         if (selMarca) mostrarOtraMarca(selMarca);
+        actualizarDomicilio();
         var fechaInput = document.getElementById('fecha_reserva');
         if (fechaInput) fechaInput.addEventListener('change', function () { cargarDisponibles(aplicarDisponibles); });
     });

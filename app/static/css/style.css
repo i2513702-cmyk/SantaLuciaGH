@@ -1305,6 +1305,52 @@ h4 { font-size: 1rem; font-weight: 600; }
 
 .cita-form textarea { resize: vertical; min-height: 60px; }
 
+/* Campos de solo lectura (datos de la cuenta): apariencia "bloqueada" */
+.cita-form input[readonly] {
+    background: var(--surface-alt);
+    border-color: var(--surface-alt);
+    border-style: dashed;
+    color: var(--muted);
+    cursor: not-allowed;
+}
+
+.cita-form input[readonly]:focus {
+    border-color: var(--surface-alt);
+}
+
+.cita-locked-note {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 0.78rem;
+    margin: 0 0 12px;
+}
+
+.cita-locked-note svg,
+.cita-locked-note .bi {
+    flex: none;
+    font-size: 0.95rem;
+}
+
+.cita-field-locked {
+    position: relative;
+}
+
+.cita-field-locked input {
+    padding-right: 36px;
+}
+
+.cita-field-locked .cita-lock-icon {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    font-size: 0.85rem;
+    pointer-events: none;
+}
+
 .cita-block {
     margin-top: 28px;
 }
@@ -1314,6 +1360,11 @@ h4 { font-size: 1rem; font-weight: 600; }
     grid-template-columns: 1fr 1fr 1fr;
     gap: 20px;
     align-items: start;
+}
+
+/* Fila de dirección a domicilio: distrito (fijo) + dirección (elástica) */
+#domicilio-box {
+    grid-template-columns: minmax(160px, 220px) 1fr;
 }
 
 .cita-actions {
@@ -1346,6 +1397,7 @@ h4 { font-size: 1rem; font-weight: 600; }
 @media (max-width: 768px) {
     .cita-grid { grid-template-columns: 1fr; gap: 8px; }
     .cita-form-row { grid-template-columns: 1fr; gap: 0; }
+    #domicilio-box { grid-template-columns: 1fr; }
     .cita-form { padding: 24px; }
     .cita-actions { flex-direction: column; align-items: stretch; }
 }

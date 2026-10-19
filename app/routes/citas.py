@@ -16,6 +16,7 @@ from flask import (
 from app.decorators import login_required
 from app.services.cita_service import (
     CitaError,
+    DISTRITOS_DOMICILIO,
     HORARIOS,
     agendar,
     datos_usuario,
@@ -63,6 +64,7 @@ def _ctx_agendar(**extra):
     ctx = {
         **_referencias(),
         "tipo_atenciones": {"TALLER": "En taller (tú llevas el equipo)", "DOMICILIO": "A domicilio"},
+        "distritos": DISTRITOS_DOMICILIO,
         "today": date.today().isoformat(),
         "cliente": datos_usuario(session.get("usuario_id")),
         "disponibles": horarios_disponibles(date.today().isoformat()),
@@ -109,6 +111,7 @@ def agendar_cita():
         "hora_inicio": request.form.get("hora_inicio", ""),
         "motivo": request.form.get("motivo", ""),
         "observaciones": request.form.get("observaciones", ""),
+        "distrito": request.form.get("distrito", ""),
         "calle": request.form.get("calle", ""),
     }
 
