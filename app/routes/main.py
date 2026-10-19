@@ -356,10 +356,17 @@ def perfil():
 
     ultimo_acceso = (perfil_db.get("ultimo_acceso") or "").replace("T", " ")[:16]
 
+    # El correo de la cuenta (`usuarios.correo`) es la fuente de verdad del
+    # perfil: es el que se edita al cambiar el dato en la base de datos. El
+    # correo de la persona vinculada (`clientes`/`empleados`) puede quedar
+    # desactualizado —o pertenecer a otro registro— por lo que solo se usa como
+    # respaldo si la cuenta no tiene correo propio.
+    correo_cuenta = (perfil_db.get("correo") or "").strip() or (persona.get("correo") or "").strip()
+
     datos_personales = [
         ("Nombre completo", nombre_completo),
         ("Documento", documento),
-        ("Correo", persona.get("correo") or perfil_db.get("correo")),
+        ("Correo", correo_cuenta),
         ("Teléfono", persona.get("telefono")),
         ("Cargo", persona.get("cargo")),
     ]
@@ -422,7 +429,7 @@ def perfil():
         rol_label=ROLES_DB.get(session.get("rol") or "") or (session.get("rol") or ""),
         datos_personales=datos_personales,
         origen_persona=origen_persona,
-        correo=perfil_db.get("correo") or session.get("correo"),
+        correo=correo_cuenta,
         ultimo_acceso=ultimo_acceso,
         compras=compras,
         mostrar_historial=not sin_compra,
