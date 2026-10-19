@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}{{ producto.nombre }} — {{ app_name }}{% endblock %}
+{% block meta_description %}{{ (producto.descripcion or producto.nombre) | striptags | truncate(150) }}{% endblock %}
+{% block og_image %}{{ producto.imagen_url or logo_url or url_for('static', filename=logo_path, _external=True) }}{% endblock %}
+
+{% block content %}
+<nav class="pd-breadcrumb" aria-label="Ruta">
+    <a href="{{ url_for('main.home') }}">Inicio</a>
+    <span>/</span>
+    <a href="{{ url_for('main.tienda') }}">Catálogo</a>
+    {% if producto.categoria %}
+        <span>/</span>
+        <a href="{{ url_for('main.tienda', cat=producto.categoria_id) }}">{{ producto.categoria }}</a>
+    {% endif %}
+    <span>/</span>
+    <span class="pd-breadcrumb-current">{{ producto.nombre }}</span>
+</nav>
+
+<div class="pd-grid">
+    <div class="pd-gallery">
+        <div class="product-img pd-main-img">
+            {% if producto.oferta %}<span class="img-badge img-badge--oferta">Oferta</span>{% endif %}
+            {% if producto.descuento_pct %}<span class="img-badge img-badge--pct">-{{ producto.descuento_pct }}%</span>{% endif %}
+            {% if producto.nuevo %}<span class="img-badge img-badge--nuevo">Nuevo</span>{% endif %}
+            <img src="{{ producto.imagen_url or url_for('static', filename='img/producto-default.svg') }}"
+                 alt="{{ producto.nombre }}">
+        </div>
+    </div>
+
+    <div class="pd-info">
+        {% if producto.marca or producto.categoria %}
+            <p class="pd-meta text-uppercase">{{ producto.marca }}{% if producto.marca and producto.categoria %} · {% endif %}{{ producto.categoria }}</p>
+        {% endif %}
+        <h1 class="pd-title">{{ producto.nombre }}</h1>
+
+        <div class="pd-price">
+            <span class="pd-price-now">{{ producto.precio_ahora }}</span>
+            {% if producto.precio_antes %}
+                <span class="pd-price-before">{{ producto.precio_antes }}</span>
+                {% if producto.descuento_pct %}<span class="pd-price-pct">Ahorras {{ producto.descuento_pct }}%</span>{% endif %}
+            {% endif %}
+        </div>
+        <p class="pd-tax text-secondary small">Precio incluye IGV. Stock sujeto a disponibilidad.</p>
+
+        {% if producto.descripcion %}
+            <p class="pd-desc">{{ producto.descripcion }}</p>
+        {% else %}
+            <p class="pd-desc text-secondary">Producto del catálogo {{ app_name }}. Consulta disponibilidad y compatibilidad con tu modelo.</p>
+        {% endif %}
+
+        <ul class="pd-points">
+            <li><i class="bi bi-shield-check"></i> Garantía de 90 días</li>
+            <li><i class="bi bi-patch-check"></i> Repuesto original</li>
+            <li><i class="bi bi-truck"></i> Entrega a domicilio o recojo en taller</li>
+        </ul>
+
+        {% if puede_comprar %}
+            <form method="POST" action="{{ url_for('carrito.agregar', producto_id=producto.id) }}" class="pd-actions">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-primary btn-lg">
+                    <i class="bi bi-cart-plus"></i> Agregar al carrito
+                </button>
+                <a class="btn btn-outline-primary btn-lg" href="{{ url_for('main.tienda') }}">Seguir viendo</a>
+            </form>
+        {% else %}
+            <div class="pd-actions">
+                <a class="btn btn-outline-primary btn-lg" href="{{ url_for('admin.producto_editar', producto_id=producto.id) }}">
+                    Gestionar en el panel
+                </a>
+            </div>
+        {% endif %}
+
+        <div class="pd-contact">
+            <span>¿Dudas? Escríbenos y te ayudamos a elegir.</span>
+            {% if whatsapp_numero %}
+                <a class="btn btn-wa btn-sm" target="_blank" rel="noopener"
+                   href="https://wa.me/{{ whatsapp_numero }}?text={{ ('Hola, me interesa: ' ~ producto.nombre)|urlencode }}">
+                    <i class="bi bi-whatsapp"></i> Consultar por WhatsApp
+                </a>
+            {% endif %}
+        </div>
+
+        <dl class="pd-datos">
+            {% if producto.codigo %}<div><dt>Código</dt><dd>{{ producto.codigo }}</dd></div>{% endif %}
+            {% if producto.modelo %}<div><dt>Modelo</dt><dd>{{ producto.modelo }}</dd></div>{% endif %}
+            {% if producto.tipo %}<div><dt>Tipo</dt><dd class="text-capitalize">{{ producto.tipo|lower }}</dd></div>{% endif %}
+        </dl>
+    </div>
+</div>
+
+{% if relacionados %}
+<section class="section pd-relacionados">
+    <div class="section-header">
+        <h2>También te puede interesar</h2>
+        <p>Productos de la misma categoría</p>
+        <div class="section-divider"></div>
+    </div>
+    <div class="productos-destacados">
+        {% for p in relacionados %}
+        <div class="product-card">
+            <div class="product-img">
+                {% if p.oferta %}<span class="img-badge img-badge--oferta">Oferta</span>{% endif %}
+                {% if p.descuento_pct %}<span class="img-badge img-badge--pct">-{{ p.descuento_pct }}%</span>{% endif %}
+                <a class="product-img-link" href="{{ url_for('main.producto_detalle', producto_id=p.id) }}">
+                    <img loading="lazy" src="{{ p.imagen_url or url_for('static', filename='img/producto-default.svg') }}" alt="{{ p.nombre }}">
+                </a>
+            </div>
+            <div class="product-body">
+                {% if p.marca %}<p class="product-meta">{{ p.marca }}</p>{% endif %}
+                <h3 class="product-name">
+                    <a href="{{ url_for('main.producto_detalle', producto_id=p.id) }}">{{ p.nombre }}</a>
+                </h3>
+                <div class="price-box">
+                    <span class="price-now">{{ p.precio_ahora }}</span>
+                    {% if p.precio_antes %}<span class="price-original">{{ p.precio_antes }}</span>{% endif %}
+                </div>
+                <a class="btn btn-primary btn-sm" href="{{ url_for('main.producto_detalle', producto_id=p.id) }}">Ver producto</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+{% endblock %}

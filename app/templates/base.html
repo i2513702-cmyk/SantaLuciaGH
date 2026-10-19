@@ -5,6 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token }}">
     <title>{% block title %}{{ app_name }}{% endblock %}</title>
+
+    {# --- Descripción y metadatos para buscadores y redes sociales --- #}
+    <meta name="description" content="{% block meta_description %}{{ app_name }} Servicio Técnico: reparación de lavadoras, refrigeradoras, secadoras y cocinas en Huancayo. Repuestos originales, garantía de 90 días y atención a domicilio.{% endblock %}">
+    <meta name="theme-color" content="#0b1b4d">
+    <meta property="og:site_name" content="{{ app_name }} Servicio Técnico">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="{{ self.title() }}">
+    <meta property="og:description" content="{{ self.meta_description() }}">
+    <meta property="og:url" content="{{ request.url }}">
+    <meta property="og:image" content="{% block og_image %}{{ logo_url or url_for('static', filename=logo_path, _external=True) }}{% endblock %}">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ self.title() }}">
+    <meta name="twitter:description" content="{{ self.meta_description() }}">
+    <meta name="twitter:image" content="{{ self.og_image() }}">
+    <link rel="icon" href="{{ logo_url or url_for('static', filename=logo_path) }}">
+    <link rel="apple-touch-icon" href="{{ logo_url or url_for('static', filename=logo_path) }}">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
@@ -165,10 +182,25 @@
             </div>
             <div class="footer-bottom">
                 <span>© 2011–2026 {{ app_name }}. Todos los derechos reservados.</span>
+                <div class="footer-social">
+                    {% if redes.instagram %}<a href="{{ redes.instagram }}" target="_blank" rel="noopener" aria-label="Instagram"><i class="bi bi-instagram"></i></a>{% endif %}
+                    {% if redes.facebook %}<a href="{{ redes.facebook }}" target="_blank" rel="noopener" aria-label="Facebook"><i class="bi bi-facebook"></i></a>{% endif %}
+                    {% if redes.tiktok %}<a href="{{ redes.tiktok }}" target="_blank" rel="noopener" aria-label="TikTok"><i class="bi bi-tiktok"></i></a>{% endif %}
+                    {% if whatsapp_numero %}<a href="https://wa.me/{{ whatsapp_numero }}" target="_blank" rel="noopener" aria-label="WhatsApp"><i class="bi bi-whatsapp"></i></a>{% endif %}
+                </div>
             </div>
         </div>
     </footer>
     {% endblock %}
+
+    {# --- Botón flotante de WhatsApp (atención directa al cliente) --- #}
+    {% if whatsapp_numero %}
+    <a class="wa-float" href="https://wa.me/{{ whatsapp_numero }}?text={{ whatsapp_mensaje|urlencode }}"
+       target="_blank" rel="noopener" aria-label="Escríbenos por WhatsApp">
+        <i class="bi bi-whatsapp"></i>
+        <span class="wa-float-txt">Escríbenos</span>
+    </a>
+    {% endif %}
 
     <script src="{{ url_for('static', filename='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/avatars.js') }}"></script>

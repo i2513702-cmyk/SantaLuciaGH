@@ -55,6 +55,23 @@ class Config:
     DEFAULT_PRODUCT_IMAGE = "img/producto-default.svg"
     FOOTER_BG_PATH = "img/fondo-footer.svg"
 
+    # Contacto y redes (se pueden cambiar desde el .env sin tocar el código).
+    # WHATSAPP_NUMERO va en formato internacional sin signos: 51964618892.
+    WHATSAPP_NUMERO = os.getenv("WHATSAPP_NUMERO", "51964618892")
+    WHATSAPP_MENSAJE = os.getenv(
+        "WHATSAPP_MENSAJE", "Hola Santa Lucía, quisiera información sobre un producto."
+    )
+    CONTACTO_TELEFONO = os.getenv("CONTACTO_TELEFONO", "+51 964 618 892")
+    CONTACTO_CORREO = os.getenv("CONTACTO_CORREO", "contacto@santalucia.pe")
+    CONTACTO_DIRECCION = os.getenv(
+        "CONTACTO_DIRECCION", "Av. 28 de Julio 723 - Chilca - Huancayo"
+    )
+    REDES = {
+        "facebook": os.getenv("RED_FACEBOOK", ""),
+        "instagram": os.getenv("RED_INSTAGRAM", ""),
+        "tiktok": os.getenv("RED_TIKTOK", ""),
+    }
+
     # Seguridad del login (por IP): a los N fallos hay espera; pasada la espera,
     # M fallos mas bloquean la IP hasta que un administrador la desbloquee.
     LOGIN_MAX_INTENTOS = int(_float_env("LOGIN_MAX_INTENTOS", 3))
