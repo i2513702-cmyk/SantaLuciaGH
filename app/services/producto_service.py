@@ -117,14 +117,47 @@ def _validar_y_mapear(datos) -> dict:
     }
 
 
-def listar_productos() -> list:
-    """Devuelve todos los productos (activos e inactivos) con marca y categoría."""
+POR_PAGINA_PRODUCTOS = 10
+
+
+def listar_productos(q: str = "", pagina: int = 1, por_pagina: int = POR_PAGINA_PRODUCTOS) -> dict:
+    """Lista paginada de productos (activos e inactivos) con búsqueda.
+
+    El filtro `q` busca en nombre, código, marca y categoría (case-insensitive).
+    Devuelve {"productos", "total", "paginas", "pagina"}.
+    """
     try:
-        return _leer_productos(
+        filas = _leer_productos(
             lambda sel: get_reader().table("productos").select(sel).order("id")
         )
     except Exception as exc:  # noqa: BLE001
         raise ValidationError(error_postgrest(exc)) from exc
+
+    if q:
+        texto = q.strip().lower()
+
+        def _coincide(p: dict) -> bool:
+            marca = ((p.get("marcas") or {}).get("nombre") or "").lower()
+            categoria = ((p.get("categorias") or {}).get("nombre") or "").lower()
+            return (
+                texto in (p.get("nombre") or "").lower()
+                or texto in (p.get("codigo") or "").lower()
+                or texto in marca
+                or texto in categoria
+            )
+
+        filas = [p for p in filas if _coincide(p)]
+
+    total = len(filas)
+    paginas = max((total + por_pagina - 1) // por_pagina, 1)
+    pagina = min(max(pagina, 1), paginas)
+    inicio = (pagina - 1) * por_pagina
+    return {
+        "productos": filas[inicio : inicio + por_pagina],
+        "total": total,
+        "paginas": paginas,
+        "pagina": pagina,
+    }
 
 
 def obtener_producto(producto_id: int) -> dict:

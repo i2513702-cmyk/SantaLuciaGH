@@ -821,12 +821,24 @@ def _form_ctx(producto=None, valores=None):
 @bp.route("/admin/productos")
 @roles_required("admin")
 def productos():
+    q = (request.args.get("q") or "").strip()
     try:
-        lista = producto_service.listar_productos()
+        pagina = int(request.args.get("p", 1) or 1)
+    except ValueError:
+        pagina = 1
+    try:
+        resultado = producto_service.listar_productos(q=q, pagina=pagina)
     except ValidationError as exc:
         flash(str(exc), "error")
-        lista = []
-    return render_template("admin/productos.html", productos=lista)
+        resultado = {"productos": [], "total": 0, "paginas": 1, "pagina": 1}
+    return render_template(
+        "admin/productos.html",
+        productos=resultado["productos"],
+        total=resultado["total"],
+        paginas=resultado["paginas"],
+        pagina=resultado["pagina"],
+        q=q,
+    )
 
 
 @bp.route("/admin/productos/nuevo", methods=["GET", "POST"])
