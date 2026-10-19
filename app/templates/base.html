@@ -8,7 +8,7 @@
 
     {# --- Descripción y metadatos para buscadores y redes sociales --- #}
     <meta name="description" content="{% block meta_description %}{{ app_name }} Servicio Técnico: reparación de lavadoras, refrigeradoras, secadoras y cocinas en Huancayo. Repuestos originales, garantía de 90 días y atención a domicilio.{% endblock %}">
-    <meta name="theme-color" content="#0b1b4d">
+    <meta name="theme-color" content="#0369a1">
     <meta property="og:site_name" content="{{ app_name }} Servicio Técnico">
     <meta property="og:type" content="website">
     <meta property="og:title" content="{{ self.title() }}">
@@ -24,7 +24,7 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap/bootstrap.min.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap-icons/bootstrap-icons.min.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
@@ -67,7 +67,11 @@
                         {% else %}
                             {{ item('main.home', 'Inicio', 'nav-inicio', 'house') }}
                             {{ item('main.tienda', 'Catálogo', 'nav-catalogo', 'shop') }}
-                            {{ item('citas.agendar_form', 'Agendar cita', 'nav-agendar', 'calendar-plus') }}
+                            <li class="nav-item ms-lg-2">
+                                <a class="nav-link nav-cta {% if request.endpoint == 'citas.agendar_form' %}active{% endif %}" href="{{ url_for('citas.agendar_form') }}">
+                                    {{ icono('nav-agendar', 'calendar-plus', 18) }}<span>Agendar cita</span>
+                                </a>
+                            </li>
                             <li class="nav-item"><a class="nav-link d-flex align-items-center gap-2" href="{{ url_for('main.home') }}#nosotros">{{ icono('nav-nosotros', 'info-circle', 18) }}<span>Nosotros</span></a></li>
                             {% if rol_panel == 'worker' %}
                                 {{ item('worker.dashboard', 'Panel', 'nav-panel', 'speedometer2') }}
@@ -146,7 +150,7 @@
     </main>
 
     {% block footer %}
-    <footer class="footer"{% if footer_bg_url %} style="background-image: linear-gradient(rgba(9,21,60,.86), rgba(9,21,60,.86)), url('{{ footer_bg_url }}'); background-size: cover; background-position: center; background-repeat: no-repeat;"{% endif %}>
+    <footer class="footer"{% if footer_bg_url %} style="background-image: linear-gradient(rgba(12,45,72,.9), rgba(12,45,72,.9)), url('{{ footer_bg_url }}'); background-size: cover; background-position: center; background-repeat: no-repeat;"{% endif %}>
         <div class="container">
             <div class="footer-grid">
                 <div class="footer-brand-col">
@@ -158,8 +162,8 @@
                 </div>
                 <div class="footer-col">
                     <h4>Contacto</h4>
-                    <span class="footer-info"> AV. 28 De Julio  723 - Chilca - Huancayo</span>
-                    <a href="tel:+51987654321">+51 964 618 892 </a>
+                    <span class="footer-info">Av. 28 de Julio 723 · Chilca, Huancayo</span>
+                    <a href="tel:+51964618892">+51 964 618 892</a>
                     <a href="mailto:contacto@santalucia.pe">contacto@santalucia.pe</a>
                     <span class="footer-info">Lun a Sáb · 9:00 – 19:00</span>
                 </div>

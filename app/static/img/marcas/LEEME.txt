@@ -1,0 +1,13 @@
+Logos de marcas
+===============
+
+Guarda aquí los logos en PNG (fondo transparente) con el nombre de la marca en
+minúsculas y separado por guiones:
+
+   lg.png, samsung.png, miray.png, indesit.png, electrolux.png, ...
+
+La portada los busca automáticamente: si el archivo existe se muestra el logo
+en gris y se colorea al pasar el mouse; si no existe, se muestra el nombre de
+la marca en texto.
+
+Recomendado: 240 x 96 px (o proporción similar), fondo transparente.
