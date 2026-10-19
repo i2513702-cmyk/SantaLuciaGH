@@ -111,16 +111,6 @@
                     los destacados del inicio, el carrito y el checkout.
                 </p>
                 <a class="btn btn-outline-primary" href="{{ url_for('admin.productos') }}">Gestionar productos</a>
-
-                <hr class="my-4">
-                <h3 class="h6 fw-semibold">Requisito de la base de datos</h3>
-                <p class="text-secondary small mb-2">
-                    La tabla <code>productos</code> necesita la columna <code>imagen_url</code>.
-                    Si al subir una imagen ves un aviso, ejecuta una vez en el
-                    <em>SQL Editor</em> de Supabase:
-                </p>
-                <pre class="bg-dark text-light rounded p-3 small mb-0"><code>ALTER TABLE public.productos
-ADD COLUMN IF NOT EXISTS imagen_url text;</code></pre>
             </div>
         </div>
     </div>
