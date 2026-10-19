@@ -363,13 +363,9 @@ def perfil():
     # respaldo si la cuenta no tiene correo propio.
     correo_cuenta = (perfil_db.get("correo") or "").strip() or (persona.get("correo") or "").strip()
 
-    datos_personales = [
-        ("Nombre completo", nombre_completo),
-        ("Documento", documento),
-        ("Correo", correo_cuenta),
-        ("Teléfono", persona.get("telefono")),
-        ("Cargo", persona.get("cargo")),
-    ]
+    telefono = (persona.get("telefono") or "").strip()
+    cargo = (persona.get("cargo") or "").strip()
+    es_empleado = origen_persona == "empleados"
 
     if not sin_compra:
         try:
@@ -427,13 +423,42 @@ def perfil():
         usuario_nombre=usuario_nombre,
         nombre_completo=nombre_completo,
         rol_label=ROLES_DB.get(session.get("rol") or "") or (session.get("rol") or ""),
-        datos_personales=datos_personales,
+        nombres=nombres,
+        apellidos=apellidos,
+        documento=documento,
+        telefono=telefono,
+        cargo=cargo,
+        es_empleado=es_empleado,
         origen_persona=origen_persona,
         correo=correo_cuenta,
         ultimo_acceso=ultimo_acceso,
         compras=compras,
         mostrar_historial=not sin_compra,
     )
+
+
+@bp.post("/perfil/datos")
+@login_required
+def perfil_datos():
+    """Guarda los datos personales editables del usuario (el documento no cambia)."""
+    from app.services import rest_auth_service
+
+    try:
+        rest_auth_service.actualizar_perfil(
+            usuario_id=session.get("usuario_id"),
+            nombres=request.form.get("nombres", ""),
+            apellidos=request.form.get("apellidos", ""),
+            correo=request.form.get("correo", ""),
+            telefono=request.form.get("telefono", ""),
+            cargo=request.form.get("cargo", ""),
+        )
+        flash("Datos personales actualizados correctamente.", "success")
+    except (AppError, ValidationError) as exc:
+        flash(exc.message if isinstance(exc, AppError) else str(exc), "error")
+    except Exception:  # noqa: BLE001
+        flash("No se pudieron actualizar tus datos. Inténtalo de nuevo.", "error")
+
+    return redirect(url_for("main.perfil"))
 
 
 @bp.post("/perfil/avatar")

@@ -122,6 +122,7 @@
     if (next) next.addEventListener('click', function () { mostrar(indice + 1); });
 
     raiz.addEventListener('keydown', function (ev) {
+      if (document.querySelector('.pswp--open')) return;
       if (ev.key === 'ArrowLeft') { ev.preventDefault(); mostrar(indice - 1); }
       if (ev.key === 'ArrowRight') { ev.preventDefault(); mostrar(indice + 1); }
     });
