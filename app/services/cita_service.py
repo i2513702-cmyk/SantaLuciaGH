@@ -75,6 +75,33 @@ def validar(datos: dict) -> None:
             "Elige otra hora o fecha."
         )
 
+    tipo_id = datos.get("tipo_id") or datos.get("tipo_id_alt") or ""
+    try:
+        tipo_id_val = int(tipo_id) if str(tipo_id).strip() else 0
+    except (TypeError, ValueError):
+        tipo_id_val = 0
+    tipo_otro = (datos.get("tipo_otro") or "").strip()
+    if not tipo_id_val and not tipo_otro:
+        raise CitaError("Selecciona el tipo de equipo.")
+    if tipo_otro and len(tipo_otro) > 30:
+        raise CitaError("El tipo de equipo personalizado debe tener máximo 30 caracteres.")
+
+    marca_id = datos.get("marca_id") or datos.get("marca_id_alt") or ""
+    try:
+        marca_id_val = int(marca_id) if str(marca_id).strip() else 0
+    except (TypeError, ValueError):
+        marca_id_val = 0
+    marca_otro = (datos.get("marca_otro") or "").strip()
+    if not marca_id_val and not marca_otro:
+        raise CitaError("Selecciona la marca del equipo.")
+    if marca_otro and len(marca_otro) > 30:
+        raise CitaError("La marca personalizada debe tener máximo 30 caracteres.")
+
+    if len((datos.get("motivo") or "").strip()) > 100:
+        raise CitaError("La descripción del problema debe tener máximo 100 caracteres.")
+    if len((datos.get("observaciones") or "").strip()) > 100:
+        raise CitaError("Las observaciones deben tener máximo 100 caracteres.")
+
 
 def horarios_disponibles(fecha: str) -> list:
     """Horas de HORARIOS cubiertas por al menos un técnico disponible.
@@ -273,6 +300,19 @@ def _normalizar(datos: dict) -> dict:
         return (datos.get(campo) or "").strip()
 
     tipo_atencion = _v("tipo_atencion").upper()
+
+    tipo_id = datos.get("tipo_id") or datos.get("tipo_id_alt") or ""
+    try:
+        tipo_id_val = int(tipo_id) if str(tipo_id).strip() else 0
+    except (TypeError, ValueError):
+        tipo_id_val = 0
+
+    marca_id = datos.get("marca_id") or datos.get("marca_id_alt") or ""
+    try:
+        marca_id_val = int(marca_id) if str(marca_id).strip() else 0
+    except (TypeError, ValueError):
+        marca_id_val = 0
+
     return {
         "tipo_documento_id": int(datos.get("tipo_documento_id") or 1),
         "numero_documento": _v("numero_documento"),
@@ -281,8 +321,10 @@ def _normalizar(datos: dict) -> dict:
         "razon_social": _v("razon_social"),
         "telefono": _v("telefono"),
         "correo": _v("correo"),
-        "tipo_id": int(datos.get("tipo_id") or 0),
-        "marca_id": int(datos.get("marca_id") or 0),
+        "tipo_id": tipo_id_val,
+        "marca_id": marca_id_val,
+        "tipo_otro": _v("tipo_otro"),
+        "marca_otro": _v("marca_otro"),
         "modelo": _v("modelo"),
         "numero_serie": _v("numero_serie"),
         "color": _v("color"),
@@ -328,16 +370,28 @@ def _crear_cliente(db, d: dict):
 def _crear_electrodomestico(db, cliente_id: int, d: dict):
     fila = {
         "cliente_id": cliente_id,
-        "tipo_id": d["tipo_id"],
-        "marca_id": d["marca_id"],
+        "tipo_id": d["tipo_id"] or None,
+        "marca_id": d["marca_id"] or None,
         "modelo": d["modelo"] or None,
         "numero_serie": d["numero_serie"] or None,
         "color": d["color"] or None,
         "observaciones": d["observaciones"] or None,
         "estado": ESTADO_ELECTRODOMESTICO,
     }
-    resp = db.from_("electrodomesticos").insert(fila).execute()
-    return (resp.data or [{}])[0].get("id")
+    tipo_otro = (d.get("tipo_otro") or "").strip()
+    marca_otro = (d.get("marca_otro") or "").strip()
+    if tipo_otro:
+        fila["tipo_otro"] = tipo_otro[:30]
+    if marca_otro:
+        fila["marca_otro"] = marca_otro[:30]
+    try:
+        resp = db.from_("electrodomesticos").insert(fila).execute()
+        return (resp.data or [{}])[0].get("id")
+    except Exception:
+        fila.pop("tipo_otro", None)
+        fila.pop("marca_otro", None)
+        resp = db.from_("electrodomesticos").insert(fila).execute()
+        return (resp.data or [{}])[0].get("id")
 
 
 def _crear_reserva(db, cliente_id: int, electrodomestico_id: int, d: dict):
