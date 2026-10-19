@@ -1,5 +1,9 @@
 {% extends "base.html" %}
 
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/photoswipe/photoswipe.css') }}">
+{% endblock %}
+
 {% block title %}{{ producto.nombre }} — {{ app_name }}{% endblock %}
 {% block meta_description %}{{ (producto.descripcion or producto.nombre) | striptags | truncate(150) }}{% endblock %}
 {% block og_image %}{{ producto.imagen_url or logo_url or url_for('static', filename=logo_path, _external=True) }}{% endblock %}
@@ -24,7 +28,10 @@
             {% if producto.oferta %}<span class="img-badge img-badge--oferta">Oferta</span>{% endif %}
             {% if producto.descuento_pct %}<span class="img-badge img-badge--pct">-{{ producto.descuento_pct }}%</span>{% endif %}
             {% if producto.nuevo %}<span class="img-badge img-badge--nuevo">Nuevo</span>{% endif %}
+            <button type="button" class="pd-zoom-icon" aria-label="Ampliar imagen" title="Ampliar">🔍</button>
             <img data-galeria-img
+                 data-large_image="{{ galeria[0] if galeria else url_for('static', filename='img/producto-default.svg') }}"
+                 data-zoom-src="{{ galeria[0] if galeria else url_for('static', filename='img/producto-default.svg') }}"
                  src="{{ galeria[0] if galeria else url_for('static', filename='img/producto-default.svg') }}"
                  alt="{{ producto.nombre }}">
             {% if galeria|length > 1 %}
@@ -44,6 +51,7 @@
             {% for foto in galeria %}
             <li>
                 <a href="{{ foto }}" data-galeria-thumb data-src="{{ foto }}"
+                   data-large_image="{{ foto }}" data-zoom-src="{{ foto }}"
                    aria-current="{{ 'true' if loop.first else 'false' }}"
                    aria-label="Ver foto {{ loop.index }} de {{ galeria|length }}">
                     <img src="{{ foto }}" alt="{{ producto.nombre }} — vista {{ loop.index }}"
@@ -149,4 +157,8 @@
     </div>
 </section>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/lightbox.js') }}"></script>
 {% endblock %}

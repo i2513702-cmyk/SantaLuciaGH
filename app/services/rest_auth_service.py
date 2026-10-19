@@ -188,6 +188,72 @@ def obtener_perfil(usuario_id: int) -> dict:
     return {}
 
 
+def actualizar_perfil(
+    usuario_id: int,
+    nombres: str,
+    apellidos: str,
+    correo: str,
+    telefono: str = "",
+    cargo: str = "",
+) -> dict:
+    """Actualiza los datos personales del usuario (excepto el documento).
+
+    Escribe en la persona vinculada (`clientes` o `empleados`) y mantiene el
+    correo de la cuenta (`usuarios.correo`) en sincronía: es el que se muestra
+    en el perfil. El DNI/RUC/CE (número y tipo de documento) NUNCA se modifica
+    desde aquí.
+    """
+    perfil = obtener_perfil(usuario_id)
+    if not perfil:
+        raise NotFoundError("El usuario no existe o fue eliminado.")
+
+    nombres = (nombres or "").strip()
+    apellidos = (apellidos or "").strip()
+    correo = (correo or "").strip().lower()
+    telefono = (telefono or "").strip()
+    cargo = (cargo or "").strip()
+
+    if not nombres:
+        raise ValidationError("El nombre es obligatorio.")
+    if not correo:
+        raise ValidationError("El correo es obligatorio.")
+    if "@" not in correo or "." not in correo.rsplit("@", 1)[-1]:
+        raise ValidationError("El correo no tiene un formato válido.")
+    if _existe_otro_usuario("correo", correo, usuario_id):
+        raise ValidationError(f"El correo '{correo}' ya está registrado en otra cuenta.")
+
+    # La persona vinculada define qué columnas se pueden editar.
+    if perfil.get("empleado_id"):
+        tabla, fila_id = "empleados", perfil["empleado_id"]
+        datos = {
+            "nombres": nombres,
+            "apellidos": apellidos,
+            "correo": correo,
+            "telefono": telefono or None,
+            "cargo": cargo or None,
+        }
+    elif perfil.get("cliente_id"):
+        tabla, fila_id = "clientes", perfil["cliente_id"]
+        datos = {
+            "nombres": nombres,
+            "apellidos": apellidos,
+            "correo": correo,
+            "telefono": telefono or None,
+        }
+    else:
+        tabla, fila_id = None, None
+        datos = {}
+
+    try:
+        if tabla:
+            get_admin_client().table(tabla).update(datos).eq("id", fila_id).execute()
+        _tabla_escritura().update({"correo": correo}).eq("id", usuario_id).execute()
+    except Exception as exc:  # noqa: BLE001
+        raise ValidationError(error_postgrest(exc)) from exc
+
+    return obtener_perfil(usuario_id)
+
+
 def nombre_tipo_documento(tipo_documento_id) -> str:
     """Devuelve el código o nombre del tipo de documento (DNI, RUC, ...) o ''."""
     if not tipo_documento_id:

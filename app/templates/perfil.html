@@ -54,18 +54,46 @@
         <h3>👤 Datos personales</h3>
         <span class="src-badge">{{ origen_persona }}</span>
     </div>
-    <dl class="row mb-0">
-        {% for etiqueta, valor in datos_personales %}
-            {% if valor %}
-            <dt class="col-sm-4 col-lg-3 text-secondary">{{ etiqueta }}</dt>
-            <dd class="col-sm-8 col-lg-9">{{ valor }}</dd>
+    <form method="POST" action="{{ url_for('main.perfil_datos') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label for="pf-nombres" class="form-label">Nombres</label>
+                <input type="text" class="form-control" id="pf-nombres" name="nombres"
+                       value="{{ nombres }}" required maxlength="100">
+            </div>
+            <div class="col-md-6">
+                <label for="pf-apellidos" class="form-label">Apellidos</label>
+                <input type="text" class="form-control" id="pf-apellidos" name="apellidos"
+                       value="{{ apellidos }}" maxlength="100">
+            </div>
+            <div class="col-md-6">
+                <label for="pf-documento" class="form-label">Documento</label>
+                <input type="text" class="form-control" id="pf-documento" value="{{ documento }}" readonly disabled>
+                <small class="text-secondary">El documento no se puede modificar.</small>
+            </div>
+            <div class="col-md-6">
+                <label for="pf-correo" class="form-label">Correo</label>
+                <input type="email" class="form-control" id="pf-correo" name="correo"
+                       value="{{ correo }}" required maxlength="150">
+            </div>
+            <div class="col-md-6">
+                <label for="pf-telefono" class="form-label">Teléfono</label>
+                <input type="text" class="form-control" id="pf-telefono" name="telefono"
+                       value="{{ telefono }}" maxlength="30">
+            </div>
+            {% if es_empleado %}
+            <div class="col-md-6">
+                <label for="pf-cargo" class="form-label">Cargo</label>
+                <input type="text" class="form-control" id="pf-cargo" name="cargo"
+                       value="{{ cargo }}" maxlength="100">
+            </div>
             {% endif %}
-        {% endfor %}
-    </dl>
-    <p class="text-muted text-sm mt-3 mb-0">
-        Estos datos provienen de tu registro en la base de datos. Para corregirlos,
-        contacta con el área administrativa.
-    </p>
+        </div>
+        <div class="d-flex justify-content-end mt-3">
+            <button type="submit" class="btn btn-primary">Guardar cambios</button>
+        </div>
+    </form>
 </div>
 
 <!-- ================= Seguridad: cambiar contraseña ================= -->

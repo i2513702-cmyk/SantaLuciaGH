@@ -642,6 +642,15 @@ h4 { font-size: 1rem; font-weight: 600; }
     object-fit: cover;
     object-position: center;
     display: block;
+    transition: transform 0.4s ease;
+}
+
+/* Zoom al pasar el mouse: se acerca al entrar y se aleja al salir.
+   Aplica al catálogo (tienda), a los destacados y al carrusel del inicio
+   (las tarjetas del carrusel usan .product-card). */
+.card:hover .product-img img,
+.product-card:hover .product-img img {
+    transform: scale(1.12);
 }
 
 /* El gráfico por defecto no debe recortarse: se centra con aire */
@@ -1364,7 +1373,7 @@ h4 { font-size: 1rem; font-weight: 600; }
     .hero-float { left: 16px; font-size: .78rem; padding: 8px 12px; }
     .product-img { aspect-ratio: 1 / 1; height: auto; padding: 0; }
     .product-img img { width: 100%; height: 100%; object-fit: cover; object-position: center; }
-    .card:hover .product-img img { transform: scale(1.04); }
+    .card:hover .product-img img { transform: scale(1.1); }
     .stats-bar { gap: 24px; flex-wrap: wrap; }
     .stat-value { font-size: 1.4rem; }
     .section { padding: 56px 0; }
@@ -2455,11 +2464,38 @@ h1, h2, h3, .brand-name, .kpi-value, .stat-value {
     aspect-ratio: 1 / 1;
     height: auto;
     padding: 0;
+    border: 2px solid var(--primary);
     border-radius: var(--radius-lg);
     overflow: hidden;
     box-shadow: var(--shadow);
+    position: relative;
 }
-.pd-main-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pd-main-img img { width: 100%; height: 100%; object-fit: cover; display: block; cursor: zoom-in; }
+/* Ícono de lupa sobre la imagen principal */
+.pd-zoom-icon {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 5;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.92);
+    color: #000;
+    font-size: 1.15rem;
+    line-height: 1;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.15s ease;
+}
+.pd-zoom-icon:hover { transform: scale(1.08); background: #fff; }
+/* Zoom al pasar el mouse sobre la foto principal: se acerca al entrar y se
+   aleja al salir. Sin :focus-within para que no quede pegada con zoom. */
+.pd-main-img:hover img { transform: scale(1.15); }
 
 /* ---------- galería de la ficha (varios ángulos) ---------- */
 .pd-galeria { display: flex; flex-direction: column; gap: 12px; }
@@ -2485,7 +2521,8 @@ h1, h2, h3, .brand-name, .kpi-value, .stat-value {
 }
 .pd-galeria-thumbs a:hover { border-color: var(--primary-light); }
 .pd-galeria-thumbs a[aria-current="true"] { border-color: var(--primary); }
-.pd-galeria-thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pd-galeria-thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .35s ease; }
+.pd-galeria-thumbs a:hover img { transform: scale(1.12); }
 
 .pd-galeria-nav {
     position: absolute;
@@ -2965,3 +3002,55 @@ h1, h2, h3, .brand-name, .kpi-value, .stat-value {
     color: var(--text-secondary);
 }
 .foto-actual input { margin: 0; }
+
+
+/* ---------- visor lightbox (PhotoSwipe v5) ---------- */
+.pswp { --pswp-root-z-index: 100000; }
+.pswp__bg { background: #000; }
+/* Barra superior negra con borde azul fino */
+.pswp__top-bar {
+    background: rgba(0, 0, 0, 0.92);
+    border-bottom: 1px solid var(--primary, #0369a1);
+    height: 56px;
+}
+/* Contador arriba a la izquierda */
+.pswp__counter {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    margin: 0;
+    margin-inline-start: 0;
+    margin-top: 0;
+    color: #fff;
+    font-weight: 600;
+    text-shadow: none;
+    opacity: 1;
+}
+/* Botones arriba a la derecha: barra negra con borde azul */
+.pswp__button {
+    color: #fff;
+}
+.pswp__button--close,
+.pswp__button--zoom,
+.pswp__button--fullscreen {
+    background: #000;
+    border: 1px solid var(--primary, #0369a1);
+    border-radius: 6px;
+    margin: 0 4px;
+    width: 40px;
+    height: 40px;
+}
+.pswp__button--close:hover,
+.pswp__button--zoom:hover,
+.pswp__button--fullscreen:hover {
+    background: var(--primary-dark, #0b4f7a);
+    border-color: var(--primary-dark, #0b4f7a);
+}
+/* Flechas laterales centradas verticalmente */
+.pswp__button--arrow .pswp__icn {
+    background: rgba(0, 0, 0, 0.55);
+    border-radius: 50%;
+}
+/* El bot�n flotante de WhatsApp no debe tapar el visor */
+.wa-float { z-index: 60; }
