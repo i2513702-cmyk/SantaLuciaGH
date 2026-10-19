@@ -21,6 +21,13 @@ from app.services import login_guard, rest_auth_service
 
 bp = Blueprint("auth", __name__)
 
+# Roles disponibles en el filtro de la lista de usuarios del sistema.
+ROLES_FILTRO_USUARIOS = {
+    "ADMINISTRADOR": "Administrador",
+    "TECNICO": "Técnico",
+    "CLIENTE": "Usuario",
+}
+
 
 def _int(valor, defecto: int = 0) -> int:
     """Convierte a entero sin romper si el valor llega vacío o mal escrito."""
@@ -216,13 +223,28 @@ def recuperar_clave():
 @login_required
 @admin_required
 def usuarios_sistema():
-    """Lista los usuarios del sistema (vía Supabase REST)."""
+    """Lista los usuarios del sistema (vía Supabase REST) con filtro y paginación."""
+    q = (request.args.get("q") or "").strip()
+    rol = (request.args.get("rol") or "").strip()
     try:
-        usuarios = rest_auth_service.listar_usuarios()
+        pagina = int(request.args.get("p", 1) or 1)
+    except ValueError:
+        pagina = 1
+    try:
+        resultado = rest_auth_service.listar_usuarios(q=q, rol=rol, pagina=pagina)
     except ValidationError as exc:
         flash(str(exc), "error")
-        usuarios = []
-    return render_template("auth/usuarios_sistema.html", usuarios=usuarios)
+        resultado = {"usuarios": [], "total": 0, "paginas": 1, "pagina": 1}
+    return render_template(
+        "auth/usuarios_sistema.html",
+        usuarios=resultado["usuarios"],
+        total=resultado["total"],
+        paginas=resultado["paginas"],
+        pagina=resultado["pagina"],
+        q=q,
+        rol_filtro=rol,
+        roles=ROLES_FILTRO_USUARIOS,
+    )
 
 
 @bp.route("/sistema/usuarios/nuevo", methods=["GET", "POST"])

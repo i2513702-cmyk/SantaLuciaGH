@@ -1,0 +1,3 @@
+﻿ALTER TABLE public.electrodomesticos
+ADD COLUMN IF NOT EXISTS tipo_otro VARCHAR(30),
+ADD COLUMN IF NOT EXISTS marca_otro VARCHAR(30);

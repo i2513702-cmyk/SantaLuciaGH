@@ -100,15 +100,43 @@ def login(identificador: str, password: str) -> dict:
     return usuario
 
 
-def listar_usuarios() -> list:
-    """Devuelve todos los usuarios del sistema (para el panel de administración)."""
+POR_PAGINA_USUARIOS = 10
+
+
+def listar_usuarios(
+    q: str = "", rol: str = "", pagina: int = 1, por_pagina: int = POR_PAGINA_USUARIOS
+) -> dict:
+    """Lista paginada de usuarios del sistema (para el panel de administración).
+
+    Filtros opcionales: `q` busca por correo y `rol` por rol exacto.
+    Devuelve {"usuarios", "total", "paginas", "pagina"}.
+    """
     try:
         resp = get_reader().table(TABLA_USUARIOS).select(
             "*,empleados(nombres,apellidos),clientes(nombres,apellidos)"
         ).order("id").execute()
     except Exception as exc:  # noqa: BLE001
         raise ValidationError(error_postgrest(exc)) from exc
-    return resp.data or []
+
+    filas = resp.data or []
+
+    if q:
+        texto = q.strip().lower()
+        filas = [u for u in filas if texto in (u.get("correo") or "").lower()]
+
+    if rol:
+        filas = [u for u in filas if (u.get("rol") or "") == rol]
+
+    total = len(filas)
+    paginas = max((total + por_pagina - 1) // por_pagina, 1)
+    pagina = min(max(pagina, 1), paginas)
+    inicio = (pagina - 1) * por_pagina
+    return {
+        "usuarios": filas[inicio : inicio + por_pagina],
+        "total": total,
+        "paginas": paginas,
+        "pagina": pagina,
+    }
 
 
 def obtener_usuario(usuario_id: int) -> dict:

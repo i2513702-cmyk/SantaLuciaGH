@@ -50,20 +50,28 @@
         <section class="cita-col">
             <h3 class="cita-col-title">🔧 &nbsp;Tu electrodoméstico</h3>
             <label for="tipo_id">Tipo de equipo *</label>
-            <select id="tipo_id" name="tipo_id" required>
+            <select id="tipo_id" name="tipo_id" required onchange="mostrarOtroTipo(this)">
                 <option value="">Selecciona el tipo</option>
                 {% for t in tipos %}
-                    <option value="{{ t.id }}" {% if form and form.tipo_id|int == t.id %}selected{% endif %}>{{ t.nombre }}</option>
+                    <option value="{{ t.id }}" {% if form and form.tipo_id and form.tipo_id|int == t.id %}selected{% endif %}>{{ t.nombre }}</option>
                 {% endfor %}
             </select>
+            <div id="otro_tipo_container" style="display:none; margin-top:10px;">
+                <label for="tipo_otro">Especifica el tipo de equipo *</label>
+                <input type="text" id="tipo_otro" name="tipo_otro" placeholder="Escribe el tipo de equipo" maxlength="30" value="{{ form.tipo_otro if form else '' }}">
+            </div>
 
             <label for="marca_id">Marca *</label>
-            <select id="marca_id" name="marca_id" required>
+            <select id="marca_id" name="marca_id" required onchange="mostrarOtraMarca(this)">
                 <option value="">Selecciona la marca</option>
                 {% for m in marcas %}
-                    <option value="{{ m.id }}" {% if form and form.marca_id|int == m.id %}selected{% endif %}>{{ m.nombre }}</option>
+                    <option value="{{ m.id }}" {% if form and form.marca_id and form.marca_id|int == m.id %}selected{% endif %}>{{ m.nombre }}</option>
                 {% endfor %}
             </select>
+            <div id="otra_marca_container" style="display:none; margin-top:10px;">
+                <label for="marca_otro">Especifica la marca *</label>
+                <input type="text" id="marca_otro" name="marca_otro" placeholder="Escribe la marca" maxlength="30" value="{{ form.marca_otro if form else '' }}">
+            </div>
 
             <label for="modelo">Modelo</label>
             <input type="text" id="modelo" name="modelo" placeholder="Ej: GC-206"
@@ -104,7 +112,8 @@
                         <option value="{{ h }}" {% if form and form.hora_inicio == h %}selected{% endif %}>{{ h }} hrs</option>
                     {% endfor %}
                 </select>
-                <p style="color: var(--muted); font-size: 0.78rem; margin: 6px 0 0;">Solo se muestran horas con técnico disponible.</p>
+                <p id="sin-horarios" style="color: var(--danger, #dc3545); font-size: 0.78rem; margin: 6px 0 0; display:none;">No hay horas disponibles para esa fecha. Elige otro día.</p>
+                <p id="ayuda-horarios" style="color: var(--muted); font-size: 0.78rem; margin: 6px 0 0;">Solo se muestran horas con técnico disponible.</p>
             </div>
         </div>
         <div id="domicilio-box" class="cita-form-row" style="display:none;">
@@ -120,10 +129,10 @@
     <section class="cita-block">
         <h3 class="cita-col-title">📝 &nbsp;Descripción del problema</h3>
         <label for="motivo">¿Qué le ocurre a tu equipo? *</label>
-        <textarea id="motivo" name="motivo" rows="3"
+        <textarea id="motivo" name="motivo" rows="3" maxlength="100"
                   placeholder="Ej: No enfría, hace ruido, no enciende...">{{ form.motivo if form else '' }}</textarea>
         <label for="observaciones">Otras observaciones</label>
-        <textarea id="observaciones" name="observaciones" rows="2"
+        <textarea id="observaciones" name="observaciones" rows="2" maxlength="100"
                   placeholder="Opcional">{{ form.observaciones if form else '' }}</textarea>
     </section>
 
@@ -144,6 +153,10 @@
         });
         if (prev && disponibles.indexOf(prev) !== -1) select.value = prev;
         else select.value = '';
+        var aviso = document.getElementById('sin-horarios');
+        var ayuda = document.getElementById('ayuda-horarios');
+        if (aviso) aviso.style.display = disponibles.length ? 'none' : '';
+        if (ayuda) ayuda.style.display = disponibles.length ? '' : 'none';
     }
 
     function cargarDisponibles(callback) {
@@ -169,5 +182,38 @@
     if (document.getElementById('fecha_reserva').value) {
         cargarDisponibles(aplicarDisponibles);
     }
+
+    function mostrarOtroTipo(sel) {
+        var cont = document.getElementById('otro_tipo_container');
+        var opt = sel.options[sel.selectedIndex];
+        if (opt && opt.text.trim().toUpperCase() === 'OTRO') {
+            cont.style.display = '';
+        } else {
+            cont.style.display = 'none';
+            var inp = document.getElementById('tipo_otro');
+            if (inp) inp.value = '';
+        }
+    }
+
+    function mostrarOtraMarca(sel) {
+        var cont = document.getElementById('otra_marca_container');
+        var opt = sel.options[sel.selectedIndex];
+        if (opt && opt.text.trim().toUpperCase() === 'OTRO') {
+            cont.style.display = '';
+        } else {
+            cont.style.display = 'none';
+            var inp = document.getElementById('marca_otro');
+            if (inp) inp.value = '';
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        var selTipo = document.getElementById('tipo_id');
+        var selMarca = document.getElementById('marca_id');
+        if (selTipo) mostrarOtroTipo(selTipo);
+        if (selMarca) mostrarOtraMarca(selMarca);
+        var fechaInput = document.getElementById('fecha_reserva');
+        if (fechaInput) fechaInput.addEventListener('change', function () { cargarDisponibles(aplicarDisponibles); });
+    });
 </script>
 {% endblock %}

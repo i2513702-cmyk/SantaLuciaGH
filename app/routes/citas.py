@@ -29,13 +29,22 @@ bp = Blueprint("citas", __name__)
 def _opciones(tabla: str, cols: str = "*", orden: str = "nombre"):
     """Lista de opciones para selects (devuelve [] si la consulta falla)."""
     try:
-        return (
+        datos = (
             get_reader()
             .table(tabla)
             .select(cols)
             .order(orden)
             .execute()
         ).data or []
+        otro_items = []
+        resto = []
+        for d in datos:
+            nombre = (d.get("nombre") or "").strip().upper()
+            if nombre == "OTRO":
+                otro_items.append(d)
+            else:
+                resto.append(d)
+        return resto + otro_items
     except Exception:  # noqa: BLE001
         return []
 
@@ -90,6 +99,8 @@ def agendar_cita():
         "correo": request.form.get("correo", ""),
         "tipo_id": request.form.get("tipo_id", ""),
         "marca_id": request.form.get("marca_id", ""),
+        "tipo_otro": request.form.get("tipo_otro", ""),
+        "marca_otro": request.form.get("marca_otro", ""),
         "modelo": request.form.get("modelo", ""),
         "numero_serie": request.form.get("numero_serie", ""),
         "color": request.form.get("color", ""),

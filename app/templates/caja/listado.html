@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block title %}Cierre de caja — {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+    <div>
+        <h1 class="h3 fw-bold mb-1">{{ icono('nav-caja', 'cash-stack', 28) }} Cierre de caja</h1>
+        <p class="text-secondary mb-0">Arqueo diario y registro de cierres de la caja del negocio.</p>
+    </div>
+    <a class="btn btn-primary" href="{{ url_for('caja.nuevo') }}">+ Nuevo cierre</a>
+</div>
+
+{% if error %}
+<div class="alert alert-warning">
+    <strong>No se pudo acceder a los cierres.</strong> {{ error }}
+    <div class="small mt-1">Ejecuta la migración <code>sql/03_cierres_caja.sql</code> en Supabase para habilitar el registro de cierres.</div>
+</div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3"><div class="card no-hover h-100"><div class="card-body">
+        <small class="text-secondary">Cierres registrados</small>
+        <div class="h3 fw-bold mb-0">{{ resumen.n_cierres }}</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="card no-hover h-100"><div class="card-body">
+        <small class="text-secondary">Ventas del periodo</small>
+        <div class="h3 fw-bold mb-0 text-primary">S/ {{ "%.2f"|format(resumen.total_ventas) }}</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="card no-hover h-100"><div class="card-body">
+        <small class="text-secondary">Efectivo esperado</small>
+        <div class="h3 fw-bold mb-0">S/ {{ "%.2f"|format(resumen.total_efectivo) }}</div></div></div></div>
+    <div class="col-6 col-lg-3"><div class="card no-hover h-100"><div class="card-body">
+        <small class="text-secondary">Diferencia acumulada</small>
+        {% set dif = resumen.diferencia %}
+        <div class="h3 fw-bold mb-0 {{ 'text-danger' if dif < 0 else ('text-success' if dif > 0 else '') }}">
+            S/ {{ "%.2f"|format(dif) }}</div></div></div></div>
+</div>
+
+<form method="get" class="card no-hover mb-3"><div class="card-body">
+    <div class="row g-2 align-items-end">
+        <div class="col-6 col-md-3"><label class="form-label small mb-1">Desde</label>
+            <input type="date" name="desde" value="{{ f.desde or '' }}" class="form-control"></div>
+        <div class="col-6 col-md-3"><label class="form-label small mb-1">Hasta</label>
+            <input type="date" name="hasta" value="{{ f.hasta or '' }}" class="form-control"></div>
+        <div class="col-12 col-md-6 d-flex flex-wrap gap-2 align-items-end">
+            <button class="btn btn-primary btn-sm px-4"><i class="bi bi-funnel"></i> Filtrar</button>
+            {% if f %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('caja.listado') }}">Limpiar</a>{% endif %}
+            <span class="vr mx-1"></span>
+            {% for nombre, (d, h) in atajos.items() %}
+                <a class="btn btn-sm btn-light border" href="{{ url_for('caja.listado', desde=d.isoformat(), hasta=h.isoformat()) }}">{{ nombre }}</a>
+            {% endfor %}
+        </div>
+    </div>
+</div></form>
+
+<div class="card no-hover">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead><tr>
+                <th>Fecha</th><th class="text-end">Pagos</th><th class="text-end">Apertura</th>
+                <th class="text-end">Efectivo</th><th class="text-end">Otros</th><th class="text-end">Total</th>
+                <th class="text-end">Contado</th><th class="text-end">Diferencia</th><th>Responsable</th><th class="text-end"></th>
+            </tr></thead>
+            <tbody>
+            {% for c in cierres %}
+                {% set dif = c.diferencia or 0 %}
+                <tr role="link" style="cursor:pointer" onclick="location.href='{{ url_for('caja.detalle', cierre_id=c.id) }}'">
+                    <td class="fw-semibold">{{ c.fecha }}</td>
+                    <td class="text-end">{{ c.n_pagos }}</td>
+                    <td class="text-end text-secondary">S/ {{ "%.2f"|format(c.monto_apertura or 0) }}</td>
+                    <td class="text-end">S/ {{ "%.2f"|format(c.total_efectivo or 0) }}</td>
+                    <td class="text-end text-secondary">S/ {{ "%.2f"|format(c.total_otros or 0) }}</td>
+                    <td class="text-end fw-semibold">S/ {{ "%.2f"|format(c.total_ventas or 0) }}</td>
+                    <td class="text-end">S/ {{ "%.2f"|format(c.monto_contado or 0) }}</td>
+                    <td class="text-end fw-bold {{ 'text-danger' if dif < 0 else ('text-success' if dif > 0 else 'text-secondary') }}">
+                        {{ '+' if dif > 0 }}{{ "%.2f"|format(dif) }}</td>
+                    <td class="small text-secondary">{{ c.responsable or '—' }}</td>
+                    <td class="text-end"><i class="bi bi-chevron-right text-secondary"></i></td>
+                </tr>
+            {% else %}
+                <tr><td colspan="10" class="text-center py-5 text-secondary">
+                    <div class="fs-1"><i class="bi bi-cash-stack"></i></div>
+                    {% if f %}No hay cierres con estos filtros.{% else %}Aún no hay cierres de caja registrados.{% endif %}
+                </td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% if paginas > 1 %}
+<nav class="d-flex justify-content-center align-items-center gap-3 mt-4">
+    <a class="btn btn-sm btn-outline-primary {{ 'disabled' if pagina <= 1 }}" href="{{ url_for('caja.listado', p=pagina-1, **f) }}"><i class="bi bi-chevron-left"></i> Anterior</a>
+    <span class="small text-secondary">Página {{ pagina }} de {{ paginas }} · {{ total }} registro(s)</span>
+    <a class="btn btn-sm btn-outline-primary {{ 'disabled' if pagina >= paginas }}" href="{{ url_for('caja.listado', p=pagina+1, **f) }}">Siguiente <i class="bi bi-chevron-right"></i></a>
+</nav>
+{% elif total %}
+<p class="small text-secondary mt-3 mb-0 text-center">{{ total }} registro(s)</p>
+{% endif %}
+{% endblock %}
