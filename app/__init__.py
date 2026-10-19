@@ -128,6 +128,12 @@ def create_app() -> Flask:
             ) if session.get("usuario_id") else None,
             "carrito_n": carrito_n,
             "csrf_token": get_csrf(),
+            "whatsapp_numero": app.config.get("WHATSAPP_NUMERO", ""),
+            "whatsapp_mensaje": app.config.get("WHATSAPP_MENSAJE", ""),
+            "contacto_telefono": app.config.get("CONTACTO_TELEFONO", ""),
+            "contacto_correo": app.config.get("CONTACTO_CORREO", ""),
+            "contacto_direccion": app.config.get("CONTACTO_DIRECCION", ""),
+            "redes": app.config.get("REDES", {}),
         }
 
     # --- El personal interno no compra: se corta el carrito/checkout antes del CSRF ---

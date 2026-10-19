@@ -221,7 +221,16 @@ def _guardar_imagen(producto_id: int, imagen) -> str | None:
     return url
 
 
-def crear_producto(datos: dict, imagen=None) -> dict:
+def _guardar_fotos(producto_id: int, archivos) -> list:
+    """Sube fotos adicionales (varios ángulos) y devuelve sus URLs."""
+    urls = []
+    for archivo in archivos or []:
+        if archivo and getattr(archivo, "filename", ""):
+            urls.append(storage_service.subir_imagen_producto(archivo, producto_id))
+    return urls
+
+
+def crear_producto(datos: dict, imagen=None, imagenes=None) -> dict:
     fila = _validar_y_mapear(datos)
     try:
         resp = get_admin_client().table("productos").insert(fila).execute()
@@ -230,10 +239,18 @@ def crear_producto(datos: dict, imagen=None) -> dict:
     producto = resp.data[0]
     if imagen and getattr(imagen, "filename", ""):
         producto["imagen_url"] = _guardar_imagen(producto["id"], imagen)
+    _guardar_fotos(producto["id"], imagenes)
     return producto
 
 
-def actualizar_producto(producto_id: int, datos: dict, imagen=None, quitar_imagen: bool = False) -> dict:
+def actualizar_producto(
+    producto_id: int,
+    datos: dict,
+    imagen=None,
+    quitar_imagen: bool = False,
+    imagenes=None,
+    quitar_fotos=None,
+) -> dict:
     if not _existe("productos", producto_id):
         raise NotFoundError("El producto no existe o fue eliminado.")
     fila = _validar_y_mapear(datos)
@@ -250,6 +267,12 @@ def actualizar_producto(producto_id: int, datos: dict, imagen=None, quitar_image
     producto = resp.data[0] if resp.data else {}
 
     if quitar_imagen:
+        anterior = producto.get("imagen_url")
+        if anterior:
+            # La foto principal vive en Storage con el prefijo del producto:
+            # se elimina el archivo además de vaciar la columna.
+            nombre = anterior.rsplit("/", 1)[-1]
+            storage_service.quitar_fotos_producto(producto_id, [nombre])
         try:
             get_admin_client().table("productos").update(
                 {"imagen_url": None}
@@ -266,6 +289,9 @@ def actualizar_producto(producto_id: int, datos: dict, imagen=None, quitar_image
             raise ValidationError(msg) from exc
     elif imagen and getattr(imagen, "filename", ""):
         producto["imagen_url"] = _guardar_imagen(producto_id, imagen)
+
+    storage_service.quitar_fotos_producto(producto_id, quitar_fotos)
+    _guardar_fotos(producto_id, imagenes)
 
     return producto
 

@@ -1,13 +1,27 @@
-"""Páginas públicas: inicio, tienda (catálogo) y perfil del usuario."""
+"""Páginas públicas: inicio, tienda (catálogo), ficha de producto y perfil."""
 
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from datetime import datetime, timedelta, timezone
+
+from flask import (
+    Blueprint,
+    abort,
+    flash,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 
 from app.decorators import ROLES_DB, es_no_comprador, login_required
 from app.exceptions import AppError, ValidationError
-from app.services import tracking_service
+from app.services import storage_service, tracking_service
 from app.supabase_client import get_reader
 
 bp = Blueprint("main", __name__)
+
+# Días durante los que un producto recién creado se marca como "Nuevo".
+DIAS_NOVEDAD = 30
 
 
 def _precio(valor):
@@ -21,15 +35,69 @@ def _precio(valor):
 # existe en Supabase (migración pendiente), se reintenta sin ella para no
 # romper la tienda ni los destacados del inicio.
 _COLS_CATALOGO = (
-    "id,nombre,descripcion,modelo,tipo_producto,imagen_url,"
+    "id,codigo,nombre,descripcion,modelo,tipo_producto,imagen_url,fecha_creacion,"
     "marca_id,categoria_id,precio_venta,precio_promocional,"
     "marcas(nombre),categorias(nombre)"
 )
 _COLS_CATALOGO_SIN_IMG = (
-    "id,nombre,descripcion,modelo,tipo_producto,"
+    "id,codigo,nombre,descripcion,modelo,tipo_producto,fecha_creacion,"
     "marca_id,categoria_id,precio_venta,precio_promocional,"
     "marcas(nombre),categorias(nombre)"
 )
+
+
+def _es_nuevo(valor, dias: int = DIAS_NOVEDAD) -> bool:
+    """True si la fecha de creación está dentro de los últimos `dias`."""
+    if not valor:
+        return False
+    try:
+        fecha = datetime.fromisoformat(str(valor).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return False
+    if fecha.tzinfo is None:
+        fecha = fecha.replace(tzinfo=timezone.utc)
+    return (datetime.now(timezone.utc) - fecha) <= timedelta(days=dias)
+
+
+def _mapear_producto(p: dict) -> dict:
+    """Adapta una fila de `productos` a lo que esperan las plantillas.
+
+    Calcula precios formateados, el porcentaje de descuento (para el badge
+    "-20%") y si el producto es reciente (badge "Nuevo").
+    """
+    original = _precio(p.get("precio_venta"))
+    promo = p.get("precio_promocional")
+    promo_str = _precio(promo) if promo else None
+    oferta = promo_str is not None
+
+    descuento_pct = None
+    if oferta:
+        try:
+            base = float(p.get("precio_venta") or 0)
+            rebajado = float(promo)
+            if base > 0 and rebajado < base:
+                descuento_pct = round((base - rebajado) / base * 100)
+        except (TypeError, ValueError):
+            descuento_pct = None
+
+    return {
+        "id": p.get("id"),
+        "codigo": p.get("codigo"),
+        "nombre": p.get("nombre"),
+        "descripcion": p.get("descripcion"),
+        "modelo": p.get("modelo"),
+        "tipo": p.get("tipo_producto"),
+        "imagen_url": p.get("imagen_url"),
+        "marca": (p.get("marcas") or {}).get("nombre"),
+        "categoria": (p.get("categorias") or {}).get("nombre"),
+        "marca_id": p.get("marca_id"),
+        "categoria_id": p.get("categoria_id"),
+        "precio_ahora": promo_str or original,
+        "precio_antes": original if oferta else None,
+        "oferta": oferta,
+        "descuento_pct": descuento_pct,
+        "nuevo": _es_nuevo(p.get("fecha_creacion")),
+    }
 
 
 def _leer_productos_activos(limite=None) -> list:
@@ -44,6 +112,25 @@ def _leer_productos_activos(limite=None) -> list:
         except Exception:  # noqa: BLE001
             continue
     return []
+
+
+def _leer_producto_por_id(producto_id: int):
+    """Devuelve una fila de `productos` por id (o None si no existe)."""
+    reader = get_reader()
+    for cols in (_COLS_CATALOGO, _COLS_CATALOGO_SIN_IMG):
+        try:
+            filas = (
+                reader.table("productos")
+                .select(cols)
+                .eq("id", producto_id)
+                .limit(1)
+                .execute()
+                .data
+            )
+            return filas[0] if filas else None
+        except Exception:  # noqa: BLE001
+            continue
+    return None
 
 
 def _cargar_home_data() -> dict:
@@ -72,21 +159,7 @@ def _cargar_home_data() -> dict:
         {"id": c["id"], "nombre": c["nombre"]}
         for c in _q("categorias", "id,nombre", orden="id")
     ]
-    productos_raw = _leer_productos_activos(limite=6)
-    productos = []
-    for p in productos_raw:
-        original = _precio(p.get("precio_venta"))
-        promocional = _precio(p.get("precio_promocional")) if p.get("precio_promocional") else None
-        productos.append({
-            "id": p.get("id"),
-            "nombre": p.get("nombre"),
-            "imagen_url": p.get("imagen_url"),
-            "marca": (p.get("marcas") or {}).get("nombre"),
-            "categoria": (p.get("categorias") or {}).get("nombre"),
-            "precio_ahora": promocional or original,
-            "precio_antes": original if promocional else None,
-            "oferta": promocional is not None,
-        })
+    productos = [_mapear_producto(p) for p in _leer_productos_activos(limite=6)]
 
     return {"marcas": marcas, "categorias": categorias, "productos_destacados": productos}
 
@@ -137,26 +210,7 @@ def tienda():
     except Exception:  # noqa: BLE001
         categorias_tabla, marcas_tabla = [], []
 
-    productos = []
-    for p in filas:
-        original = _precio(p.get("precio_venta"))
-        promocional = _precio(p.get("precio_promocional")) if p.get("precio_promocional") else None
-        oferta = promocional is not None
-        productos.append({
-            "id": p.get("id"),
-            "nombre": p.get("nombre"),
-            "imagen_url": p.get("imagen_url"),
-            "marca": (p.get("marcas") or {}).get("nombre"),
-            "categoria": (p.get("categorias") or {}).get("nombre"),
-            "marca_id": p.get("marca_id"),
-            "categoria_id": p.get("categoria_id"),
-            "modelo": p.get("modelo"),
-            "tipo": p.get("tipo_producto"),
-            "descripcion": p.get("descripcion"),
-            "precio_ahora": promocional or original,
-            "precio_antes": original if oferta else None,
-            "oferta": oferta,
-        })
+    productos = [_mapear_producto(p) for p in filas]
 
     def _coincide(texto) -> bool:
         return q in (texto or "").lower()
@@ -220,6 +274,39 @@ def tienda():
         url_limpiar=url_for("main.tienda"),
         n_resultados=len(resultados),
         filtros_activos=filtros_activos,
+    )
+
+
+@bp.route("/producto/<int:producto_id>")
+def producto_detalle(producto_id):
+    """Ficha pública de un producto del catálogo + relacionados."""
+    fila = _leer_producto_por_id(producto_id)
+    if not fila:
+        abort(404)
+
+    producto = _mapear_producto(fila)
+    categoria_id = fila.get("categoria_id")
+    relacionados = [
+        _mapear_producto(p)
+        for p in _leer_productos_activos()
+        if p.get("id") != producto_id and p.get("categoria_id") == categoria_id
+    ][:4]
+
+    tracking_service.registrar_visita(f"/producto/{producto_id}")
+    try:
+        galeria = [
+            f["url"]
+            for f in storage_service.listar_fotos_producto(
+                producto_id, producto.get("imagen_url")
+            )
+        ]
+    except Exception:  # noqa: BLE001
+        galeria = [producto["imagen_url"]] if producto.get("imagen_url") else []
+    return render_template(
+        "producto_detalle.html",
+        producto=producto,
+        relacionados=relacionados,
+        galeria=galeria,
     )
 
 
