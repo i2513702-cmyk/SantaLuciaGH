@@ -66,6 +66,9 @@ main.container { padding-top: 28px; padding-bottom: 40px; }
 .card, .product-card, .servicio-card, .testimonio-card, .categoria-card { border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); transition: transform .2s, box-shadow .2s; }
 .card:hover, .product-card:hover, .servicio-card:hover, .categoria-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
 .card.no-hover:hover { transform: none; box-shadow: var(--shadow); }
+/* Catálogo: las tarjetas de producto se elevan un poco más para resaltar */
+.product-card:hover,
+.card:has(> .product-img):hover { transform: translateY(-6px); box-shadow: var(--shadow-lg); }
 .form-control, .form-select { border-radius: 12px; padding: .65rem .9rem; border-color: var(--border); }
 .form-control:focus, .form-select:focus { border-color: var(--primary-light); box-shadow: 0 0 0 .25rem rgba(59,130,246,.18); }
 .table > :not(caption) > * > * { padding: .8rem .9rem; }

@@ -55,7 +55,7 @@
                 <div class="card h-100 shadow-sm">
                     <div class="product-img position-relative">
                         {% if p.oferta %}
-                            <span class="badge text-bg-danger position-absolute top-0 start-0 m-2">¡Oferta!</span>
+                            <span class="badge text-bg-danger position-absolute top-0 start-0 m-2">Oferta</span>
                         {% endif %}
                         <img loading="lazy" src="{{ p.imagen_url or url_for('static', filename='img/producto-default.svg') }}" alt="{{ p.nombre }}">
                     </div>
