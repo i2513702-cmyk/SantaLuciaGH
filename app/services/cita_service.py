@@ -8,6 +8,7 @@ import logging
 from datetime import date as date_cls
 from datetime import datetime, timedelta, timezone
 
+from app.config import Config
 from app.supabase_client import get_admin_client, get_reader
 
 log = logging.getLogger(__name__)
@@ -16,6 +17,13 @@ TIPO_ATENCIONES = {"TALLER", "DOMICILIO"}
 HORARIOS = ["09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"]
 ESTADO_RESERVA = "PENDIENTE"
 ESTADO_ELECTRODOMESTICO = "REGISTRADO"
+
+# Distritos donde hay cobertura a domicilio (se configura en app/config.py).
+DISTRITOS_DOMICILIO = list(Config.DISTRITOS_DOMICILIO)
+# La columna `reservas.calle` guarda "Distrito - Dirección". Se separa con " - "
+# para que el formulario pueda volver a mostrar el distrito elegido si la
+# validación falla.
+SEPARADOR_DIRECCION = " - "
 
 
 class CitaError(Exception):
@@ -54,6 +62,12 @@ def validar(datos: dict) -> None:
         raise CitaError("Selecciona un tipo de atención válido.")
     if tipo_atencion == "DOMICILIO" and not datos.get("calle", "").strip():
         raise CitaError("Para atención a domicilio indica tu dirección completa.")
+    distrito = (datos.get("distrito") or "").strip()
+    if tipo_atencion == "DOMICILIO":
+        if not distrito:
+            raise CitaError("Selecciona el distrito de la atención a domicilio.")
+        if distrito not in DISTRITOS_DOMICILIO:
+            raise CitaError("Solo atendemos a domicilio en nuestros distritos de cobertura.")
 
     fecha = datos.get("fecha_reserva", "").strip()
     if not fecha:
@@ -301,6 +315,13 @@ def _normalizar(datos: dict) -> dict:
 
     tipo_atencion = _v("tipo_atencion").upper()
 
+    distrito = _v("distrito")
+    calle = _v("calle")
+    if distrito and calle:
+        direccion = f"{distrito}{SEPARADOR_DIRECCION}{calle}"
+    else:
+        direccion = distrito or calle
+
     tipo_id = datos.get("tipo_id") or datos.get("tipo_id_alt") or ""
     try:
         tipo_id_val = int(tipo_id) if str(tipo_id).strip() else 0
@@ -333,7 +354,8 @@ def _normalizar(datos: dict) -> dict:
         "hora_inicio": _v("hora_inicio"),
         "motivo": _v("motivo"),
         "observaciones": _v("observaciones"),
-        "calle": _v("calle"),
+        "distrito": distrito,
+        "calle": direccion,
     }
 
 
@@ -408,8 +430,19 @@ def _crear_reserva(db, cliente_id: int, electrodomestico_id: int, d: dict):
         "observaciones": d["observaciones"] or None,
         "calle": d["calle"] or None,
     }
-    resp = db.from_("reservas").insert(fila).execute()
-    return (resp.data or [{}])[0].get("id")
+    if d.get("distrito"):
+        fila["distrito"] = d["distrito"]
+    try:
+        resp = db.from_("reservas").insert(fila).execute()
+        return (resp.data or [{}])[0].get("id")
+    except Exception:
+        # La migración sql/04_reservas_distrito.sql aún no se aplicó: se guarda
+        # igual (el distrito queda dentro de `calle`).
+        if "distrito" not in fila:
+            raise
+        fila.pop("distrito", None)
+        resp = db.from_("reservas").insert(fila).execute()
+        return (resp.data or [{}])[0].get("id")
 
 
 def agendar(datos: dict) -> dict:

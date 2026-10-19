@@ -185,7 +185,7 @@
                     {% endfor %}
                 </div>
                 <div class="card-footer d-grid">
-                    <button type="submit" class="btn btn-primary btn-lg">💳 Pagar {{ total }} </button>
+                    <button type="submit" id="btnPagar" class="btn btn-primary btn-lg" data-etiqueta="💳 Pagar {{ total }}">💳 Pagar {{ total }} </button>
                     <small class="text-muted text-center mt-2">Se mostrará en tu historial de compras.</small>
                 </div>
             </div>
@@ -196,4 +196,36 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/autocompletado-cliente.js') }}"></script>
+<script>
+(function () {
+    var form = document.getElementById('formPago');
+    var boton = document.getElementById('btnPagar');
+    if (!form || !boton) return;
+
+    var enviando = false;
+
+    form.addEventListener('submit', function (e) {
+        // El evento 'submit' solo se dispara cuando la validación del navegador
+        // ha pasado, así que aquí es seguro bloquear el botón.
+        if (enviando) {
+            e.preventDefault();
+            return;
+        }
+        enviando = true;
+        boton.disabled = true;
+        boton.classList.add('disabled');
+        boton.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Procesando pago…';
+        boton.setAttribute('aria-busy', 'true');
+    });
+
+    // Si el usuario vuelve con "atrás" (bfcache), se restaura el estado del botón.
+    window.addEventListener('pageshow', function () {
+        enviando = false;
+        boton.disabled = false;
+        boton.classList.remove('disabled');
+        boton.removeAttribute('aria-busy');
+        boton.innerHTML = boton.dataset.etiqueta;
+    });
+})();
+</script>
 {% endblock %}

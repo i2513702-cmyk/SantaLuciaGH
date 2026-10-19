@@ -87,6 +87,16 @@ class Config:
     MAX_CONTENT_LENGTH = 2 * 1024 * 1024
     UPLOAD_FOLDER = "app/static/img/uploads"
 
+    # Distritos donde se atiende a domicilio (formulario de citas).
+    # Si se deja vacío en el .env, se usa la lista por defecto.
+    DISTRITOS_DOMICILIO = [
+        d.strip()
+        for d in os.getenv(
+            "DISTRITOS_DOMICILIO", "Tambo,Chilca,Pilcomayo,Huancán,Huayucachi,Viques"
+        ).split(",")
+        if d.strip()
+    ]
+
     # Vigencia de los carritos en la base de datos (en horas).
     # Pasado este tiempo desde la última creación, el carrito se invalida solo.
     CART_TTL_HOURS = 3
