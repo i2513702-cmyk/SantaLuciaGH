@@ -129,6 +129,58 @@ def obtener_usuario(usuario_id: int) -> dict:
     return resp.data[0]
 
 
+def obtener_perfil(usuario_id: int) -> dict:
+    """Datos del usuario y de la persona vinculada (cliente o empleado).
+
+    Devuelve la fila del usuario con la relación `clientes`/`empleados`
+    embebida. Si la consulta con relaciones falla (por ejemplo, si el join aún
+    no está disponible), se reintenta solo con el usuario para no romper el
+    perfil.
+    """
+    base = "id,nombre_usuario,correo,rol,activo,ultimo_acceso,cliente_id,empleado_id"
+    con_persona = (
+        base
+        + ",clientes(nombres,apellidos,numero_documento,telefono,correo,tipo_documento_id)"
+        + ",empleados(nombres,apellidos,numero_documento,telefono,correo,cargo,tipo_documento_id)"
+    )
+    for cols in (con_persona, base):
+        try:
+            resp = (
+                get_reader()
+                .table(TABLA_USUARIOS)
+                .select(cols)
+                .eq("id", usuario_id)
+                .limit(1)
+                .execute()
+            )
+        except Exception:  # noqa: BLE001
+            continue
+        if resp.data:
+            return resp.data[0]
+    return {}
+
+
+def nombre_tipo_documento(tipo_documento_id) -> str:
+    """Devuelve el código o nombre del tipo de documento (DNI, RUC, ...) o ''."""
+    if not tipo_documento_id:
+        return ""
+    try:
+        resp = (
+            get_reader()
+            .table("tipo_documento")
+            .select("codigo,nombre")
+            .eq("id", tipo_documento_id)
+            .limit(1)
+            .execute()
+        )
+    except Exception:  # noqa: BLE001
+        return ""
+    if not resp.data:
+        return ""
+    fila = resp.data[0]
+    return fila.get("codigo") or fila.get("nombre") or ""
+
+
 def _existe_otro_usuario(campo: str, valor: str, usuario_id: int) -> bool:
     """True si otro usuario (distinto al indicado) ya usa ese campo."""
     try:
@@ -266,6 +318,99 @@ def crear_usuario(
     return resp.data[0]
 
 
+def registrar_trabajador(
+    nombre_usuario: str,
+    correo: str,
+    password: str,
+    rol: str,
+    tipo_documento_id: int,
+    numero_documento: str,
+    nombres: str,
+    apellidos: str,
+    telefono: str = "",
+    cargo: str = "",
+) -> dict:
+    """Registra un trabajador: crea (o reutiliza) el empleado y su usuario.
+
+    El empleado se busca por número de documento (o correo). Si no existe, se
+    crea con los datos recibidos —normalmente autollenados por la API de
+    identidad—. El usuario interno queda enlazado por `empleado_id`. Así se
+    puede dar de alta un trabajador nuevo sin que ya esté registrado antes.
+    """
+    nombre_usuario = (nombre_usuario or "").strip()
+    correo = (correo or "").strip().lower()
+    rol = (rol or "").strip().upper()
+    numero_documento = (numero_documento or "").strip()
+    nombres = (nombres or "").strip()
+    apellidos = (apellidos or "").strip()
+
+    if rol == "CLIENTE" or rol not in ROLES_VALIDOS:
+        raise ValidationError("Selecciona un rol de personal interno válido.")
+    if not nombre_usuario:
+        raise ValidationError("El nombre de usuario es obligatorio.")
+    if not correo:
+        raise ValidationError("El correo es obligatorio.")
+
+    # ¿La persona ya existe como empleado? (por documento o correo)
+    empleado = None
+    if numero_documento:
+        empleado = _leer_empleado("numero_documento", numero_documento)
+    if not empleado and correo:
+        empleado = _leer_empleado("correo", correo)
+
+    if not empleado:
+        if not nombres:
+            raise ValidationError(
+                "Ingresa los nombres del trabajador o búscalos por documento."
+            )
+        try:
+            empleado = (
+                get_admin_client()
+                .table("empleados")
+                .insert({
+                    "tipo_documento_id": int(tipo_documento_id or 1),
+                    "numero_documento": numero_documento or None,
+                    "nombres": nombres,
+                    "apellidos": apellidos,
+                    "telefono": telefono or None,
+                    "correo": correo,
+                    "cargo": cargo or "Empleado",
+                    "activo": True,
+                })
+                .execute()
+            ).data[0]
+        except (TypeError, ValueError):
+            raise ValidationError("El tipo de documento no es válido.") from None
+        except Exception as exc:  # noqa: BLE001
+            raise ValidationError(
+                f"No se pudo crear el trabajador: {error_postgrest(exc)}"
+            ) from exc
+    else:
+        # Evita una segunda cuenta para el mismo empleado.
+        existente = (
+            get_reader()
+            .table(TABLA_USUARIOS)
+            .select("id,nombre_usuario")
+            .eq("empleado_id", empleado["id"])
+            .limit(1)
+            .execute()
+            .data
+        )
+        if existente:
+            raise ValidationError(
+                "Ese trabajador ya tiene una cuenta "
+                f"('{existente[0].get('nombre_usuario')}')."
+            )
+
+    return crear_usuario(
+        nombre_usuario=nombre_usuario,
+        correo=correo,
+        password=password,
+        rol=rol,
+        empleado_id=empleado["id"],
+    )
+
+
 def cambiar_clave(nombre_usuario: str, clave_actual: str, clave_nueva: str) -> None:
     """Actualiza la contraseña de un usuario (campo password como hash bcrypt).
 
@@ -288,6 +433,74 @@ def cambiar_clave(nombre_usuario: str, clave_actual: str, clave_nueva: str) -> N
     try:
         _tabla_escritura().update({"password": hash_password(clave_nueva)}).eq(
             "nombre_usuario", nombre_usuario
+        ).execute()
+    except Exception as exc:  # noqa: BLE001
+        raise ValidationError(error_postgrest(exc)) from exc
+
+
+def _normalizar_documento(valor) -> str:
+    """Normaliza un documento para compararlo sin espacios, guiones ni puntos."""
+    return "".join(ch for ch in str(valor or "").strip().upper() if ch.isalnum())
+
+
+def _documento_de_usuario(usuario: dict) -> str:
+    """Devuelve el número de documento asociado al usuario (cliente o empleado)."""
+    if usuario.get("cliente_id"):
+        tabla, fila_id = "clientes", usuario["cliente_id"]
+    elif usuario.get("empleado_id"):
+        tabla, fila_id = "empleados", usuario["empleado_id"]
+    else:
+        return ""
+    try:
+        resp = (
+            get_reader()
+            .table(tabla)
+            .select("numero_documento")
+            .eq("id", fila_id)
+            .limit(1)
+            .execute()
+        )
+    except Exception as exc:  # noqa: BLE001
+        raise ValidationError(error_postgrest(exc)) from exc
+    return (resp.data[0].get("numero_documento") if resp.data else "") or ""
+
+
+def recuperar_clave(identificador: str, numero_documento: str, clave_nueva: str) -> None:
+    """Restablece la contraseña validando la identidad con el documento.
+
+    Se usa desde el login (sin sesión): el usuario indica su nombre de usuario
+    o correo y el número de documento registrado en su cuenta (cliente o
+    empleado). Si ambos coinciden, se guarda la nueva contraseña como hash
+    bcrypt. El mensaje de error es genérico para no revelar qué cuentas existen.
+    """
+    identificador = (identificador or "").strip()
+    numero_documento = (numero_documento or "").strip()
+    if not identificador or not numero_documento:
+        raise ValidationError(
+            "Debes indicar tu usuario o correo y tu número de documento."
+        )
+    if not clave_nueva or len(clave_nueva) < 8:
+        raise ValidationError("La nueva contraseña debe tener al menos 8 caracteres.")
+
+    error_identidad = ValidationError(
+        "Los datos no coinciden con ninguna cuenta. Revisa tu usuario y documento."
+    )
+
+    usuario = _buscar_usuario(identificador)
+    if not usuario or usuario.get("activo") is False:
+        raise error_identidad
+
+    documento_registrado = _documento_de_usuario(usuario)
+    if (
+        not documento_registrado
+        or _normalizar_documento(documento_registrado)
+        != _normalizar_documento(numero_documento)
+    ):
+        raise error_identidad
+
+    try:
+        _tabla_escritura().update({"password": hash_password(clave_nueva)}).eq(
+            "id", usuario["id"]
         ).execute()
     except Exception as exc:  # noqa: BLE001
         raise ValidationError(error_postgrest(exc)) from exc

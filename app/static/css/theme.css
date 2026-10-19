@@ -23,6 +23,35 @@ main.container { padding-top: 28px; padding-bottom: 40px; }
 .sl-nav .nav-link.active { color: #fff; background: var(--primary); box-shadow: 0 4px 12px rgba(29,78,216,.3); }
 .sl-nav .nav-cart .badge { position: absolute; top: -2px; right: -4px; background: var(--accent); color: #0f172a; font-size: .68rem; }
 .sl-nav .nav-user-name { font-size: .85rem; font-weight: 600; color: var(--text-secondary); }
+
+/* Menú de usuario (desplegable del avatar/nombre) */
+.sl-nav .nav-user { margin-left: 8px; }
+.sl-nav .nav-user-toggle {
+    display: flex; align-items: center; gap: 8px;
+    background: transparent; border: 0; padding: 4px 8px 4px 4px;
+    border-radius: 999px; cursor: pointer; transition: background .2s;
+}
+.sl-nav .nav-user-toggle:hover { background: var(--surface-alt); }
+.sl-nav .nav-user-toggle::after { display: none; } /* quita la flecha nativa de Bootstrap */
+.sl-nav .nav-user-caret { font-size: .7rem; color: var(--text-secondary); transition: transform .2s; }
+.sl-nav .nav-user-toggle.show .nav-user-caret { transform: rotate(180deg); }
+
+.nav-user-menu {
+    min-width: 250px; padding: 8px; margin-top: 10px;
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-lg);
+}
+.nav-user-menu-head { display: flex; align-items: center; gap: 10px; padding: 8px 10px 10px; }
+.nav-user-menu-id { display: flex; flex-direction: column; min-width: 0; }
+.nav-user-menu-name { font-weight: 700; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nav-user-menu-role { font-size: .78rem; color: var(--text-secondary); }
+.nav-user-menu .dropdown-item {
+    display: flex; align-items: center; gap: 10px;
+    border-radius: 10px; padding: 9px 10px; font-weight: 500;
+}
+.nav-user-menu .dropdown-item:hover { background: var(--surface-alt); color: var(--primary); }
+.nav-user-menu .nav-user-logout { color: #dc2626; }
+.nav-user-menu .nav-user-logout:hover { background: #fee2e2; color: #b91c1c; }
 .icono-img { object-fit: contain; display: inline-block; }
 @media (min-width: 992px) { .sl-nav .offcanvas-body { display: flex; flex-grow: 1; } }
 

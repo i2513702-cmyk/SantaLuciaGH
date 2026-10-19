@@ -21,8 +21,11 @@ log = logging.getLogger(__name__)
 
 BUCKET_PRODUCTOS = "productos"
 BUCKET_LOGOS = "logos"
+BUCKET_AVATARES = "avatares"
 PREFIJO_LOGO = "logo."
 PREFIJO_FONDO = "footer."
+# Foto de perfil: `usuario-<id>.<ext>` (nombre estable por usuario).
+PREFIJO_AVATAR = "usuario-"
 
 EXTENSIONES = {"png", "jpg", "jpeg", "webp", "svg"}
 CONTENT_TYPES = {
@@ -47,7 +50,7 @@ def _bucket(bucket: str):
 def asegurar_bucket(bucket: str) -> None:
     """Crea el bucket público si no existe (idempotente)."""
     try:
-        get_admin_client().storage.create_bucket(bucket, {"public": True})
+        get_admin_client().storage.create_bucket(bucket, options={"public": True})
     except Exception as exc:  # noqa: BLE001 - ya existe o permiso; no romper
         if "already" not in str(exc).lower():
             log.debug("No se pudo asegurar el bucket %s: %s", bucket, exc)
@@ -189,3 +192,101 @@ def subir_fondo(archivo) -> str:
 def quitar_fondo() -> None:
     """Elimina el fondo del pie subido; se vuelve al color por defecto."""
     _quitar_pieza("fondo")
+
+
+# --------------------------------------------------------------------------
+# Foto de perfil de usuario (bucket `avatares`)
+#
+# Se guarda como `usuario-<id>.<ext>` (nombre estable por usuario) y se
+# descubre listando el bucket, igual que el logo. Así no hace falta añadir una
+# columna nueva a la tabla `usuarios`.
+# --------------------------------------------------------------------------
+
+_avatares: dict = {}          # usuario_id -> nombre de archivo en el bucket
+_avatares_cargado = False
+
+
+def _id_desde_avatar(nombre: str):
+    """Extrae el id de usuario de un nombre `usuario-<id>.<ext>` (o None)."""
+    if not nombre or not nombre.startswith(PREFIJO_AVATAR):
+        return None
+    numero = nombre[len(PREFIJO_AVATAR):].split(".", 1)[0]
+    return int(numero) if numero.isdigit() else None
+
+
+def _cargar_avatares() -> None:
+    """Lista el bucket de avatares una sola vez y arma el mapa id -> archivo."""
+    global _avatares_cargado
+    if _avatares_cargado:
+        return
+    try:
+        items = _bucket(BUCKET_AVATARES).list("", {"limit": 100}) or []
+    except Exception:  # noqa: BLE001
+        log.debug("No se pudo listar el bucket %s", BUCKET_AVATARES, exc_info=True)
+        items = []
+    for item in items:
+        nombre = item.get("name") or ""
+        uid = _id_desde_avatar(nombre)
+        if uid is not None:
+            _avatares[uid] = nombre
+    _avatares_cargado = True
+
+
+def obtener_avatar_url(usuario_id) -> str | None:
+    """URL pública de la foto de perfil del usuario, o None si no tiene."""
+    if not usuario_id:
+        return None
+    try:
+        uid = int(usuario_id)
+    except (TypeError, ValueError):
+        return None
+    _cargar_avatares()
+    nombre = _avatares.get(uid)
+    return url_publica(BUCKET_AVATARES, nombre) if nombre else None
+
+
+def subir_avatar(archivo, usuario_id) -> str:
+    """Sube (o reemplaza) la foto de perfil del usuario y devuelve su URL.
+
+    El nombre es estable (`usuario-<id>.<ext>`); si cambia la extensión se
+    elimina la versión anterior para no dejar archivos huérfanos.
+    """
+    try:
+        uid = int(usuario_id)
+    except (TypeError, ValueError):
+        raise ValidationError("No se pudo identificar al usuario.") from None
+
+    nombre_original = (getattr(archivo, "filename", "") or "").strip().lower()
+    ext = nombre_original.rsplit(".", 1)[-1] if "." in nombre_original else ""
+    if ext == "svg":
+        raise ValidationError("Para tu foto de perfil usa PNG, JPG o WEBP.")
+
+    url, ruta = subir_imagen(
+        BUCKET_AVATARES, f"{PREFIJO_AVATAR}{uid}", archivo, upsert=True
+    )
+
+    # Limpia versiones previas con otra extensión (usuario-5.png vs .jpg).
+    _cargar_avatares()
+    anterior = _avatares.get(uid)
+    if anterior and anterior != ruta:
+        try:
+            _bucket(BUCKET_AVATARES).remove([anterior])
+        except Exception:  # noqa: BLE001
+            pass
+    _avatares[uid] = ruta
+    return url
+
+
+def quitar_avatar(usuario_id) -> None:
+    """Elimina la foto de perfil del usuario (vuelve al avatar de iniciales)."""
+    try:
+        uid = int(usuario_id)
+    except (TypeError, ValueError):
+        return
+    _cargar_avatares()
+    nombre = _avatares.pop(uid, None)
+    if nombre:
+        try:
+            _bucket(BUCKET_AVATARES).remove([nombre])
+        except Exception:  # noqa: BLE001
+            pass

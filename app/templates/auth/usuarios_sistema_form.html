@@ -1,64 +1,106 @@
 {% extends "base.html" %}
 
-{% block title %}Nuevo usuario — {{ app_name }}{% endblock %}
+{% block title %}Nuevo trabajador — {{ app_name }}{% endblock %}
 
 {% block content %}
-<div class="card shadow-sm mx-auto" style="max-width: 440px;">
+{% set v = valores or {} %}
+<div class="card shadow-sm mx-auto" style="max-width: 640px;">
     <div class="card-body p-4">
-        <h1 class="h4 fw-semibold mb-4">Nuevo usuario del sistema</h1>
+        <div class="d-flex align-items-center justify-content-between mb-4">
+            <div>
+                <h1 class="h4 fw-semibold mb-0">Nuevo trabajador</h1>
+                <small class="text-secondary">Crea el empleado y su cuenta de acceso.</small>
+            </div>
+            <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('auth.usuarios_sistema') }}">← Volver</a>
+        </div>
 
         {% if error %}
             <div class="alert alert-danger py-2">{{ error }}</div>
         {% endif %}
 
-        <form method="POST" action="{{ url_for('auth.usuarios_sistema_nuevo') }}">
+        <form method="POST" action="{{ url_for('auth.usuarios_sistema_nuevo') }}" id="form-trabajador">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <div class="mb-3">
-                <label for="nombre_usuario" class="form-label">Nombre de usuario</label>
-                <input type="text" class="form-control" id="nombre_usuario" name="nombre_usuario" required>
-            </div>
-            <div class="mb-3">
-                <label for="correo" class="form-label">Correo</label>
-                <input type="email" class="form-control" id="correo" name="correo" required>
-            </div>
-            <div class="mb-3">
-                <label for="rol" class="form-label">Rol</label>
-                <select class="form-select" id="rol" name="rol">
-                    <option value="ADMINISTRADOR">Administrador</option>
-                    <option value="SUPERVISOR">Supervisor</option>
-                    <option value="TECNICO">Técnico</option>
-                    <option value="RECEPCIONISTA" selected>Recepcionista</option>
-                    <option value="VENDEDOR">Vendedor</option>
-                    <option value="ALMACENERO">Almacenero</option>
-                </select>
-            </div>
-            <div class="mb-3">
-                <label for="empleado_id" class="form-label">ID de empleado (existente)</label>
-                <input type="number" class="form-control" id="empleado_id" name="empleado_id" required placeholder="Ej: 1">
-                <div class="form-text">Se completa automáticamente al buscar el DNI (o escribe el ID si lo conoces).</div>
-            </div>
 
-            <hr class="my-4">
-            <h2 class="h6 fw-semibold mb-2">🔎 Buscar empleado por documento</h2>
-            <div class="row g-2">
-                <div class="col-4">
-                    <select class="form-select form-select-sm" id="emp_tipo">
-                        <option value="DNI" selected>DNI</option>
-                        <option value="CE">CE</option>
-                        <option value="RUC">RUC</option>
-                    </select>
-                </div>
-                <div class="col-8">
-                    <div class="input-group input-group-sm">
-                        <input type="text" class="form-control" id="emp_numero" placeholder="Número de documento">
-                        <button type="button" class="btn btn-outline-primary" id="btn_buscar_emp">Buscar</button>
+            <fieldset class="border rounded-3 p-3 mb-3">
+                <legend class="w-auto px-2 small fw-semibold text-secondary">Datos del trabajador</legend>
+
+                <div class="row g-3">
+                    <div class="col-md-5">
+                        <label for="tipo_documento_id" class="form-label">Tipo de documento</label>
+                        <select class="form-select" id="tipo_documento_id" name="tipo_documento_id">
+                            {% for t in tipos_documento %}
+                                <option value="{{ t.id }}" data-tipo="{{ t.codigo }}"
+                                        {% if v.get('tipo_documento_id')|string == t.id|string %}selected{% endif %}>
+                                    {{ t.codigo }} — {{ t.nombre }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-7">
+                        <label for="numero_documento" class="form-label">Número de documento</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="numero_documento" name="numero_documento"
+                                   value="{{ v.get('numero_documento', '') }}" placeholder="Ej: 12345678">
+                            <button type="button" class="btn btn-outline-primary" id="btn_buscar_emp">Buscar en API</button>
+                        </div>
+                        <div id="emp_resultado" class="form-text"></div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label for="nombres" class="form-label">Nombres</label>
+                        <input type="text" class="form-control" id="nombres" name="nombres" value="{{ v.get('nombres', '') }}" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="apellidos" class="form-label">Apellidos</label>
+                        <input type="text" class="form-control" id="apellidos" name="apellidos" value="{{ v.get('apellidos', '') }}">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="telefono" class="form-label">Teléfono</label>
+                        <input type="tel" class="form-control" id="telefono" name="telefono" value="{{ v.get('telefono', '') }}">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="cargo" class="form-label">Cargo</label>
+                        <input type="text" class="form-control" id="cargo" name="cargo" value="{{ v.get('cargo', '') }}" placeholder="Ej: Técnico">
                     </div>
                 </div>
-            </div>
-            <div id="emp_resultado" class="mt-2 small"></div>
+            </fieldset>
 
-            <p class="small text-secondary mb-3 mt-3">La contraseña por defecto será <code>123456</code> (bcrypt).</p>
-            <button type="submit" class="btn btn-primary w-100">Crear usuario</button>
+            <fieldset class="border rounded-3 p-3 mb-3">
+                <legend class="w-auto px-2 small fw-semibold text-secondary">Cuenta de acceso</legend>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label for="nombre_usuario" class="form-label">Nombre de usuario</label>
+                        <input type="text" class="form-control" id="nombre_usuario" name="nombre_usuario"
+                               value="{{ v.get('nombre_usuario', '') }}" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="correo" class="form-label">Correo</label>
+                        <input type="email" class="form-control" id="correo" name="correo" value="{{ v.get('correo', '') }}" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="rol" class="form-label">Rol</label>
+                        {% set rol_sel = v.get('rol', 'RECEPCIONISTA') %}
+                        <select class="form-select" id="rol" name="rol">
+                            {% for r, rl in [('ADMINISTRADOR', 'Administrador'), ('SUPERVISOR', 'Supervisor'),
+                                             ('TECNICO', 'Técnico'), ('RECEPCIONISTA', 'Recepcionista'),
+                                             ('VENDEDOR', 'Vendedor'), ('ALMACENERO', 'Almacenero')] %}
+                                <option value="{{ r }}" {% if rol_sel == r %}selected{% endif %}>{{ rl }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="password" class="form-label">Contraseña (mínimo 8 caracteres)</label>
+                        <div class="input-group">
+                            <input type="password" class="form-control" id="password" name="password"
+                                   value="{{ v.get('password', '12345678') }}" minlength="8" required>
+                            <button class="btn btn-outline-secondary" type="button" id="btn_ver_password"
+                                    tabindex="-1" aria-label="Mostrar u ocultar contraseña">👁</button>
+                        </div>
+                    </div>
+                </div>
+            </fieldset>
+
+            <button type="submit" class="btn btn-primary w-100">Crear trabajador</button>
         </form>
     </div>
 </div>
@@ -66,10 +108,9 @@
 <script>
 (function () {
     var btn = document.getElementById('btn_buscar_emp');
-    var tipoSel = document.getElementById('emp_tipo');
-    var numero = document.getElementById('emp_numero');
+    var tipoSel = document.getElementById('tipo_documento_id');
+    var numero = document.getElementById('numero_documento');
     var resultado = document.getElementById('emp_resultado');
-    var empleadoId = document.getElementById('empleado_id');
     var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
 
     function mostrar(texto, ok) {
@@ -78,12 +119,17 @@
         resultado.classList.add(ok === true ? 'text-success' : ok === false ? 'text-danger' : 'text-secondary');
     }
 
+    function tipoActual() {
+        var op = tipoSel.options[tipoSel.selectedIndex];
+        return op ? (op.dataset.tipo || '') : '';
+    }
+
     btn.addEventListener('click', function () {
-        var tipo = tipoSel.value;
+        var tipo = tipoActual();
         var num = numero.value.trim();
         if (!num) { mostrar('Ingresa el número de documento.', false); return; }
         btn.disabled = true;
-        mostrar('Consultando…', null);
+        mostrar('Consultando la API…', null);
         fetch('{{ url_for("identidad.consultar_empleado") }}', {
             method: 'POST',
             headers: {
@@ -96,29 +142,46 @@
         .then(function (res) {
             if (!res.ok) {
                 mostrar(res.data.error || 'No se pudo consultar el documento.', false);
-                empleadoId.value = '';
                 return;
             }
-            var d = res.data;
-            var emp = d.empleado;
-            if (emp) {
-                empleadoId.value = emp.id;
-                mostrar('Empleado encontrado: <strong>' + (emp.nombres || '') + ' ' + (emp.apellidos || '') +
-                        '</strong> (ID ' + emp.id + ')' + (emp.cargo ? ' — ' + emp.cargo : '') +
-                        '. Ahora puedes crear el usuario.', true);
+            var d = res.data.datos || {};
+            document.getElementById('nombres').value = d.nombres || d.razon_social || '';
+            document.getElementById('apellidos').value =
+                ((d.apellido_paterno || '') + ' ' + (d.apellido_materno || '')).trim();
+
+            if (res.data.empleado) {
+                var emp = res.data.empleado;
+                var tel = document.getElementById('telefono');
+                var cargo = document.getElementById('cargo');
+                if (!tel.value && emp.telefono) { tel.value = emp.telefono; }
+                if (!cargo.value && emp.cargo) { cargo.value = emp.cargo; }
+                mostrar('Trabajador ya registrado: <strong>' + (emp.nombres || '') + ' ' + (emp.apellidos || '') +
+                        '</strong> (ID ' + emp.id + '). Se vinculará su nueva cuenta.', true);
             } else {
-                empleadoId.value = '';
-                mostrar('El documento existe (' + (d.datos.nombre_completo || d.datos.razon_social || num) +
-                        '), pero no hay un empleado registrado con ese número. Regístralo antes de vincular.', false);
+                var persona = d.nombre_completo || d.razon_social ||
+                    ((d.nombres || '') + ' ' + (d.apellido_paterno || '') + ' ' + (d.apellido_materno || '')).trim();
+                mostrar('El documento existe (<strong>' + (persona || num) + '</strong>), pero no hay un empleado ' +
+                        'registrado con ese número: se registrará automáticamente antes de vincular la cuenta.', true);
             }
         })
-        .catch(function () { mostrar('Error de conexión al consultar.', false); })
+        .catch(function () { mostrar('Error de conexión al consultar la API.', false); })
         .finally(function () { btn.disabled = false; });
     });
 
     numero.addEventListener('keydown', function (e) {
         if (e.key === 'Enter') { e.preventDefault(); btn.click(); }
     });
+
+    // Mostrar / ocultar contraseña
+    var btnVer = document.getElementById('btn_ver_password');
+    var passInput = document.getElementById('password');
+    if (btnVer && passInput) {
+        btnVer.addEventListener('click', function () {
+            var visible = passInput.type === 'text';
+            passInput.type = visible ? 'password' : 'text';
+            btnVer.textContent = visible ? '👁' : '🙈';
+        });
+    }
 })();
 </script>
 {% endblock %}

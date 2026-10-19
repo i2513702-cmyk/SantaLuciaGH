@@ -22,6 +22,14 @@ from app.services import login_guard, rest_auth_service
 bp = Blueprint("auth", __name__)
 
 
+def _int(valor, defecto: int = 0) -> int:
+    """Convierte a entero sin romper si el valor llega vacío o mal escrito."""
+    try:
+        return int(valor)
+    except (TypeError, ValueError):
+        return defecto
+
+
 def _sincronizar_carrito():
     """Reclama el carrito anónimo (si existe) y refresca el contador al usuario.
 
@@ -170,6 +178,40 @@ def cambiar_clave():
     return render_template("auth/cambiar_clave.html")
 
 
+@bp.route("/recuperar_clave", methods=["GET", "POST"])
+def recuperar_clave():
+    """Recupera/restablece la contraseña desde el login, sin sesión.
+
+    Verifica la identidad con el número de documento registrado en la cuenta
+    (cliente o empleado) y guarda la nueva contraseña como hash bcrypt.
+    """
+    if "usuario_id" in session:
+        return redirect(url_for("auth.panel"))
+
+    error = None
+    if request.method == "POST":
+        identificador = request.form.get("identificador", "").strip()
+        documento = request.form.get("documento", "").strip()
+        nueva = request.form.get("nueva", "")
+        confirmar = request.form.get("confirmar", "")
+        if nueva != confirmar:
+            error = "La confirmación no coincide con la nueva contraseña."
+        else:
+            try:
+                rest_auth_service.recuperar_clave(identificador, documento, nueva)
+                flash(
+                    "Contraseña restablecida correctamente. Ya puedes iniciar sesión.",
+                    "success",
+                )
+                return redirect(url_for("auth.login"))
+            except (AppError, ValidationError) as exc:
+                error = exc.message if isinstance(exc, AppError) else str(exc)
+            except Exception:  # noqa: BLE001
+                error = "No se pudo restablecer la contraseña. Inténtalo de nuevo."
+
+    return render_template("auth/recuperar_clave.html", error=error)
+
+
 @bp.route("/sistema/usuarios")
 @login_required
 @admin_required
@@ -187,22 +229,46 @@ def usuarios_sistema():
 @login_required
 @admin_required
 def usuarios_sistema_nuevo():
-    """Crea un usuario con la contraseña por defecto '123456' (bcrypt), como en la referencia."""
+    """Da de alta un trabajador: crea el empleado y su usuario.
+
+    Los datos de la persona pueden autollenarse desde la API de identidad
+    (DNI/RUC/CE) en el formulario; aquí se crean tanto el registro en
+    `empleados` (si no existía) como la cuenta en `usuarios`.
+    """
+    error = None
+    valores = {}
     if request.method == "POST":
+        valores = dict(request.form)
         try:
-            rest_auth_service.crear_usuario(
+            rest_auth_service.registrar_trabajador(
                 nombre_usuario=request.form.get("nombre_usuario", "").strip(),
                 correo=request.form.get("correo", "").strip(),
-                password=request.form.get("password", "123456"),
+                password=(request.form.get("password", "").strip() or "12345678"),
                 rol=request.form.get("rol", "RECEPCIONISTA").strip(),
-                empleado_id=int(request.form.get("empleado_id") or 0),
+                tipo_documento_id=_int(request.form.get("tipo_documento_id"), 1),
+                numero_documento=request.form.get("numero_documento", "").strip(),
+                nombres=request.form.get("nombres", "").strip(),
+                apellidos=request.form.get("apellidos", "").strip(),
+                telefono=request.form.get("telefono", "").strip(),
+                cargo=request.form.get("cargo", "").strip(),
             )
-            flash("Usuario creado correctamente (contraseña por defecto: 123456).", "success")
+            flash("Trabajador creado correctamente.", "success")
             return redirect(url_for("auth.usuarios_sistema"))
         except (AppError, ValidationError) as exc:
             error = exc.message if isinstance(exc, AppError) else str(exc)
-            return render_template("auth/usuarios_sistema_form.html", error=error)
-    return render_template("auth/usuarios_sistema_form.html")
+        except Exception:  # noqa: BLE001
+            error = "No se pudo crear el trabajador. Revisa los datos e inténtalo de nuevo."
+
+    try:
+        tipos_documento = rest_auth_service.listar_tipos_documento()
+    except Exception:  # noqa: BLE001
+        tipos_documento = [{"id": 1, "codigo": "DNI", "nombre": "DNI"}]
+    return render_template(
+        "auth/usuarios_sistema_form.html",
+        error=error,
+        valores=valores,
+        tipos_documento=tipos_documento,
+    )
 
 
 @bp.route("/sistema/usuarios/<int:usuario_id>/editar", methods=["GET", "POST"])

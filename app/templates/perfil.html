@@ -6,12 +6,30 @@
 {% from "partials/avatar.html" import avatar %}
 
 <section class="card profile-head">
-    {{ avatar(usuario_nombre, size='xl') }}
+    <div class="profile-avatar-edit">
+        {{ avatar(nombre_completo or usuario_nombre, url=avatar_url, size='xl') }}
+        <form method="POST" action="{{ url_for('main.perfil_avatar') }}"
+              enctype="multipart/form-data" class="profile-avatar-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <label class="btn btn-sm btn-primary mb-0">
+                {{ icono('camara', 'camera-fill', 15) }}<span>Cambiar foto</span>
+                <input type="file" name="avatar" accept="image/png,image/jpeg,image/webp"
+                       onchange="this.form.submit()" hidden>
+            </label>
+        </form>
+        {% if avatar_url %}
+        <form method="POST" action="{{ url_for('main.perfil_avatar') }}" class="profile-avatar-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="accion" value="quitar">
+            <button type="submit" class="btn btn-sm btn-outline-secondary">Quitar foto</button>
+        </form>
+        {% endif %}
+    </div>
     <div class="profile-id">
-        <h1>{{ usuario_nombre }}</h1>
+        <h1>{{ nombre_completo or usuario_nombre }}</h1>
         <p class="profile-role">
             <span class="badge text-bg-secondary">{{ rol_label or 'Usuario' }}</span>
-            <span class="text-muted">· Cuenta registrada en {{ app_name }}</span>
+            <span class="text-muted">· @{{ usuario_nombre }} · Cuenta registrada en {{ app_name }}</span>
         </p>
         <p class="text-muted text-sm mb-0">
             {% if mostrar_historial %}
@@ -29,6 +47,26 @@
         {% endif %}
     </div>
 </section>
+
+<!-- ================= Datos personales ================= -->
+<div class="card dash-card mb-4">
+    <div class="dash-card-head">
+        <h3>👤 Datos personales</h3>
+        <span class="src-badge">{{ origen_persona }}</span>
+    </div>
+    <dl class="row mb-0">
+        {% for etiqueta, valor in datos_personales %}
+            {% if valor %}
+            <dt class="col-sm-4 col-lg-3 text-secondary">{{ etiqueta }}</dt>
+            <dd class="col-sm-8 col-lg-9">{{ valor }}</dd>
+            {% endif %}
+        {% endfor %}
+    </dl>
+    <p class="text-muted text-sm mt-3 mb-0">
+        Estos datos provienen de tu registro en la base de datos. Para corregirlos,
+        contacta con el área administrativa.
+    </p>
+</div>
 
 <!-- ================= Seguridad: cambiar contraseña ================= -->
 <div class="dash-row">
@@ -79,9 +117,15 @@
             </div>
             <dl class="row mb-0">
                 <dt class="col-5 text-secondary">Usuario</dt>
-                <dd class="col-7">{{ usuario_nombre }}</dd>
+                <dd class="col-7">@{{ usuario_nombre }}</dd>
+                <dt class="col-5 text-secondary">Correo</dt>
+                <dd class="col-7">{{ correo or '—' }}</dd>
                 <dt class="col-5 text-secondary">Rol</dt>
                 <dd class="col-7">{{ rol_label or '—' }}</dd>
+                {% if ultimo_acceso %}
+                <dt class="col-5 text-secondary">Último acceso</dt>
+                <dd class="col-7">{{ ultimo_acceso }}</dd>
+                {% endif %}
                 <dt class="col-5 text-secondary">Contraseña</dt>
                 <dd class="col-7"><span class="badge text-bg-success">Cifrada (bcrypt)</span></dd>
             </dl>

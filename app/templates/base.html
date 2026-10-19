@@ -69,9 +69,40 @@
                     <div class="d-flex align-items-center gap-2 ms-lg-3 mt-3 mt-lg-0">
                         {% if rol %}
                             {% from "partials/avatar.html" import avatar %}
-                            {{ avatar(nombre, size='md') }}
-                            <a class="nav-user-name text-decoration-none" href="{{ url_for('main.perfil') }}">{{ nombre }}</a>
-                            <a class="btn btn-sm btn-outline-primary rounded-pill px-3" href="{{ url_for('auth.logout') }}">Salir</a>
+                            <div class="dropdown nav-user">
+                                <button class="nav-user-toggle" type="button" id="menuUsuario"
+                                        data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false">
+                                    {{ avatar(nombre, url=avatar_url, size='md') }}
+                                    <span class="nav-user-name d-none d-sm-inline">{{ nombre }}</span>
+                                    <i class="bi bi-chevron-down nav-user-caret"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end nav-user-menu" aria-labelledby="menuUsuario">
+                                    <li class="nav-user-menu-head">
+                                        {{ avatar(nombre, url=avatar_url, size='md') }}
+                                        <span class="nav-user-menu-id">
+                                            <span class="nav-user-menu-name">{{ nombre }}</span>
+                                            <span class="nav-user-menu-role">{{ rol_label or rol }}</span>
+                                        </span>
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <a class="dropdown-item" href="{{ url_for('main.perfil') }}">
+                                            {{ icono('perfil', 'person', 16) }}<span>Mi perfil</span>
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item" href="{{ url_for('auth.cambiar_clave') }}">
+                                            {{ icono('seguridad', 'shield-lock', 16) }}<span>Cambiar contraseña</span>
+                                        </a>
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <a class="dropdown-item nav-user-logout" href="{{ url_for('auth.logout') }}">
+                                            {{ icono('salir', 'box-arrow-right', 16) }}<span>Cerrar sesión</span>
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
                         {% else %}
                             <a class="btn btn-sm btn-primary rounded-pill px-4" href="{{ url_for('auth.login') }}">Iniciar sesión</a>
                         {% endif %}
@@ -110,8 +141,8 @@
                 </div>
                 <div class="footer-col">
                     <h4>Contacto</h4>
-                    <span class="footer-info">Av. Los Talleres 245, Huancayo</span>
-                    <a href="tel:+51987654321">+51 987 654 321</a>
+                    <span class="footer-info"> AV. 28 De Julio  723 - Chilca - Huancayo</span>
+                    <a href="tel:+51987654321">+51 964 618 892 </a>
                     <a href="mailto:contacto@santalucia.pe">contacto@santalucia.pe</a>
                     <span class="footer-info">Lun a Sáb · 9:00 – 19:00</span>
                 </div>
@@ -134,7 +165,6 @@
             </div>
             <div class="footer-bottom">
                 <span>© 2011–2026 {{ app_name }}. Todos los derechos reservados.</span>
-                <span>Prototipo de demostración con datos reales de la base de datos.</span>
             </div>
         </div>
     </footer>
