@@ -1,0 +1,28 @@
+Fotos originales para la portada de Santa Lucía
+===============================================
+
+1) Copia aquí tus fotos (JPG, JPEG, PNG o WebP) con estos nombres exactos:
+
+   hero-tecnico            -> foto grande del hero (horizontal)
+   servicio-lavadora       -> foto de lavadora
+   servicio-secadora       -> foto de secadora
+   servicio-refrigeradora  -> foto de refrigeradora
+   servicio-congeladora    -> foto de congeladora
+   trabajo-1               -> foto de un trabajo (1)
+   trabajo-2               -> foto de un trabajo (2)
+   trabajo-3               -> foto de un trabajo (3)
+   fachada                 -> foto de la fachada del taller
+   equipo                  -> foto del equipo/técnicos
+
+2) Ejecuta el conversor (recorta al centro y genera WebP):
+
+   .venv\Scripts\python.exe tools\optimizar_webp.py
+
+3) Los .webp se guardan en app/static/img/ y la web los usa automáticamente.
+
+Notas
+-----
+- Si falta una foto, la web muestra un fondo celeste de respaldo (nunca un recuadro roto).
+- El hero debe quedar por debajo de 200 KB y el resto por debajo de 100 KB.
+  El script te avisa si alguna queda "PESADA".
+- Esta carpeta (orig) no se publica: solo es el material de entrada.
