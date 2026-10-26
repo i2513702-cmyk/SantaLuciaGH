@@ -1,3 +1,4 @@
+import re
 """Autenticación del portal HTML contra la tabla `usuarios` de Supabase (PostgREST).
 
 Mismo patrón que el app.py de referencia: el login consulta la BD, valida la
@@ -345,6 +346,19 @@ def crear_usuario(
     if not password or len(password) < 8:
         raise ValidationError("La contraseña debe tener al menos 8 caracteres")
 
+    validar_documento_registro(tipo_documento_id, numero_documento)
+
+    nombre_usuario = (nombre_usuario or "").strip()
+    if not REGEX_NOMBRE_USUARIO.match(nombre_usuario):
+        raise ValidationError(
+            "El nombre de usuario debe tener entre 3 y 16 caracteres y solo permite letras, números, guion (-) y guion bajo (_)."
+        )
+
+    telefono = (telefono or "").strip()
+    if telefono:
+        if len(telefono) > 9 or not telefono.isdigit():
+            raise ValidationError("El número de teléfono no puede superar los 9 dígitos numéricos.")
+
     if _leer_usuario("nombre_usuario", nombre_usuario):
         raise ValidationError(f"El nombre de usuario '{nombre_usuario}' ya existe.")
     if _leer_usuario("correo", correo):
@@ -621,6 +635,56 @@ def _crear_cliente(
         return None
 
 
+REGEX_NOMBRE_USUARIO = re.compile(r"^[a-zA-Z0-9_-]{3,16}$")
+
+
+def validar_documento_registro(tipo_documento_id: int, numero_documento: str) -> None:
+    """Valida los límites de caracteres según el tipo de documento:
+    - DNI: Fijo en 8 caracteres numéricos
+    - RUC: Fijo en 11 caracteres numéricos
+    - Carné de Extranjería: Permitir hasta 15 caracteres
+    - Pasaporte: Permitir hasta 20 caracteres
+    """
+    numero = (numero_documento or "").strip()
+    if not numero:
+        raise ValidationError("El número de documento es obligatorio.")
+
+    codigo = ""
+    try:
+        resp = (
+            get_reader()
+            .table("tipo_documento")
+            .select("codigo")
+            .eq("id", tipo_documento_id)
+            .limit(1)
+            .execute()
+        )
+        if resp.data:
+            codigo = (resp.data[0].get("codigo") or "").strip().upper()
+    except Exception:  # noqa: BLE001
+        pass
+
+    if not codigo:
+        mapa_defecto = {1: "DNI", 2: "RUC", 3: "CE", 4: "PASAPORTE"}
+        codigo = mapa_defecto.get(tipo_documento_id, "")
+
+    if codigo == "DNI":
+        if len(numero) != 8 or not numero.isdigit():
+            raise ValidationError("El DNI debe tener exactamente 8 caracteres numéricos.")
+    elif codigo == "RUC":
+        if len(numero) != 11 or not numero.isdigit():
+            raise ValidationError("El RUC debe tener exactamente 11 caracteres numéricos.")
+    elif codigo == "CE":
+        if len(numero) > 15:
+            raise ValidationError("El Carné de Extranjería permite hasta 15 caracteres.")
+    elif codigo == "PASAPORTE":
+        if len(numero) > 20:
+            raise ValidationError("El Pasaporte permite hasta 20 caracteres.")
+    else:
+        if len(numero) > 20:
+            raise ValidationError("El número de documento no puede superar los 20 caracteres.")
+
+
 def register(
     nombre_usuario: str,
     correo: str,
@@ -643,6 +707,19 @@ def register(
     """
     if not password or len(password) < 8:
         raise ValidationError("La contraseña debe tener al menos 8 caracteres")
+
+    validar_documento_registro(tipo_documento_id, numero_documento)
+
+    nombre_usuario = (nombre_usuario or "").strip()
+    if not REGEX_NOMBRE_USUARIO.match(nombre_usuario):
+        raise ValidationError(
+            "El nombre de usuario debe tener entre 3 y 16 caracteres y solo permite letras, números, guion (-) y guion bajo (_)."
+        )
+
+    telefono = (telefono or "").strip()
+    if telefono:
+        if len(telefono) > 9 or not telefono.isdigit():
+            raise ValidationError("El número de teléfono no puede superar los 9 dígitos numéricos.")
 
     rol = (rol or "").strip().upper()
     if rol not in ROLES_REGISTRO_PUBLICO:
