@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "partials/estado_badge.html" import estado_badge %}
 
 {% block title %}Mi perfil — {{ app_name }}{% endblock %}
 
@@ -188,7 +189,7 @@
                     {% if compra.comprobante %}
                         <span class="text-secondary small">{{ compra.comprobante }}</span>
                     {% endif %}
-                    <span class="badge text-bg-{{ 'success' if compra.estado == 'PAGADO' else 'secondary' }}">{{ compra.estado }}</span>
+                    {{ estado_badge(compra.estado) }}
                     <span class="compra-total">{{ compra.total }}</span>
                     <span class="chevron">▾</span>
                 </span>

@@ -1,6 +1,7 @@
 {% macro estado_badge(estado) %}
 {% set e = (estado or '')|upper %}
-{% set c = 'success' if ('PAGAD' in e or 'ENTREGAD' in e or 'CONFIRM' in e or 'COMPLET' in e) else ('danger' if ('CANCEL' in e or 'ANUL' in e or 'FALL' in e) else ('warning' if 'PEND' in e else 'secondary')) %}
+{% set c = 'danger' if ('RECHAZ' in e or 'CANCEL' in e or 'ANUL' in e or 'FALL' in e) else ('success' if ('PAGAD' in e or 'ENTREGAD' in e or 'CONFIRM' in e or 'COMPLET' in e) else ('warning' if 'PEND' in e else 'secondary')) %}
 {% set i = {'success': 'check-circle', 'danger': 'x-circle', 'warning': 'hourglass-split', 'secondary': 'dot'}[c] %}
-<span class="badge rounded-pill text-bg-{{ c }}"><i class="bi bi-{{ i }}"></i> {{ (estado or '—')|replace('_', ' ')|capitalize }}</span>
+{% set etiquetas = {'PENDIENTE_PAGO': 'Pendiente de pago', 'PAGO_CONFIRMADO': 'Pago confirmado', 'CONFIRMADO': 'Pago confirmado', 'PAGADO': 'Pago confirmado', 'PAGO_RECHAZADO': 'Pago rechazado', 'RECHAZADO': 'Pago rechazado'} %}
+<span class="badge rounded-pill text-bg-{{ c }}"><i class="bi bi-{{ i }}"></i> {{ etiquetas.get(e) or ((estado or '—')|replace('_', ' ')|capitalize) }}</span>
 {% endmacro %}

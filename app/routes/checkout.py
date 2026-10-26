@@ -144,7 +144,7 @@ def procesar():
         "cliente_tipo_documento_id": str(tipo_doc_id),
         "metodo_pago": resul["metodo_pago"],
         "transaction_id": f"SIM-{resul['venta_id']}",
-        "estado_pago": "PAGADO",
+        "estado_pago": "PAGO_CONFIRMADO",
         "subtotal": subtotal,
         "igv": igv,
         "total": total,
