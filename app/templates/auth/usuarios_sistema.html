@@ -9,14 +9,29 @@
 </section>
 
 <form method="get" class="mb-3">
-    <div class="row g-2">
-        <div class="col-12 col-md-5">
+    <div class="row g-2 align-items-end">
+        <div class="col-12 col-md-4">
+            <label class="form-label small fw-semibold text-secondary mb-1">
+                <i class="bi bi-person"></i> Buscar por nombre
+            </label>
             <div class="input-group">
-                <span class="input-group-text"><i class="bi bi-envelope"></i></span>
-                <input name="q" value="{{ q or '' }}" class="form-control" placeholder="Buscar por correo">
+                <span class="input-group-text"><i class="bi bi-person"></i></span>
+                <input name="nombre" value="{{ nombre or '' }}" class="form-control" placeholder="Nombre o usuario...">
             </div>
         </div>
-        <div class="col-12 col-md-4">
+        <div class="col-12 col-md-3">
+            <label class="form-label small fw-semibold text-secondary mb-1">
+                <i class="bi bi-envelope"></i> Buscar por correo
+            </label>
+            <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                <input name="q" value="{{ q or '' }}" class="form-control" placeholder="Correo...">
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <label class="form-label small fw-semibold text-secondary mb-1">
+                <i class="bi bi-shield-check"></i> Rol
+            </label>
             <select name="rol" class="form-select">
                 <option value="">Todos los roles</option>
                 {% for clave, etiqueta in roles.items() %}
@@ -24,10 +39,14 @@
                 {% endfor %}
             </select>
         </div>
-        <div class="col-12 col-md-3 d-flex gap-2">
-            <button class="btn btn-primary" type="submit">Filtrar</button>
-            {% if q or rol_filtro %}
-                <a class="btn btn-outline-secondary" href="{{ url_for('auth.usuarios_sistema') }}">Limpiar</a>
+        <div class="col-12 col-md-2 d-flex gap-2">
+            <button class="btn btn-primary w-100" type="submit">
+                <i class="bi bi-search"></i> Filtrar
+            </button>
+            {% if nombre or q or rol_filtro %}
+                <a class="btn btn-outline-secondary" href="{{ url_for('auth.usuarios_sistema') }}" title="Limpiar">
+                    <i class="bi bi-x-lg"></i>
+                </a>
             {% endif %}
         </div>
     </div>
@@ -100,7 +119,7 @@
                 {% else %}
                 <tr>
                     <td colspan="7" class="text-center text-secondary py-4">
-                        {% if q or rol_filtro %}
+                        {% if nombre or q or rol_filtro %}
                             No hay usuarios que coincidan con el filtro.
                         {% else %}
                             No hay usuarios todavía.
@@ -118,10 +137,10 @@
     <span class="small text-secondary">{{ total }} usuario(s) en total</span>
     <div class="d-flex align-items-center gap-3">
         <a class="btn btn-sm btn-outline-primary {{ 'disabled' if pagina <= 1 }}"
-           href="{{ url_for('auth.usuarios_sistema', p=pagina-1, q=q or None, rol=rol_filtro or None) }}"><i class="bi bi-chevron-left"></i> Anterior</a>
+           href="{{ url_for('auth.usuarios_sistema', p=pagina-1, nombre=nombre or None, q=q or None, rol=rol_filtro or None) }}"><i class="bi bi-chevron-left"></i> Anterior</a>
         <span class="small text-secondary">Página {{ pagina }} de {{ paginas }}</span>
         <a class="btn btn-sm btn-outline-primary {{ 'disabled' if pagina >= paginas }}"
-           href="{{ url_for('auth.usuarios_sistema', p=pagina+1, q=q or None, rol=rol_filtro or None) }}">Siguiente <i class="bi bi-chevron-right"></i></a>
+           href="{{ url_for('auth.usuarios_sistema', p=pagina+1, nombre=nombre or None, q=q or None, rol=rol_filtro or None) }}">Siguiente <i class="bi bi-chevron-right"></i></a>
     </div>
 </nav>
 {% else %}

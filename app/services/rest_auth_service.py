@@ -104,11 +104,16 @@ POR_PAGINA_USUARIOS = 10
 
 
 def listar_usuarios(
-    q: str = "", rol: str = "", pagina: int = 1, por_pagina: int = POR_PAGINA_USUARIOS
+    nombre: str = "",
+    q: str = "",
+    rol: str = "",
+    pagina: int = 1,
+    por_pagina: int = POR_PAGINA_USUARIOS,
 ) -> dict:
     """Lista paginada de usuarios del sistema (para el panel de administración).
 
-    Filtros opcionales: `q` busca por correo y `rol` por rol exacto.
+    Filtros opcionales: `nombre` busca por nombre de usuario o persona (empleado/cliente),
+    `q` busca por correo y `rol` por rol exacto.
     Devuelve {"usuarios", "total", "paginas", "pagina"}.
     """
     try:
@@ -119,6 +124,28 @@ def listar_usuarios(
         raise ValidationError(error_postgrest(exc)) from exc
 
     filas = resp.data or []
+
+    if nombre:
+        texto_nom = nombre.strip().lower()
+
+        def _coincide_nombre(u: dict) -> bool:
+            if texto_nom in (u.get("nombre_usuario") or "").lower():
+                return True
+            emp = u.get("empleados") or {}
+            emp_nom = (emp.get("nombres") or "").lower()
+            emp_ape = (emp.get("apellidos") or "").lower()
+            emp_comp = f"{emp_nom} {emp_ape}".strip()
+            if texto_nom in emp_nom or texto_nom in emp_ape or texto_nom in emp_comp:
+                return True
+            cli = u.get("clientes") or {}
+            cli_nom = (cli.get("nombres") or "").lower()
+            cli_ape = (cli.get("apellidos") or "").lower()
+            cli_comp = f"{cli_nom} {cli_ape}".strip()
+            if texto_nom in cli_nom or texto_nom in cli_ape or texto_nom in cli_comp:
+                return True
+            return False
+
+        filas = [u for u in filas if _coincide_nombre(u)]
 
     if q:
         texto = q.strip().lower()
