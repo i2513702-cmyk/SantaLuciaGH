@@ -70,52 +70,119 @@
     </div>
 </div>
 
-{% if es_tecnico %}
 <div class="dash-group" data-collapsible>
     <div class="collapse-head">
-        <h2 class="section-title">📅 &nbsp;Mis citas asignadas</h2>
+        <h2 class="section-title">Reparaciones y citas</h2>
         <button class="collapse-btn" type="button" data-toggle-collapse aria-expanded="true">▾</button>
     </div>
     <div class="collapse-body">
-    {% if citas %}
-        <div class="table-wrap">
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th>Fecha</th>
-                        <th>Hora</th>
-                        <th>Cliente</th>
-                        <th>Equipo</th>
-                        <th>Atención</th>
-                        <th>Estado</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for c in citas %}
-                    <tr>
-                        <td>{{ c.fecha }}</td>
-                        <td>{{ c.hora }} – {{ c.hora_fin }}</td>
-                        <td>
-                            <strong>{{ c.cliente_nombre or '—' }}</strong>
-                            <div class="text-secondary small">{{ c.cliente_telefono or '' }}</div>
-                        </td>
-                        <td>
-                            {{ c.equipo or '—' }}
-                            {% if c.motivo %}<div class="text-secondary small">{{ c.motivo }}</div>{% endif %}
-                        </td>
-                        <td>{{ c.tipo_atencion }}</td>
-                        <td><span class="badge {{ c.badge_class }}">{{ c.estado }}</span></td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+        <ul class="nav nav-tabs mb-3" id="tabs-trabajo" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tab-reparaciones" data-bs-toggle="tab" data-bs-target="#pane-reparaciones" type="button" role="tab" aria-controls="pane-reparaciones" aria-selected="true">🔧 Reparaciones</button>
+            </li>
+            {% if es_tecnico %}
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-citas" data-bs-toggle="tab" data-bs-target="#pane-citas" type="button" role="tab" aria-controls="pane-citas" aria-selected="false">
+                    📅 Citas
+                    {% if n_citas_libres %}<span class="badge text-bg-warning ms-1">{{ n_citas_libres }} sin asignar</span>{% endif %}
+                </button>
+            </li>
+            {% endif %}
+        </ul>
+        <div class="tab-content">
+            <div class="tab-pane fade show active" id="pane-reparaciones" role="tabpanel" aria-labelledby="tab-reparaciones" tabindex="0">
+            {% if ordenes %}
+                <div class="table-wrap">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Problema</th>
+                                <th>Atención</th>
+                                <th>Ingreso</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for orden in ordenes %}
+                            <tr>
+                                <td>{{ orden.codigo }}</td>
+                                <td>{{ orden.problema }}</td>
+                                <td>{{ orden.tipo }}</td>
+                                <td>{{ orden.ingreso }}</td>
+                                <td><span class="badge {{ orden.badge_class }}">{{ orden.estado }}</span></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-secondary">No hay reparaciones registradas todavía.</p>
+            {% endif %}
+            </div>
+            {% if es_tecnico %}
+            <div class="tab-pane fade" id="pane-citas" role="tabpanel" aria-labelledby="tab-citas" tabindex="0">
+            {% if citas %}
+                <div class="btn-group btn-group-sm mb-3 flex-wrap" id="citas-filtros" role="group" aria-label="Filtrar citas">
+                    <button type="button" class="btn btn-outline-secondary active" data-filtro="todas">Todas</button>
+                    <button type="button" class="btn btn-outline-secondary" data-filtro="domicilio">A domicilio</button>
+                    <button type="button" class="btn btn-outline-secondary" data-filtro="taller">En taller</button>
+                    <button type="button" class="btn btn-outline-secondary" data-filtro="mias">Mis citas</button>
+                    <button type="button" class="btn btn-outline-secondary" data-filtro="libres">Sin asignar</button>
+                </div>
+                <div class="table-wrap">
+                    <table class="table align-middle" id="tabla-citas">
+                        <thead>
+                            <tr>
+                                <th>Fecha y hora</th>
+                                <th>Cliente</th>
+                                <th>Equipo</th>
+                                <th>Atención</th>
+                                <th>Estado</th>
+                                <th>Asignada</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for c in citas %}
+                            <tr data-tipo="{{ (c.tipo_atencion or '')|lower }}" data-asig="{{ 'mias' if c.mia else 'libres' }}">
+                                <td>{{ c.fecha }}<div class="text-secondary small">{{ c.hora }}{% if c.hora_fin %} – {{ c.hora_fin }}{% endif %}</div></td>
+                                <td>
+                                    <strong>{{ c.cliente_nombre or '—' }}</strong>
+                                    {% if c.cliente_telefono %}<div class="small"><a href="tel:{{ c.cliente_telefono }}">{{ c.cliente_telefono }}</a></div>{% endif %}
+                                </td>
+                                <td>
+                                    {{ c.equipo or '—' }}
+                                    {% if c.motivo %}<div class="text-secondary small">{{ c.motivo }}</div>{% endif %}
+                                    {% if c.observaciones %}<div class="text-secondary small fst-italic">{{ c.observaciones }}</div>{% endif %}
+                                </td>
+                                <td>
+                                    {% if c.tipo_atencion == 'DOMICILIO' %}
+                                        <span class="badge text-bg-info">🏠 A domicilio</span>
+                                        {% if c.distrito or c.direccion %}
+                                        <div class="small mt-1">📍 {% if c.distrito %}<strong>{{ c.distrito }}</strong>{% if c.direccion %} · {% endif %}{% endif %}{{ c.direccion }}</div>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="badge text-bg-light border">🛠 En taller</span>
+                                    {% endif %}
+                                </td>
+                                <td><span class="badge {{ c.badge_class }}">{{ c.estado }}</span></td>
+                                <td>{% if c.mia %}<span class="badge text-bg-success">Mía</span>{% else %}<span class="badge text-bg-warning">Sin asignar</span>{% endif %}</td>
+                            </tr>
+                            {% endfor %}
+                            <tr id="citas-vacio" class="d-none"><td colspan="6" class="text-center text-secondary py-4">No hay citas para este filtro.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-secondary">Todavía no hay citas registradas por los clientes.</p>
+            {% endif %}
+            </div>
+            {% endif %}
         </div>
-    {% else %}
-        <p class="text-secondary">Aún no tienes citas asignadas. El administrador te asignará cuando las registre.</p>
-    {% endif %}
     </div>
 </div>
 
+{% if es_tecnico %}
 <div class="dash-group" data-collapsible>
     <div class="collapse-head">
         <h2 class="section-title">🕐 &nbsp;Mi disponibilidad</h2>
@@ -173,43 +240,6 @@
     </div>
 </div>
 {% endif %}
-
-<div class="dash-group" data-collapsible>
-    <div class="collapse-head">
-        <h2 class="section-title">🔧 &nbsp;Últimas reparaciones</h2>
-        <button class="collapse-btn" type="button" data-toggle-collapse aria-expanded="true">▾</button>
-    </div>
-    <div class="collapse-body">
-{% if ordenes %}
-    <div class="table-wrap">
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>Código</th>
-                    <th>Problema</th>
-                    <th>Atención</th>
-                    <th>Ingreso</th>
-                    <th>Estado</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for orden in ordenes %}
-                <tr>
-                    <td>{{ orden.codigo }}</td>
-                    <td>{{ orden.problema }}</td>
-                    <td>{{ orden.tipo }}</td>
-                    <td>{{ orden.ingreso }}</td>
-                    <td><span class="badge {{ orden.badge_class }}">{{ orden.estado }}</span></td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-{% else %}
-    <p class="text-secondary">No hay reparaciones registradas todavía.</p>
-{% endif %}
-    </div>
-</div>
 {% endblock %}
 
 {% block scripts %}
@@ -346,3 +376,26 @@
 })();
 </script>
 {% endblock %}
+
+<script>
+(function () {
+    var tab = document.getElementById('tab-citas');
+    if (tab && location.hash === '#citas') bootstrap.Tab.getOrCreateInstance(tab).show();
+    var barra = document.getElementById('citas-filtros');
+    if (!barra) return;
+    var filas = document.querySelectorAll('#tabla-citas tbody tr[data-tipo]');
+    var vacio = document.getElementById('citas-vacio');
+    barra.addEventListener('click', function (ev) {
+        var b = ev.target.closest('[data-filtro]');
+        if (!b) return;
+        barra.querySelectorAll('.btn').forEach(function (x) { x.classList.toggle('active', x === b); });
+        var f = b.dataset.filtro, visibles = 0;
+        filas.forEach(function (tr) {
+            var ok = f === 'todas' || tr.dataset.tipo === f || tr.dataset.asig === f;
+            tr.classList.toggle('d-none', !ok);
+            if (ok) visibles++;
+        });
+        vacio.classList.toggle('d-none', visibles > 0);
+    });
+})();
+</script>

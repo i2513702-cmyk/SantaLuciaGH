@@ -4,6 +4,8 @@ Además de las reparaciones, muestra las citas asignadas al técnico
 logueado y permite gestionar su disponibilidad (agenda_tecnicos).
 """
 
+from datetime import date
+
 from flask import (
     Blueprint,
     flash,
@@ -16,6 +18,7 @@ from flask import (
 )
 
 from app.decorators import roles_required
+from app.services.cita_service import SEPARADOR_DIRECCION
 from app.supabase_client import error_postgrest, get_admin_client, get_reader
 
 bp = Blueprint("worker", __name__)
@@ -104,24 +107,30 @@ def _tecnico_actual():
         return None
 
 
-def _citas_tecnico(tecnico_id):
-    """Citas (reservas) asignadas al técnico."""
+def _citas_tecnico(tecnico_id, incluir_libres=False):
+    """Citas (reservas) del técnico; con `incluir_libres` suma las que el cliente
+    agendó y aún no tienen técnico (visitas a domicilio incluidas)."""
+    campos = (
+        "id,fecha_reserva,hora_inicio,hora_fin,estado,tipo_atencion,motivo,"
+        "observaciones,calle,tecnico_id,"
+        "clientes(nombres,apellidos,telefono,numero_documento,razon_social),"
+        "electrodomesticos(modelo,numero_serie,marcas(nombre),tipos_electrodomestico(nombre))"
+    )
+    filas = []
     try:
-        resp = (
-            get_reader()
-            .table("reservas")
-            .select(
-                "id,fecha_reserva,hora_inicio,hora_fin,estado,tipo_atencion,motivo,"
-                "clientes(nombres,apellidos,telefono,numero_documento,razon_social),"
-                "electrodomesticos(modelo,numero_serie,marcas(nombre),tipos_electrodomestico(nombre))"
-            )
+        filas += (
+            get_reader().table("reservas").select(campos)
             .eq("tecnico_id", tecnico_id)
-            .order("fecha_reserva", desc=True)
-            .order("hora_inicio", desc=True)
-            .limit(30)
-            .execute()
-        )
-        filas = resp.data or []
+            .order("fecha_reserva", desc=True).order("hora_inicio", desc=True)
+            .limit(40).execute()
+        ).data or []
+        if incluir_libres:
+            filas += (
+                get_reader().table("reservas").select(campos)
+                .is_("tecnico_id", "null").neq("estado", "CANCELADA")
+                .order("fecha_reserva", desc=True).order("hora_inicio", desc=True)
+                .limit(40).execute()
+            ).data or []
     except Exception:  # noqa: BLE001
         return []
     citas = []
@@ -129,15 +138,23 @@ def _citas_tecnico(tecnico_id):
         estado = r.get("estado") or "PENDIENTE"
         cliente = r.get("clientes") or {}
         equipo = r.get("electrodomesticos") or {}
+        calle = (r.get("calle") or "").strip()
+        distrito, _, direccion = calle.partition(SEPARADOR_DIRECCION)
+        if not direccion:
+            distrito, direccion = "", calle
         citas.append({
             "id": r.get("id"),
             "fecha": (r.get("fecha_reserva") or "")[:10],
-            "hora": r.get("hora_inicio"),
-            "hora_fin": r.get("hora_fin"),
+            "hora": (r.get("hora_inicio") or "")[:5],
+            "hora_fin": (r.get("hora_fin") or "")[:5],
             "estado": ESTADO_CITA_LABEL.get(estado, estado),
             "badge_class": _clase_estado_cita(estado),
             "tipo_atencion": r.get("tipo_atencion"),
             "motivo": r.get("motivo"),
+            "observaciones": r.get("observaciones"),
+            "distrito": distrito,
+            "direccion": direccion,
+            "mia": r.get("tecnico_id") == tecnico_id,
             "cliente_nombre": cliente.get("razon_social")
             or " ".join(filter(None, [cliente.get("nombres"), cliente.get("apellidos")])),
             "cliente_telefono": cliente.get("telefono"),
@@ -147,6 +164,11 @@ def _citas_tecnico(tecnico_id):
                 equipo.get("modelo"),
             ])),
         })
+    if incluir_libres:
+        hoy = date.today().isoformat()
+        prox = sorted((c for c in citas if c["fecha"] >= hoy), key=lambda c: (c["fecha"], c["hora"]))
+        pasadas = sorted((c for c in citas if c["fecha"] < hoy), key=lambda c: (c["fecha"], c["hora"]), reverse=True)
+        citas = prox + pasadas
     return citas
 
 
@@ -205,19 +227,22 @@ def dashboard():
             "ingreso": (r.get("fecha_ingreso") or "")[:10],
         })
 
-    citas_asignadas = _citas_tecnico(tecnico_id) if tecnico_id else []
+    citas_panel = _citas_tecnico(tecnico_id, incluir_libres=True) if tecnico_id else []
+    n_mias = sum(1 for c in citas_panel if c["mia"])
+    n_libres = len(citas_panel) - n_mias
     stats = [
         {"label": "Reparaciones en servicio", "value": _contar("reparaciones", estado="EN_REPARACION") or 0, "icon": "🔧", "filtro": "EN_REPARACION"},
         {"label": "Listas para entrega", "value": _contar("reparaciones", estado="LISTO_ENTREGA") or 0, "icon": "📦", "filtro": "LISTO_ENTREGA"},
         {"label": "Entregadas", "value": _contar("reparaciones", estado="ENTREGADO") or 0, "icon": "✅", "filtro": "ENTREGADO"},
-        {"label": "Citas asignadas", "value": len(citas_asignadas), "icon": "📅", "filtro": "CITAS"},
+        {"label": "Citas asignadas", "value": n_mias, "icon": "📅", "filtro": "CITAS"},
     ]
     return render_template(
         "worker/dashboard.html",
         stats=stats,
         ordenes=ordenes,
         tecnico=tecnico,
-        citas=citas_asignadas,
+        citas=citas_panel,
+        n_citas_libres=n_libres,
         disponibilidad=_disponibilidad_tecnico(tecnico_id) if tecnico_id else [],
         es_tecnico=tecnico is not None,
     )
