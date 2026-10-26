@@ -5,7 +5,11 @@
 {% block content %}
 
 <!-- ─── Hero ──────────────────────────────────────────── -->
-<section class="hero hero-split">
+<section class="hero hero-split hero-bg">
+    <img class="hero-bg-img" src="{{ url_for('static', filename='img/hero/hero-electrodomesticos.webp') }}"
+         alt="Electrodomésticos reparados por Santa Lucía Servicio Técnico en Huancayo"
+         width="1920" height="1055" fetchpriority="high">
+    <div class="hero-bg-overlay" aria-hidden="true"></div>
     <div class="hero-inner">
         <div class="hero-text">
             <span class="hero-eyebrow">Chilca, Huancayo · Atención el mismo día</span>
@@ -22,11 +26,7 @@
             <code>tools/optimizar_webp.py</code>.</small>
             {% endif %}
         </div>
-        <div class="hero-visual">
-            <div class="hero-visual-pattern" aria-hidden="true"></div>
-            <img src="{{ url_for('static', filename='img/hero/hero-electrodomesticos.webp') }}"
-                 alt="Electrodomésticos reparados por Santa Lucía Servicio Técnico en Huancayo"
-                 width="1600" height="1000" fetchpriority="high">
+        <div class="hero-side">
             <!-- Tarjetas flotantes -->
             <div class="hero-float hero-float--1">
                 <i class="bi bi-shield-check"></i>
