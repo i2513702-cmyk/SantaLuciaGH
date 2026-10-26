@@ -224,6 +224,7 @@ def recuperar_clave():
 @admin_required
 def usuarios_sistema():
     """Lista los usuarios del sistema (vía Supabase REST) con filtro y paginación."""
+    nombre = (request.args.get("nombre") or "").strip()
     q = (request.args.get("q") or "").strip()
     rol = (request.args.get("rol") or "").strip()
     try:
@@ -231,7 +232,9 @@ def usuarios_sistema():
     except ValueError:
         pagina = 1
     try:
-        resultado = rest_auth_service.listar_usuarios(q=q, rol=rol, pagina=pagina)
+        resultado = rest_auth_service.listar_usuarios(
+            nombre=nombre, q=q, rol=rol, pagina=pagina
+        )
     except ValidationError as exc:
         flash(str(exc), "error")
         resultado = {"usuarios": [], "total": 0, "paginas": 1, "pagina": 1}
@@ -241,6 +244,7 @@ def usuarios_sistema():
         total=resultado["total"],
         paginas=resultado["paginas"],
         pagina=resultado["pagina"],
+        nombre=nombre,
         q=q,
         rol_filtro=rol,
         roles=ROLES_FILTRO_USUARIOS,

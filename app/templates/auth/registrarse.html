@@ -45,7 +45,8 @@
                     </div>
                     <div class="col-md-6">
                         <label for="telefono" class="form-label">Teléfono</label>
-                        <input type="tel" class="form-control" id="telefono" name="telefono">
+                        <input type="tel" class="form-control" id="telefono" name="telefono"
+                               maxlength="9" inputmode="numeric" placeholder="Máx. 9 dígitos">
                     </div>
                 </div>
             </fieldset>
@@ -55,7 +56,11 @@
                 <div class="row g-3">
                     <div class="col-md-6">
                         <label for="nombre_usuario" class="form-label">Nombre de usuario</label>
-                        <input type="text" class="form-control" id="nombre_usuario" name="nombre_usuario" required>
+                        <input type="text" class="form-control" id="nombre_usuario" name="nombre_usuario"
+                               required minlength="3" maxlength="16" pattern="^[a-zA-Z0-9_-]{3,16}$"
+                               placeholder="3 a 16 caracteres (letras, números, _ o -)"
+                               title="De 3 a 16 caracteres: letras, números, guion (-) y guion bajo (_). Sin espacios ni signos.">
+                        <div id="user_status" class="form-text"></div>
                     </div>
                     <div class="col-md-6">
                         <label for="correo" class="form-label">Correo</label>
@@ -87,7 +92,12 @@
     var docInput = document.getElementById('numero_documento');
     var tipoSelect = document.getElementById('tipo_documento_id');
     var status = document.getElementById('doc_status');
+    var telInput = document.getElementById('telefono');
+    var userInput = document.getElementById('nombre_usuario');
+    var userStatus = document.getElementById('user_status');
     var csrf = (document.querySelector('meta[name="csrf-token"]') || {}).content || '';
+
+    var REGEX_USUARIO = /^[a-zA-Z0-9_-]{3,16}$/;
 
     function mensaje(texto, ok) {
         status.textContent = texto;
@@ -99,11 +109,118 @@
         return op ? (op.dataset.tipo || '') : '';
     }
 
+    // Reglas según tipo de documento:
+    // DNI: Fijo en 8 caracteres
+    // RUC: Fijo en 11 caracteres
+    // Carné de Extranjería: Hasta 15 caracteres
+    // Pasaporte: Hasta 20 caracteres
+    function obtenerRegla() {
+        var op = tipoSelect.options[tipoSelect.selectedIndex];
+        var tipo = (op ? (op.dataset.tipo || '') : '').toUpperCase().trim();
+        var texto = (op ? op.textContent : '').toUpperCase();
+
+        if (tipo === 'DNI' || texto.indexOf('DNI') !== -1) {
+            return { codigo: 'DNI', nombre: 'DNI', fijo: 8, max: 8, min: 8, soloNumeros: true, placeholder: '8 dígitos numéricos' };
+        }
+        if (tipo === 'RUC' || texto.indexOf('RUC') !== -1) {
+            return { codigo: 'RUC', nombre: 'RUC', fijo: 11, max: 11, min: 11, soloNumeros: true, placeholder: '11 dígitos numéricos' };
+        }
+        if (tipo === 'CE' || texto.indexOf('EXTRANJER') !== -1) {
+            return { codigo: 'CE', nombre: 'Carné de Extranjería', fijo: null, max: 15, min: 1, soloNumeros: false, placeholder: 'Hasta 15 caracteres' };
+        }
+        if (tipo === 'PASAPORTE' || texto.indexOf('PASAPORTE') !== -1) {
+            return { codigo: 'PASAPORTE', nombre: 'Pasaporte', fijo: null, max: 20, min: 1, soloNumeros: false, placeholder: 'Hasta 20 caracteres' };
+        }
+        return { codigo: tipo, nombre: 'Documento', fijo: null, max: 20, min: 1, soloNumeros: false, placeholder: 'Número de documento' };
+    }
+
+    function aplicarLimites() {
+        var regla = obtenerRegla();
+        docInput.maxLength = regla.max;
+        if (regla.min) {
+            docInput.minLength = regla.min;
+        } else {
+            docInput.removeAttribute('minLength');
+        }
+        if (regla.soloNumeros) {
+            docInput.inputMode = 'numeric';
+            docInput.pattern = '\\d{' + regla.max + '}';
+        } else {
+            docInput.inputMode = 'text';
+            docInput.removeAttribute('pattern');
+        }
+        docInput.placeholder = regla.placeholder;
+        sanearDoc();
+    }
+
+    function sanearDoc() {
+        var regla = obtenerRegla();
+        var val = docInput.value;
+        if (regla.soloNumeros) {
+            val = val.replace(/\D/g, '');
+        }
+        if (regla.max && val.length > regla.max) {
+            val = val.slice(0, regla.max);
+        }
+        if (docInput.value !== val) {
+            docInput.value = val;
+        }
+    }
+
+    docInput.addEventListener('input', sanearDoc);
+    tipoSelect.addEventListener('change', function () {
+        aplicarLimites();
+        status.textContent = '';
+    });
+
+    // Control de teléfono: máximo 9 dígitos numéricos
+    if (telInput) {
+        telInput.addEventListener('input', function () {
+            this.value = this.value.replace(/\D/g, '').slice(0, 9);
+        });
+    }
+
+    // Control de nombre de usuario: solo letras (a-z, A-Z), números (0-9), guion (-) y guion bajo (_)
+    // Denegar espacios, puntos, arrobas, barras y signos de puntuación.
+    if (userInput) {
+        userInput.addEventListener('input', function () {
+            var saneado = this.value.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 16);
+            if (this.value !== saneado) {
+                this.value = saneado;
+            }
+            if (userStatus) {
+                if (saneado.length > 0 && saneado.length < 3) {
+                    userStatus.textContent = 'Mínimo 3 caracteres (' + saneado.length + '/16).';
+                    userStatus.className = 'form-text text-danger';
+                } else if (saneado.length >= 3) {
+                    userStatus.textContent = saneado.length + '/16 caracteres.';
+                    userStatus.className = 'form-text text-success';
+                } else {
+                    userStatus.textContent = '';
+                }
+            }
+        });
+    }
+
+    // Inicializar límites al cargar la vista
+    aplicarLimites();
+
     btn.addEventListener('click', function () {
+        var regla = obtenerRegla();
         var tipo = tipoActual();
         var numero = docInput.value.trim();
         if (!tipo || !numero) {
             mensaje('Ingresa el número de tu documento.', false);
+            return;
+        }
+        if (regla.fijo && numero.length !== regla.fijo) {
+            mensaje('El ' + regla.nombre + ' debe tener exactamente ' + regla.fijo + ' dígitos.', false);
+            docInput.focus();
+            return;
+        }
+        if (numero.length > regla.max) {
+            mensaje('El ' + regla.nombre + ' no puede superar los ' + regla.max + ' caracteres.', false);
+            docInput.focus();
             return;
         }
         if (tipo === 'PASAPORTE') {
@@ -139,6 +256,48 @@
     docInput.addEventListener('keydown', function (e) {
         if (e.key === 'Enter') { e.preventDefault(); btn.click(); }
     });
+
+    var form = docInput.closest('form');
+    if (form) {
+        form.addEventListener('submit', function (e) {
+            var regla = obtenerRegla();
+            var numero = docInput.value.trim();
+            if (regla.fijo && numero.length !== regla.fijo) {
+                e.preventDefault();
+                mensaje('El ' + regla.nombre + ' debe tener exactamente ' + regla.fijo + ' dígitos numéricos.', false);
+                docInput.focus();
+                return false;
+            }
+            if (numero.length > regla.max) {
+                e.preventDefault();
+                mensaje('El ' + regla.nombre + ' no puede tener más de ' + regla.max + ' caracteres.', false);
+                docInput.focus();
+                return false;
+            }
+
+            if (userInput) {
+                var usuario = userInput.value.trim();
+                if (!REGEX_USUARIO.test(usuario)) {
+                    e.preventDefault();
+                    if (userStatus) {
+                        userStatus.textContent = 'El usuario debe tener de 3 a 16 caracteres (solo letras, números, _ o -).';
+                        userStatus.className = 'form-text text-danger';
+                    }
+                    userInput.focus();
+                    return false;
+                }
+            }
+
+            if (telInput && telInput.value) {
+                var tel = telInput.value.trim();
+                if (tel.length > 9) {
+                    e.preventDefault();
+                    telInput.focus();
+                    return false;
+                }
+            }
+        });
+    }
 
     // ── Mostrar / ocultar contraseña ──
     var btnVer = document.getElementById('btn_ver_password');

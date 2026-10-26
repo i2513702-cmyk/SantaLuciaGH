@@ -6,9 +6,45 @@
 <section class="panel-head">
     <div>
         <h1>Citas de servicio</h1>
-        <p>Asigna un técnico a cada cita agendada.</p>
+        <p>Asigna un técnico a cada cita agendada. Mostrando {{ citas|length }} de {{ total }} cita(s).</p>
     </div>
 </section>
+
+<form method="get" action="{{ url_for('admin.citas_listado') }}" class="card no-hover mb-4 shadow-sm border-0">
+    <div class="card-body py-3">
+        <div class="row g-2 align-items-end">
+            <div class="col-12 col-md-5 col-lg-4">
+                <label for="filtro_tecnico" class="form-label small fw-semibold text-secondary mb-1">
+                    <i class="bi bi-funnel"></i> Filtrar por técnico
+                </label>
+                <select name="tecnico_id" id="filtro_tecnico" class="form-select form-select-sm">
+                    <option value="">Todos los técnicos</option>
+                    <option value="sin_asignar" {% if filtro_tecnico == 'sin_asignar' %}selected{% endif %}>
+                        ⚠️ Sin técnico asignado
+                    </option>
+                    {% for t in tecnicos %}
+                        <option value="{{ t.id }}" {% if filtro_tecnico == (t.id|string) %}selected{% endif %}>
+                            {{ t.nombre_completo }}{% if t.especialidad %} · {{ t.especialidad }}{% endif %}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-12 col-md-4 col-lg-3 d-flex gap-2">
+                <button type="submit" class="btn btn-primary btn-sm px-3">
+                    <i class="bi bi-search"></i> Filtrar
+                </button>
+                {% if filtro_tecnico %}
+                    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('admin.citas_listado') }}">
+                        <i class="bi bi-x-lg"></i> Limpiar
+                    </a>
+                {% endif %}
+            </div>
+            <div class="col-12 col-md-3 col-lg-5 text-md-end text-secondary small">
+                <span>Página <strong>{{ pagina }}</strong> de <strong>{{ paginas }}</strong> (Total: {{ total }} citas)</span>
+            </div>
+        </div>
+    </div>
+</form>
 
 {% if citas %}
     <div class="table-wrap">
@@ -44,7 +80,7 @@
                                 <option value="">Sin asignar</option>
                                 {% for t in tecnicos %}
                                     <option value="{{ t.id }}" {% if c.tecnico_id == t.id %}selected{% endif %}>
-                                        {{ (t.empleados or {}).get('nombres', '') }} {{ (t.empleados or {}).get('apellidos', '') }}
+                                        {{ t.nombre_completo }}
                                     </option>
                                 {% endfor %}
                             </select>
@@ -57,9 +93,36 @@
             </tbody>
         </table>
     </div>
+
+    {% if paginas > 1 %}
+    <nav class="d-flex justify-content-center align-items-center gap-3 mt-4" aria-label="Paginación de citas">
+        <a class="btn btn-sm btn-outline-primary {{ 'disabled' if pagina <= 1 }}"
+           href="{{ url_for('admin.citas_listado', p=pagina-1, **args) }}">
+            <i class="bi bi-chevron-left"></i> Anterior
+        </a>
+        <span class="small text-secondary fw-semibold">
+            Página {{ pagina }} de {{ paginas }}
+        </span>
+        <a class="btn btn-sm btn-outline-primary {{ 'disabled' if pagina >= paginas }}"
+           href="{{ url_for('admin.citas_listado', p=pagina+1, **args) }}">
+            Siguiente <i class="bi bi-chevron-right"></i>
+        </a>
+    </nav>
+    {% endif %}
 {% else %}
     <div class="empty-state">
-        <p>No hay citas registradas todavía.</p>
+        <p class="text-secondary">
+            {% if filtro_tecnico %}
+                No se encontraron citas para el filtro seleccionado.
+            {% else %}
+                No hay citas registradas todavía.
+            {% endif %}
+        </p>
+        {% if filtro_tecnico %}
+            <a class="btn btn-sm btn-outline-primary mt-2" href="{{ url_for('admin.citas_listado') }}">
+                Ver todas las citas
+            </a>
+        {% endif %}
     </div>
 {% endif %}
 {% endblock %}

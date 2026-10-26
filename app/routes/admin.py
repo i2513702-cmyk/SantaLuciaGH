@@ -641,12 +641,6 @@ def dashboard():
             "url": "admin.citas_listado",
         },
         {
-            "nombre": "Cierre de caja",
-            "descripcion": "Arqueo diario y registro de cierres de caja",
-            "icon": "💵",
-            "url": "caja.listado",
-        },
-        {
             "nombre": "Productos",
             "descripcion": "Agregar, editar y eliminar productos del catálogo",
             "icon": "🏷️",
@@ -690,13 +684,18 @@ def dashboard():
 def _listar_tecnicos():
     """Lista de técnicos con datos del empleado (para asignar a citas)."""
     try:
-        return (
+        filas = (
             get_reader()
             .table("tecnicos")
             .select("id,especialidad,empleados(nombres,apellidos)")
             .order("id")
             .execute()
         ).data or []
+        for t in filas:
+            emp = t.get("empleados") or {}
+            nom = f"{emp.get('nombres') or ''} {emp.get('apellidos') or ''}".strip()
+            t["nombre_completo"] = nom or f"Técnico #{t['id']}"
+        return filas
     except Exception:  # noqa: BLE001
         return []
 
@@ -720,28 +719,49 @@ def _clase_estado_cita(estado: str) -> str:
     return "badge-muted"
 
 
+POR_PAGINA_CITAS = 10
+
+
 @bp.get("/admin/citas")
 @roles_required("admin")
 def citas_listado():
-    """Lista las citas (reservas) para asignarles un técnico."""
+    """Lista las citas (reservas) con paginación de 10 y filtro por técnico."""
+    pagina = max(request.args.get("p", 1, type=int) or 1, 1)
+    filtro_tecnico = (request.args.get("tecnico_id") or "").strip()
+
     citas = []
+    total = 0
     try:
-        resp = (
+        query = (
             get_reader()
             .table("reservas")
             .select(
                 "id,fecha_reserva,hora_inicio,hora_fin,estado,tipo_atencion,motivo,"
                 "clientes(nombres,apellidos,telefono,numero_documento,razon_social),"
                 "electrodomesticos(modelo,numero_serie,marcas(nombre),tipos_electrodomestico(nombre)),"
-                "tecnicos(id,empleados(nombres,apellidos))"
+                "tecnicos(id,empleados(nombres,apellidos))",
+                count="exact",
             )
+        )
+
+        if filtro_tecnico == "sin_asignar":
+            query = query.is_("tecnico_id", "null")
+        elif filtro_tecnico.isdigit():
+            query = query.eq("tecnico_id", int(filtro_tecnico))
+
+        query = (
+            query
             .order("fecha_reserva", desc=True)
             .order("hora_inicio", desc=True)
-            .execute()
+            .range((pagina - 1) * POR_PAGINA_CITAS, pagina * POR_PAGINA_CITAS - 1)
         )
+
+        resp = query.execute()
         filas = resp.data or []
+        total = resp.count or 0
     except Exception:  # noqa: BLE001
         filas = []
+        total = 0
 
     for r in filas:
         estado = r.get("estado") or "PENDIENTE"
@@ -773,10 +793,18 @@ def citas_listado():
             ])) or "Sin asignar",
         })
 
+    paginas = max((total + POR_PAGINA_CITAS - 1) // POR_PAGINA_CITAS, 1)
+    args = {"tecnico_id": filtro_tecnico} if filtro_tecnico else {}
+
     return render_template(
         "admin/citas.html",
         citas=citas,
         tecnicos=_listar_tecnicos(),
+        pagina=pagina,
+        paginas=paginas,
+        total=total,
+        filtro_tecnico=filtro_tecnico,
+        args=args,
     )
 
 
@@ -803,7 +831,12 @@ def citas_asignar_tecnico(reserva_id):
             flash("Cita liberada (técnico sin asignar).", "info")
     except Exception as exc:  # noqa: BLE001
         flash(f"No se pudo actualizar la cita: {exc}", "error")
-    return redirect(url_for("admin.citas_listado"))
+
+    destino = request.referrer
+    if not destino or not destino.startswith(request.host_url):
+        destino = url_for("admin.citas_listado")
+    return redirect(destino)
+
 
 
 def _form_ctx(producto=None, valores=None):
