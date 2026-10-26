@@ -5,35 +5,60 @@
 {% block content %}
 
 <!-- ─── Hero ──────────────────────────────────────────── -->
-<section class="hero hero-split hero-bg">
+<section class="hero hero-full">
     <img class="hero-bg-img" src="{{ url_for('static', filename='img/hero/hero-electrodomesticos.webp') }}"
          alt="Electrodomésticos reparados por Santa Lucía Servicio Técnico en Huancayo"
          width="1920" height="1055" fetchpriority="high">
     <div class="hero-bg-overlay" aria-hidden="true"></div>
-    <div class="hero-inner">
-        <div class="hero-text">
-            <span class="hero-eyebrow">Chilca, Huancayo · Atención el mismo día</span>
-            <h1>Tu lavadora entra fallando y sale andando hoy.</h1>
-            <p class="hero-sub">Reparación, mantenimiento e instalación de lavadoras, secadoras, refrigeradoras, congeladoras y cocinas. Repuestos originales, garantía de 90 días y atención a domicilio o en taller.</p>
-            <div class="hero-actions">
-                <a class="btn btn-accent btn-lg" href="{{ url_for('citas.agendar_form') }}"><i class="bi bi-calendar-check me-2"></i>Agendar una cita</a>
-                <a class="btn btn-outline-primary btn-lg" href="https://wa.me/{{ whatsapp_numero }}{% if whatsapp_mensaje %}?text={{ whatsapp_mensaje|urlencode }}{% endif %}" target="_blank" rel="noopener"><i class="bi bi-whatsapp me-2"></i>Escribir por WhatsApp</a>
-                <a class="hero-link ms-2" href="{{ url_for('main.tienda') }}">Ver repuestos</a>
+    <div class="hero-container">
+        <div class="hero-content">
+            <div class="hero-text">
+                <span class="hero-eyebrow">Chilca, Huancayo · Atención el mismo día</span>
+                <h1>Tu lavadora entra fallando y sale andando hoy.</h1>
+                <p class="hero-sub">Reparación, mantenimiento e instalación de lavadoras, secadoras, refrigeradoras, congeladoras y cocinas. Repuestos originales, garantía de 90 días y atención a domicilio o en taller.</p>
+                <div class="hero-actions">
+                    <a class="btn btn-accent btn-lg" href="{{ url_for('citas.agendar_form') }}"><i class="bi bi-calendar-check me-2"></i>Agendar una cita</a>
+                    <a class="btn btn-outline-primary btn-lg" href="https://wa.me/{{ whatsapp_numero }}{% if whatsapp_mensaje %}?text={{ whatsapp_mensaje|urlencode }}{% endif %}" target="_blank" rel="noopener"><i class="bi bi-whatsapp me-2"></i>Escribir por WhatsApp</a>
+                    <a class="hero-link" href="{{ url_for('main.tienda') }}">Ver repuestos</a>
+                </div>
+                <div class="hero-badges">
+                    <div class="hero-badge">
+                        <svg class="hero-badge-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                        </svg>
+                        <span>Garantía de 90 días</span>
+                    </div>
+                    <div class="hero-badge">
+                        <svg class="hero-badge-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <rect x="1" y="3" width="15" height="13"></rect>
+                            <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
+                            <circle cx="5.5" cy="18.5" r="2.5"></circle>
+                            <circle cx="18.5" cy="18.5" r="2.5"></circle>
+                        </svg>
+                        <span>Atención a domicilio en Huancayo</span>
+                    </div>
+                </div>
+                {% if es_admin %}
+                <small class="text-muted mt-3 d-block">Solo visible para administrador: para publicar la foto del hero,
+                guarda el original como <code>app/static/img/orig/hero-tecnico.jpg</code> y ejecuta
+                <code>tools/optimizar_webp.py</code>.</small>
+                {% endif %}
             </div>
-            {% if es_admin %}
-            <small class="text-muted mt-3 d-block">Solo visible para administrador: para publicar la foto del hero,
-            guarda el original como <code>app/static/img/orig/hero-tecnico.jpg</code> y ejecuta
-            <code>tools/optimizar_webp.py</code>.</small>
-            {% endif %}
         </div>
-        <div class="hero-side">
-            <!-- Tarjetas flotantes -->
-            <div class="hero-float hero-float--1">
-                <i class="bi bi-shield-check"></i>
+        <div class="hero-badges-desktop">
+            <div class="hero-badge">
+                <svg class="hero-badge-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                </svg>
                 <span>Garantía de 90 días</span>
             </div>
-            <div class="hero-float hero-float--2">
-                <i class="bi bi-truck"></i>
+            <div class="hero-badge">
+                <svg class="hero-badge-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="1" y="3" width="15" height="13"></rect>
+                    <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
+                    <circle cx="5.5" cy="18.5" r="2.5"></circle>
+                    <circle cx="18.5" cy="18.5" r="2.5"></circle>
+                </svg>
                 <span>Atención a domicilio en Huancayo</span>
             </div>
         </div>

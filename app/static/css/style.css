@@ -294,8 +294,6 @@ h4 { font-size: 1rem; font-weight: 600; }
    ============================================================ */
 
 /* ---------- Hero ---------- */
-/* Layout asimétrico a ancho completo: texto sobre celeste claro,
-   foto a la derecha sangrando hacia el borde de la pantalla. */
 .hero {
     background: #f0f9ff;
     color: #0c2d48;
@@ -322,7 +320,7 @@ h4 { font-size: 1rem; font-weight: 600; }
     color: #0369a1;
     margin-bottom: 22px;
     position: relative;
-    z-index: 1;
+    z-index: 2;
 }
 
 .hero h1 {
@@ -333,7 +331,7 @@ h4 { font-size: 1rem; font-weight: 600; }
     letter-spacing: -.02em;
     margin-bottom: 20px;
     position: relative;
-    z-index: 1;
+    z-index: 2;
 }
 
 .hero h1 .accent { color: #0369a1; }
@@ -344,7 +342,7 @@ h4 { font-size: 1rem; font-weight: 600; }
     max-width: 620px;
     margin: 0 0 32px;
     position: relative;
-    z-index: 1;
+    z-index: 2;
     line-height: 1.6;
 }
 
@@ -353,9 +351,10 @@ h4 { font-size: 1rem; font-weight: 600; }
     gap: 14px;
     justify-content: flex-start;
     position: relative;
-    z-index: 1;
+    z-index: 2;
     flex-wrap: wrap;
     align-items: center;
+    margin-bottom: 24px;
 }
 
 .hero-link {
@@ -364,17 +363,19 @@ h4 { font-size: 1rem; font-weight: 600; }
     color: #0369a1;
     text-decoration: underline;
     text-underline-offset: 3px;
+    position: relative;
+    z-index: 2;
 }
 .hero-link:hover { color: #0c2d48; }
 
-/* Hero en dos columnas con foto a sangre (rompe el padding de main.container) */
 /* Hero a pantalla completa con imagen de fondo */
-.hero-bg {
+.hero-full {
     position: relative;
     overflow: hidden;
-    margin: 0 calc(50% - 50vw);
-    padding: 0 calc(50vw - 50%);
+    width: 100%;
+    margin: 0;
 }
+
 .hero-bg-img {
     position: absolute;
     inset: 0;
@@ -385,6 +386,7 @@ h4 { font-size: 1rem; font-weight: 600; }
     z-index: 0;
     display: block;
 }
+
 .hero-bg-overlay {
     position: absolute;
     inset: 0;
@@ -392,36 +394,96 @@ h4 { font-size: 1rem; font-weight: 600; }
     z-index: 1;
     pointer-events: none;
 }
-.hero-bg .hero-inner {
+
+.hero-container {
     position: relative;
     z-index: 2;
+    width: 100%;
+    max-width: 100%;
+}
+
+.hero-content {
     display: grid;
     grid-template-columns: 1.05fr .95fr;
     gap: 40px;
     align-items: center;
+    max-width: 1400px;
+    margin: 0 auto;
     padding: clamp(56px, 7vw, 92px) clamp(20px, 6vw, 80px);
 }
-.hero-bg .hero-text { position: relative; z-index: 2; max-width: 640px; }
-.hero-bg .hero-actions,
-.hero-bg .hero-eyebrow,
-.hero-bg h1,
-.hero-bg .hero-sub { position: relative; z-index: 2; }
-.hero-bg h1 { color: #0c2d48; }
 
-.hero-side {
+.hero-content .hero-text {
     position: relative;
-    align-self: stretch;
-    min-height: 420px;
-}
-.hero-side .hero-float {
-    position: absolute;
     z-index: 2;
+    max-width: 640px;
+}
+
+.hero-content .hero-actions,
+.hero-content .hero-eyebrow,
+.hero-content h1,
+.hero-content .hero-sub {
+    position: relative;
+    z-index: 2;
+}
+
+.hero-content h1 { color: #0c2d48; }
+
+/* Tarjetas flotantes - clase compartida */
+.hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
     background: #fff;
-    box-shadow: var(--shadow-lg);
+    border-radius: 12px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: #0b2e4a;
+    white-space: nowrap;
     border: 1px solid var(--border);
 }
-.hero-side .hero-float--1 { top: 36px; right: 40px; left: auto; }
-.hero-side .hero-float--2 { bottom: 36px; right: 40px; left: auto; top: auto; }
+
+.hero-badge-icon {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+    color: #0369a1;
+    stroke-width: 2;
+}
+
+.hero-badges {
+    display: none;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 16px;
+    position: relative;
+    z-index: 2;
+}
+
+.hero-badges-desktop {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.hero-badges-desktop .hero-badge {
+    position: absolute;
+    pointer-events: auto;
+    z-index: 2;
+}
+
+.hero-badges-desktop .hero-badge:first-child {
+    top: 24px;
+    right: 24px;
+}
+
+.hero-badges-desktop .hero-badge:last-child {
+    bottom: 24px;
+    right: 24px;
+}
 
 .hero .btn-accent { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; }
 .hero .btn-accent:hover { background: #9a3412; border-color: #9a3412; color: #fff; }
@@ -1412,28 +1474,28 @@ h4 { font-size: 1rem; font-weight: 600; }
     /* En móvil la foto va debajo del texto (nunca se oculta) y llega a los bordes */
     .hero-bg-img { object-position: 70% center; }
     .hero-bg-overlay {
-        background: linear-gradient(180deg, rgba(240, 248, 255, 0.98) 0%, rgba(240, 248, 255, 0.94) 52%, rgba(240, 248, 255, 0.6) 100%);
+        background: linear-gradient(180deg, rgba(240, 248, 255, 0.99) 0%, rgba(224, 242, 254, 0.92) 46%, rgba(240, 248, 255, 0.7) 78%, rgba(240, 248, 255, 0.4) 100%);
     }
-    .hero-bg .hero-inner {
+    .hero-content {
         grid-template-columns: 1fr;
         gap: 28px;
         padding: 40px 16px 0;
     }
-    .hero-side {
-        position: relative;
-        min-height: 0;
+    .hero-content .hero-text {
+        max-width: none;
+    }
+    .hero-badges-desktop {
+        display: none;
+    }
+    .hero-badges {
         display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin: 6px 0 26px;
     }
-    .hero-side .hero-float {
-        position: static;
-        font-size: .8rem;
+    .hero-badge {
+        font-size: 13px;
         padding: 9px 12px;
+        white-space: normal;
+        max-width: calc(100% - 32px);
     }
-    .hero-side .hero-float--1,
-    .hero-side .hero-float--2 { right: auto; bottom: auto; top: auto; }
     .product-img { aspect-ratio: 1 / 1; height: auto; padding: 0; }
     .product-img img { width: 100%; height: 100%; object-fit: cover; object-position: center; }
     .card:hover .product-img img { transform: scale(1.1); }
@@ -1458,13 +1520,12 @@ h4 { font-size: 1rem; font-weight: 600; }
     .hero h1 { font-size: clamp(2rem, 9vw, 2.4rem); }
     .hero-actions { flex-direction: column; align-items: stretch; }
     .hero-actions .btn { width: 100%; }
+    .hero-badge { font-size: 12px; padding: 8px 10px; flex: 1 1 100%; }
     .product-card { padding-bottom: 8px; }
     .servicios-grid { grid-template-columns: 1fr; }
     .footer-bottom { align-items: flex-start; text-align: left; }
     .nav-links { gap: 2px; flex-wrap: wrap; }
     .hero-bg-img { object-position: 72% center; }
-    .hero-side { width: 100%; }
-    .hero-side .hero-float { flex: 1 1 100%; }
 }
 
 /* ============================================================
@@ -2704,6 +2765,7 @@ h1, h2, h3, .brand-name, .kpi-value, .stat-value {
     color: #e0f2fe;
     padding: 40px 0 32px;
     margin-bottom: 0;
+    width: 100%;
 }
 .trust-bar--petroleo .trust-bar-item {
     border-top: 2px solid rgba(56,189,248,.55);
