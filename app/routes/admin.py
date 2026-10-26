@@ -641,12 +641,6 @@ def dashboard():
             "url": "admin.citas_listado",
         },
         {
-            "nombre": "Cierre de caja",
-            "descripcion": "Arqueo diario y registro de cierres de caja",
-            "icon": "💵",
-            "url": "caja.listado",
-        },
-        {
             "nombre": "Productos",
             "descripcion": "Agregar, editar y eliminar productos del catálogo",
             "icon": "🏷️",

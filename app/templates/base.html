@@ -61,7 +61,6 @@
                             {{ item('kpi.panel', 'KPIs', 'nav-kpis', 'graph-up-arrow') }}
                             {{ item('admin.citas_listado', 'Citas', 'nav-citas', 'calendar-check') }}
                             {{ item('ventas.listado', 'Ventas', 'nav-ventas', 'receipt', 'ventas.listado') }}
-                            {{ item('caja.listado', 'Caja', 'nav-caja', 'cash-stack') }}
                             {{ item('admin.productos', 'Productos', 'nav-productos', 'box-seam') }}
                             {{ item('auth.usuarios_sistema', 'Usuarios', 'nav-usuarios', 'people') }}
                             {{ item('seguridad.panel', 'Seguridad', 'nav-seguridad', 'shield-lock') }}
@@ -174,7 +173,6 @@
                         <a href="{{ url_for('admin.dashboard') }}">Panel de administración</a>
                         <a href="{{ url_for('kpi.panel') }}">Indicadores (KPIs)</a>
                         <a href="{{ url_for('admin.citas_listado') }}">Gestión de citas</a>
-                        <a href="{{ url_for('caja.listado') }}">Cierre de caja</a>
                         <a href="{{ url_for('admin.productos') }}">Gestión de productos</a>
                         <a href="{{ url_for('auth.usuarios_sistema') }}">Usuarios del sistema</a>
                         <a href="{{ url_for('seguridad.panel') }}">Seguridad (IPs)</a>
