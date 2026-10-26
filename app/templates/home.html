@@ -23,8 +23,10 @@
             {% endif %}
         </div>
         <div class="hero-visual">
-            {% set hero_img = url_for('static', filename='img/hero-tecnico.webp') %}
-            <img src="{{ hero_img }}" alt="Técnico de Santa Lucía reparando una lavadora en Huancayo" width="1600" height="1000" fetchpriority="high" loading="eager" onerror="this.style.display='none'">
+            <div class="hero-visual-pattern" aria-hidden="true"></div>
+            <img src="{{ url_for('static', filename='img/hero/hero-electrodomesticos.webp') }}"
+                 alt="Electrodomésticos reparados por Santa Lucía Servicio Técnico en Huancayo"
+                 width="1600" height="1000" fetchpriority="high">
             <!-- Tarjetas flotantes -->
             <div class="hero-float hero-float--1">
                 <i class="bi bi-shield-check"></i>
