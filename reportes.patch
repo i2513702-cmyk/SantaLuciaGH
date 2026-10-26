@@ -1,0 +1,786 @@
+diff --git a/app/__init__.py b/app/__init__.py
+index 085aaed..14074df 100644
+--- a/app/__init__.py
++++ b/app/__init__.py
+@@ -24,7 +24,7 @@ def create_app() -> Flask:
+     bcrypt.init_app(app)
+ 
+     # --- Blueprints ---
+-    from app.routes import admin, api, auth, carrito, checkout, citas, identidad, kpi, main, seguridad, ventas, worker
++    from app.routes import admin, api, auth, carrito, checkout, citas, identidad, kpi, main, reportes, seguridad, ventas, worker
+     from app.routes.supabase import bp as supabase_bp
+ 
+     app.register_blueprint(main.bp)
+@@ -35,6 +35,7 @@ def create_app() -> Flask:
+     app.register_blueprint(checkout.bp)
+     app.register_blueprint(citas.bp)
+     app.register_blueprint(kpi.bp)
++    app.register_blueprint(reportes.bp)
+     app.register_blueprint(seguridad.bp)
+     app.register_blueprint(ventas.bp)
+     app.register_blueprint(supabase_bp)
+diff --git a/app/routes/reportes.py b/app/routes/reportes.py
+new file mode 100644
+index 0000000..eb6873f
+--- /dev/null
++++ b/app/routes/reportes.py
+@@ -0,0 +1,122 @@
++"""Reportes del administrador (ventas, productos, inventario y citas).
++
++Rutas protegidas con `roles_required("admin")` (solo el rol ADMINISTRADOR).
++Toda la logica vive en `app.services.reporte_service`; aqui solo se pide el
++periodo, se llama al servicio y se devuelve HTML, CSV o PDF.
++"""
++
++from datetime import datetime, timezone
++
++from flask import Blueprint, Response, abort, jsonify, render_template, request, url_for
++
++from app.decorators import roles_required
++from app.services import reporte_service as reportes
++
++bp = Blueprint("reportes", __name__)
++
++TIPO_POR_DEFECTO = "ventas"
++
++
++def _tipo_valido(tipo: str) -> dict:
++    """Definicion del reporte, o 404 si el tipo no existe."""
++    if tipo not in reportes.REPORTES:
++        abort(404)
++    return reportes.REPORTES[tipo]
++
++
++def _periodo(definicion: dict):
++    """Lee `desde`/`hasta` y los valida. Los reportes sin periodo lo ignoran."""
++    if not definicion["usa_periodo"]:
++        desde, hasta, _ = reportes.parsear_periodo(None, None)
++        return desde, hasta, None
++    return reportes.parsear_periodo(request.args.get("desde"), request.args.get("hasta"))
++
++
++def _error_json(mensaje: str, codigo: int):
++    return jsonify({"ok": False, "error": mensaje}), codigo
++
++
++def _nombre_archivo(tipo: str, definicion: dict, desde, hasta, extension: str) -> str:
++    sello = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M")
++    rango = f"-{desde.isoformat()}_{hasta.isoformat()}" if definicion["usa_periodo"] else ""
++    return f"reporte-{tipo}{rango}-{sello}.{extension}"
++
++
++def _pantalla(tipo: str):
++    definicion = _tipo_valido(tipo)
++    desde, hasta, error_periodo = _periodo(definicion)
++
++    rep, error = None, None
++    try:
++        rep = reportes.generar(tipo, desde, hasta)
++    except reportes.ReporteError as exc:
++        error = str(exc)
++
++    rango = {"desde": desde.isoformat(), "hasta": hasta.isoformat()} if definicion["usa_periodo"] else {}
++    return render_template(
++        "admin/reportes.html",
++        tipo=tipo,
++        definicion=definicion,
++        reportes=reportes.REPORTES,
++        rep=rep,
++        error=error,
++        error_periodo=error_periodo,
++        desde=desde.isoformat(),
++        hasta=hasta.isoformat(),
++        ventanas=reportes.ventanas_por_defecto(),
++        csv_url=url_for("reportes.csv", tipo=tipo, **rango),
++        pdf_url=url_for("reportes.pdf", tipo=tipo, **rango),
++        umbral_stock_bajo=reportes.UMBRAL_STOCK_BAJO,
++    )
++
++
++@bp.get("/admin/reportes")
++@roles_required("admin")
++def indice():
++    """Entrada del modulo: abre el reporte de ventas."""
++    return _pantalla(TIPO_POR_DEFECTO)
++
++
++@bp.get("/admin/reportes/<tipo>")
++@roles_required("admin")
++def ver(tipo):
++    return _pantalla(tipo)
++
++
++@bp.get("/admin/reportes/<tipo>/csv")
++@roles_required("admin")
++def csv(tipo):
++    """CSV con separador ';' y BOM UTF-8 para que Excel respete los acentos."""
++    definicion = _tipo_valido(tipo)
++    desde, hasta, error_periodo = _periodo(definicion)
++    if error_periodo:
++        return _error_json(error_periodo, 400)
++    try:
++        contenido = reportes.csv_reporte(reportes.generar(tipo, desde, hasta))
++    except reportes.ReporteError as exc:
++        return _error_json(str(exc), 503)
++    nombre = _nombre_archivo(tipo, definicion, desde, hasta, "csv")
++    return Response(
++        "\ufeff" + contenido,
++        mimetype="text/csv; charset=utf-8",
++        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
++    )
++
++
++@bp.get("/admin/reportes/<tipo>/pdf")
++@roles_required("admin")
++def pdf(tipo):
++    definicion = _tipo_valido(tipo)
++    desde, hasta, error_periodo = _periodo(definicion)
++    if error_periodo:
++        return _error_json(error_periodo, 400)
++    try:
++        contenido = reportes.pdf_reporte(reportes.generar(tipo, desde, hasta))
++    except reportes.ReporteError as exc:
++        return _error_json(str(exc), 503)
++    nombre = _nombre_archivo(tipo, definicion, desde, hasta, "pdf")
++    return Response(
++        contenido,
++        mimetype="application/pdf",
++        headers={"Content-Disposition": f'attachment; filename="{nombre}"'},
++    )
+diff --git a/app/services/reporte_service.py b/app/services/reporte_service.py
+new file mode 100644
+index 0000000..0f40064
+--- /dev/null
++++ b/app/services/reporte_service.py
+@@ -0,0 +1,508 @@
++"""Reportes del panel administrativo (ventas, productos, inventario y citas).
++
++Cada reporte es una funcion `(desde, hasta) -> dict` que lee Supabase con el
++cliente REST y devuelve SIEMPRE la misma estructura:
++
++    {
++        "titulo":          str,                       # incluye el periodo si aplica
++        "columnas":        list[str],
++        "filas":           list[list[str]],           # celdas ya formateadas
++        "resumen":         list[{"etiqueta", "valor"}],
++        "alinear_derecha": list[int],                 # indices de columnas numericas
++    }
++
++Pantalla, CSV y PDF salen de ese mismo dato (`csv_reporte`, `pdf_reporte`).
++
++Para agregar un reporte nuevo basta con escribir su funcion y sumarla al
++diccionario `REPORTES` (al final del archivo).
++
++No se crean tablas, vistas ni funciones SQL: todo se arma con lo que ya existe
++(`ventas`, `detalle_venta`, `productos`, `inventario`, `reservas`, `tecnicos`,
++`empleados`).
++
++Supuestos de negocio (ver tambien el README de la entrega):
++  * Una venta ANULADA / CANCELADA / RECHAZADA no suma al "total vendido" ni a
++    los productos mas vendidos, pero si aparece en la tabla y en "pedidos por
++    estado" para que se vea el panorama completo.
++  * `reservas.fecha_reserva` es la fecha local de la cita; se filtra por fecha
++    sin conversion de zona horaria.
++  * El inventario muestra solo productos activos (igual que KPI-04).
++"""
++
++from __future__ import annotations
++
++import csv as _csv
++import io
++import logging
++from collections import Counter
++from datetime import date, datetime, timedelta
++from xml.sax.saxutils import escape
++
++from app.services.kpi_service import (  # reutilizados tal cual (hora de Peru)
++    LIMA,
++    LOTE_IDS,
++    PAGINA,
++    _desde_ts,
++    _dt,
++    _hasta_ts,
++    parsear_periodo,
++    ventanas_por_defecto,
++)
++from app.supabase_client import error_postgrest, get_reader
++
++log = logging.getLogger(__name__)
++
++__all__ = [
++    "REPORTES",
++    "UMBRAL_STOCK_BAJO",
++    "ReporteError",
++    "generar",
++    "csv_reporte",
++    "pdf_reporte",
++    "parsear_periodo",
++    "ventanas_por_defecto",
++]
++
++#: Stock <= este valor (y > 0) se considera "Stock bajo". Cambiar aqui.
++UMBRAL_STOCK_BAJO = 5
++
++SIN_DATOS = "Sin datos en este periodo"
++
++
++class ReporteError(Exception):
++    """No se pudo leer Supabase para armar el reporte."""
++
++
++# ---------------------------------------------------------------------------
++# Lectura desde Supabase
++# ---------------------------------------------------------------------------
++
++def _leer(tabla: str, select: str, filtro=None, orden=(("id", False),)) -> list[dict]:
++    """Lee una tabla completa paginando de a PAGINA filas (limite de PostgREST).
++
++    `filtro` es un callable `builder -> builder` que se aplica dentro del
++    try, asi un Supabase mal configurado tambien termina en ReporteError.
++    `orden` es una lista de (columna, descendente) para que la paginacion sea
++    estable entre peticiones.
++    """
++    try:
++        q = get_reader().table(tabla).select(select)
++        if filtro is not None:
++            q = filtro(q)
++        for col, desc in orden:
++            q = q.order(col, desc=desc)
++        filas: list[dict] = []
++        inicio = 0
++        while True:
++            lote = q.range(inicio, inicio + PAGINA - 1).execute().data or []
++            filas.extend(lote)
++            if len(lote) < PAGINA:
++                return filas
++            inicio += PAGINA
++    except Exception as exc:  # noqa: BLE001
++        log.exception("Reportes: fallo al leer %s", tabla)
++        raise ReporteError(
++            f"No se pudo leer «{tabla}» en Supabase: {error_postgrest(exc)}"
++        ) from exc
++
++
++def _leer_por_ids(tabla: str, select: str, columna: str, ids: list, orden=(("id", False),)) -> list[dict]:
++    """Lee filas cuyo `columna` esta en `ids`, en lotes de LOTE_IDS (.in_())."""
++    filas: list[dict] = []
++    for i in range(0, len(ids), LOTE_IDS):
++        lote = ids[i : i + LOTE_IDS]
++        filas.extend(
++            _leer(tabla, select, filtro=lambda q, lote=lote: q.in_(columna, lote), orden=orden)
++        )
++    return filas
++
++
++# ---------------------------------------------------------------------------
++# Formato de celdas
++# ---------------------------------------------------------------------------
++
++def _soles(valor) -> str:
++    try:
++        return f"S/ {float(valor or 0):,.2f}"
++    except (TypeError, ValueError):
++        return "S/ 0.00"
++
++
++def _numero(valor) -> str:
++    """Entero si no tiene decimales, si no hasta 2 decimales."""
++    try:
++        n = float(valor or 0)
++    except (TypeError, ValueError):
++        return "0"
++    return f"{int(n):,}" if n == int(n) else f"{n:,.2f}"
++
++
++def _fecha_hora_lima(valor) -> str:
++    """Timestamp UTC de PostgREST -> 'dd/mm/aaaa HH:MM' en hora de Peru."""
++    d = _dt(valor)
++    return d.astimezone(LIMA).strftime("%d/%m/%Y %H:%M") if d else "—"
++
++
++def _fecha_local(valor) -> str:
++    """Fecha local (columna date) -> 'dd/mm/aaaa', sin convertir zona horaria."""
++    try:
++        return date.fromisoformat(str(valor)[:10]).strftime("%d/%m/%Y")
++    except (TypeError, ValueError):
++        return "—"
++
++
++def _rotulo(valor, defecto: str = "—") -> str:
++    """'PAGO_CONFIRMADO' -> 'Pago confirmado'."""
++    texto = str(valor or "").strip().replace("_", " ")
++    return texto.capitalize() if texto else defecto
++
++
++def _periodo_txt(desde: date, hasta: date) -> str:
++    return f"{desde.strftime('%d/%m/%Y')} al {hasta.strftime('%d/%m/%Y')}"
++
++
++def _por_estado(estados) -> list[dict]:
++    """Tarjetas 'estado: cantidad', ordenadas de mayor a menor."""
++    cuenta = Counter(_rotulo(e, "Sin estado") for e in estados)
++    return [
++        {"etiqueta": est, "valor": str(n)}
++        for est, n in sorted(cuenta.items(), key=lambda x: (-x[1], x[0]))
++    ]
++
++
++def _cuenta_como_venta(estado) -> bool:
++    e = (estado or "").strip().upper()
++    return not any(m in e for m in ("CANCEL", "ANUL", "RECHAZ"))
++
++
++# ---------------------------------------------------------------------------
++# Reportes
++# ---------------------------------------------------------------------------
++
++def _ventas_del_periodo(desde: date, hasta: date) -> list[dict]:
++    return _leer(
++        "ventas",
++        "id,codigo_pedido,fecha_venta,estado,canal_venta,total",
++        filtro=lambda q: q.gte("fecha_venta", _desde_ts(desde)).lt("fecha_venta", _hasta_ts(hasta)),
++        orden=(("fecha_venta", True), ("id", False)),
++    )
++
++
++def reporte_ventas(desde: date, hasta: date) -> dict:
++    ventas = _ventas_del_periodo(desde, hasta)
++    validas = [v for v in ventas if _cuenta_como_venta(v.get("estado"))]
++    total = sum(float(v.get("total") or 0) for v in validas)
++    ticket = total / len(validas) if validas else 0.0
++
++    filas = [
++        [
++            v.get("codigo_pedido") or f"#{v.get('id')}",
++            _fecha_hora_lima(v.get("fecha_venta")),
++            _rotulo(v.get("estado")),
++            _rotulo(v.get("canal_venta")),
++            _soles(v.get("total")),
++        ]
++        for v in ventas
++    ]
++    return {
++        "titulo": f"Reporte de ventas del {_periodo_txt(desde, hasta)}",
++        "columnas": ["Pedido", "Fecha", "Estado", "Canal", "Total"],
++        "filas": filas,
++        "resumen": [
++            {"etiqueta": "Total vendido", "valor": _soles(total)},
++            {"etiqueta": "Pedidos", "valor": str(len(ventas))},
++            {"etiqueta": "Ticket promedio", "valor": _soles(ticket)},
++            *[
++                {"etiqueta": f"Pedidos · {r['etiqueta']}", "valor": r["valor"]}
++                for r in _por_estado(v.get("estado") for v in ventas)
++            ],
++        ],
++        "alinear_derecha": [4],
++    }
++
++
++def reporte_productos(desde: date, hasta: date) -> dict:
++    ventas = _ventas_del_periodo(desde, hasta)
++    ids = [v["id"] for v in ventas if _cuenta_como_venta(v.get("estado")) and v.get("id") is not None]
++    lineas = _leer_por_ids("detalle_venta", "id,producto_id,cantidad,subtotal", "venta_id", ids)
++
++    acumulado: dict = {}
++    for ln in lineas:
++        pid = ln.get("producto_id")
++        if pid is None:
++            continue
++        a = acumulado.setdefault(pid, {"unidades": 0.0, "ingresos": 0.0})
++        a["unidades"] += float(ln.get("cantidad") or 0)
++        a["ingresos"] += float(ln.get("subtotal") or 0)
++
++    nombres = {
++        p["id"]: p.get("nombre")
++        for p in _leer_por_ids("productos", "id,nombre", "id", list(acumulado))
++    }
++    ranking = sorted(
++        (
++            (nombres.get(pid) or f"Producto #{pid}", a["unidades"], a["ingresos"])
++            for pid, a in acumulado.items()
++        ),
++        key=lambda x: (-x[1], -x[2], x[0].lower()),
++    )
++    filas = [
++        [str(i), nombre, _numero(unid), _soles(ing)]
++        for i, (nombre, unid, ing) in enumerate(ranking, start=1)
++    ]
++    return {
++        "titulo": f"Productos más vendidos del {_periodo_txt(desde, hasta)}",
++        "columnas": ["N.º", "Producto", "Unidades vendidas", "Ingresos"],
++        "filas": filas,
++        "resumen": [
++            {"etiqueta": "Productos distintos", "valor": str(len(ranking))},
++            {"etiqueta": "Unidades vendidas", "valor": _numero(sum(r[1] for r in ranking))},
++            {"etiqueta": "Ingresos", "valor": _soles(sum(r[2] for r in ranking))},
++        ],
++        "alinear_derecha": [0, 2, 3],
++    }
++
++
++def _estado_stock(stock: float) -> str:
++    if stock <= 0:
++        return "Sin stock"
++    if stock <= UMBRAL_STOCK_BAJO:
++        return "Stock bajo"
++    return "Disponible"
++
++
++def reporte_inventario(desde: date | None = None, hasta: date | None = None) -> dict:
++    """Foto actual del inventario. No usa periodo (los argumentos se ignoran)."""
++    productos = _leer(
++        "productos",
++        "id,codigo,nombre,activo",
++        filtro=lambda q: q.eq("activo", True),
++    )
++    # Orden por producto_id: es la unica columna de `inventario` que el resto
++    # del proyecto da por segura (no se asume que exista `id`).
++    inventario = _leer(
++        "inventario", "producto_id,stock_actual", orden=(("producto_id", False),)
++    )
++    stock: dict = {}
++    for f in inventario:  # varias filas por producto -> se suman
++        pid = f.get("producto_id")
++        if pid is None:
++            continue
++        try:
++            stock[pid] = stock.get(pid, 0.0) + float(f.get("stock_actual") or 0)
++        except (TypeError, ValueError):
++            stock.setdefault(pid, 0.0)
++
++    orden_estado = {"Sin stock": 0, "Stock bajo": 1, "Disponible": 2}
++    items = []
++    for p in productos:
++        s = float(stock.get(p["id"], 0.0))
++        items.append((p.get("codigo") or "—", p.get("nombre") or "(sin nombre)", s, _estado_stock(s)))
++    items.sort(key=lambda x: (orden_estado[x[3]], x[2], x[1].lower()))
++
++    ahora = datetime.now(LIMA).strftime("%d/%m/%Y %H:%M")
++    cuenta = Counter(i[3] for i in items)
++    return {
++        "titulo": f"Inventario al {ahora}",
++        "columnas": ["Código", "Producto", "Stock actual", "Estado"],
++        "filas": [[c, n, _numero(s), e] for c, n, s, e in items],
++        "resumen": [
++            {"etiqueta": "Productos activos", "valor": str(len(items))},
++            {"etiqueta": "Sin stock", "valor": str(cuenta["Sin stock"])},
++            {"etiqueta": f"Stock bajo (≤ {UMBRAL_STOCK_BAJO})", "valor": str(cuenta["Stock bajo"])},
++            {"etiqueta": "Disponible", "valor": str(cuenta["Disponible"])},
++        ],
++        "alinear_derecha": [2],
++    }
++
++
++def _tecnico_txt(reserva: dict) -> str:
++    t = reserva.get("tecnicos")
++    if isinstance(t, list):  # PostgREST puede devolver lista segun la relacion
++        t = t[0] if t else None
++    emp = (t or {}).get("empleados")
++    if isinstance(emp, list):
++        emp = emp[0] if emp else None
++    nombre = " ".join(
++        x for x in ((emp or {}).get("nombres"), (emp or {}).get("apellidos")) if x
++    ).strip()
++    return nombre or "Sin asignar"
++
++
++def reporte_citas(desde: date, hasta: date) -> dict:
++    # fecha_reserva se compara por fecha (hasta exclusivo = dia siguiente).
++    reservas = _leer(
++        "reservas",
++        "id,fecha_reserva,hora_inicio,estado,tipo_atencion,tecnicos(id,empleados(nombres,apellidos))",
++        filtro=lambda q: q.gte("fecha_reserva", desde.isoformat()).lt(
++            "fecha_reserva", (hasta + timedelta(days=1)).isoformat()
++        ),
++        orden=(("fecha_reserva", False), ("hora_inicio", False), ("id", False)),
++    )
++    filas = [
++        [
++            _fecha_local(r.get("fecha_reserva")),
++            str(r.get("hora_inicio") or "—")[:5],
++            _rotulo(r.get("estado")),
++            _rotulo(r.get("tipo_atencion")),
++            _tecnico_txt(r),
++        ]
++        for r in reservas
++    ]
++    return {
++        "titulo": f"Reporte de citas del {_periodo_txt(desde, hasta)}",
++        "columnas": ["Fecha", "Hora", "Estado", "Tipo de atención", "Técnico"],
++        "filas": filas,
++        "resumen": [
++            {"etiqueta": "Citas", "valor": str(len(reservas))},
++            *[
++                {"etiqueta": f"Citas · {r['etiqueta']}", "valor": r["valor"]}
++                for r in _por_estado(r.get("estado") for r in reservas)
++            ],
++        ],
++        "alinear_derecha": [],
++    }
++
++
++#: Para agregar un reporte: escribir su funcion y sumarla aqui.
++#: `usa_periodo=False` oculta el filtro Desde/Hasta (reportes "foto actual").
++REPORTES: dict[str, dict] = {
++    "ventas": {"nombre": "Ventas", "icono": "receipt", "usa_periodo": True, "funcion": reporte_ventas},
++    "productos": {"nombre": "Productos más vendidos", "icono": "trophy", "usa_periodo": True, "funcion": reporte_productos},
++    "inventario": {"nombre": "Inventario", "icono": "box-seam", "usa_periodo": False, "funcion": reporte_inventario},
++    "citas": {"nombre": "Citas", "icono": "calendar-check", "usa_periodo": True, "funcion": reporte_citas},
++}
++
++
++def generar(tipo: str, desde: date, hasta: date) -> dict:
++    """Ejecuta el reporte `tipo`. KeyError si no existe (la ruta ya da 404)."""
++    return REPORTES[tipo]["funcion"](desde, hasta)
++
++
++# ---------------------------------------------------------------------------
++# CSV
++# ---------------------------------------------------------------------------
++
++def _csv_seguro(celda) -> str:
++    """Evita inyeccion de formulas en Excel (=, +, -, @ al inicio)."""
++    texto = str(celda)
++    return "'" + texto if texto[:1] in ("=", "+", "-", "@", "\t", "\r") else texto
++
++
++def csv_reporte(rep: dict) -> str:
++    """CSV con separador ';' (Excel es-PE). El BOM lo agrega la ruta, como en KPIs."""
++    buf = io.StringIO()
++    w = _csv.writer(buf, delimiter=";", lineterminator="\r\n")
++    w.writerow([_csv_seguro(rep["titulo"])])
++    w.writerow([])
++    for r in rep["resumen"]:
++        w.writerow([_csv_seguro(r["etiqueta"]), _csv_seguro(r["valor"])])
++    w.writerow([])
++    w.writerow([_csv_seguro(c) for c in rep["columnas"]])
++    if rep["filas"]:
++        for fila in rep["filas"]:
++            w.writerow([_csv_seguro(c) for c in fila])
++    else:
++        w.writerow([SIN_DATOS])
++    return buf.getvalue()
++
++
++# ---------------------------------------------------------------------------
++# PDF (reportlab, mismo enfoque que pdf_service)
++# ---------------------------------------------------------------------------
++
++def pdf_reporte(rep: dict) -> bytes:
++    from reportlab.lib import colors
++    from reportlab.lib.enums import TA_CENTER, TA_RIGHT
++    from reportlab.lib.pagesizes import A4, landscape
++    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
++    from reportlab.lib.units import mm
++    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
++
++    columnas, filas = rep["columnas"], rep["filas"]
++    derecha = set(rep.get("alinear_derecha") or [])
++    pagina = landscape(A4) if len(columnas) > 5 else A4
++    margen = 15 * mm
++    ancho = pagina[0] - 2 * margen
++
++    buf = io.BytesIO()
++    doc = SimpleDocTemplate(
++        buf, pagesize=pagina, leftMargin=margen, rightMargin=margen,
++        topMargin=14 * mm, bottomMargin=16 * mm, title=rep["titulo"],
++    )
++    base = getSampleStyleSheet()["Normal"]
++    marca = ParagraphStyle("marca", parent=base, fontSize=9, textColor=colors.grey, alignment=TA_CENTER)
++    titulo = ParagraphStyle("titulo", parent=base, fontName="Helvetica-Bold", fontSize=14, spaceAfter=6)
++    celda = ParagraphStyle("celda", parent=base, fontSize=8.5, leading=10.5)
++    celda_d = ParagraphStyle("celda_d", parent=celda, alignment=TA_RIGHT)
++    cab = ParagraphStyle("cab", parent=celda, fontName="Helvetica-Bold", textColor=colors.white)
++    cab_d = ParagraphStyle("cab_d", parent=cab, alignment=TA_RIGHT)
++    r_et = ParagraphStyle("r_et", parent=base, fontSize=8, textColor=colors.grey)
++    r_val = ParagraphStyle("r_val", parent=base, fontName="Helvetica-Bold", fontSize=12)
++
++    def p(texto, estilo):
++        return Paragraph(escape(str(texto)), estilo)
++
++    historia = [
++        p("Santa Lucía · Servicio Técnico", marca),
++        Spacer(1, 3),
++        p(rep["titulo"], titulo),
++    ]
++
++    # --- Tarjetas de resumen (rejilla de hasta 4 por fila) ---
++    resumen = rep["resumen"]
++    if resumen:
++        por_fila = 4
++        rejilla = []
++        for i in range(0, len(resumen), por_fila):
++            tramo = resumen[i : i + por_fila]
++            tramo += [{"etiqueta": "", "valor": ""}] * (por_fila - len(tramo))
++            rejilla.append([[p(r["etiqueta"], r_et), p(r["valor"], r_val)] for r in tramo])
++        t_res = Table(rejilla, colWidths=[ancho / por_fila] * por_fila)
++        t_res.setStyle(TableStyle([
++            ("BOX", (0, 0), (-1, -1), 0.4, colors.lightgrey),
++            ("INNERGRID", (0, 0), (-1, -1), 0.4, colors.lightgrey),
++            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f6f8fb")),
++            ("VALIGN", (0, 0), (-1, -1), "TOP"),
++            ("TOPPADDING", (0, 0), (-1, -1), 5),
++            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
++        ]))
++        historia += [t_res, Spacer(1, 10)]
++
++    # --- Tabla de datos ---
++    if filas:
++        # Ancho proporcional al texto mas largo de cada columna (acotado).
++        pesos = []
++        for j, c in enumerate(columnas):
++            largo = max([len(str(c))] + [len(str(f[j])) for f in filas[:200]])
++            pesos.append(min(max(largo, 6), 40))
++        anchos = [ancho * w / sum(pesos) for w in pesos]
++        datos = [[p(c, cab_d if j in derecha else cab) for j, c in enumerate(columnas)]]
++        datos += [
++            [p(v, celda_d if j in derecha else celda) for j, v in enumerate(f)] for f in filas
++        ]
++        t = Table(datos, colWidths=anchos, repeatRows=1)
++        t.setStyle(TableStyle([
++            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0d6efd")),
++            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f6f8fb")]),
++            ("LINEBELOW", (0, 0), (-1, -1), 0.25, colors.lightgrey),
++            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
++            ("TOPPADDING", (0, 0), (-1, -1), 4),
++            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
++        ]))
++        historia.append(t)
++    else:
++        historia.append(p(SIN_DATOS, ParagraphStyle("vacio", parent=base, alignment=TA_CENTER, textColor=colors.grey)))
++
++    generado = datetime.now(LIMA).strftime("%d/%m/%Y %H:%M")
++
++    def pie(canvas, d):
++        canvas.saveState()
++        canvas.setFont("Helvetica", 8)
++        canvas.setFillColor(colors.grey)
++        canvas.drawString(margen, 9 * mm, f"Generado el {generado} (hora de Perú)")
++        canvas.drawRightString(pagina[0] - margen, 9 * mm, f"Página {d.page}")
++        canvas.restoreState()
++
++    doc.build(historia, onFirstPage=pie, onLaterPages=pie)
++    return buf.getvalue()
+diff --git a/app/templates/admin/reportes.html b/app/templates/admin/reportes.html
+new file mode 100644
+index 0000000..ab7729e
+--- /dev/null
++++ b/app/templates/admin/reportes.html
+@@ -0,0 +1,105 @@
++{% extends "base.html" %}
++{% block title %}Reportes — {{ app_name }}{% endblock %}
++
++{% block content %}
++<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
++    <div>
++        <h1 class="h3 fw-bold mb-0"><i class="bi bi-file-earmark-bar-graph"></i> Reportes</h1>
++        <small class="text-secondary">Información del negocio lista para revisar, descargar o imprimir</small>
++    </div>
++    <a class="btn btn-sm btn-outline-secondary no-print" href="{{ url_for('admin.dashboard') }}">
++        <i class="bi bi-arrow-left"></i> Volver al panel
++    </a>
++</div>
++
++{# ---------------- pestañas por reporte ---------------- #}
++<ul class="nav nav-tabs mb-3 no-print">
++    {% for clave, r in reportes.items() %}
++    <li class="nav-item">
++        <a class="nav-link {{ 'active fw-semibold' if clave == tipo }}"
++           href="{{ url_for('reportes.ver', tipo=clave) }}">
++            <i class="bi bi-{{ r.icono }}"></i> {{ r.nombre }}
++        </a>
++    </li>
++    {% endfor %}
++</ul>
++
++{% if error_periodo %}
++<div class="alert alert-warning no-print">{{ error_periodo }} Se muestra el periodo por defecto.</div>
++{% endif %}
++{% if error %}<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> {{ error }}</div>{% endif %}
++
++{# ---------------- filtro de periodo ---------------- #}
++{% if definicion.usa_periodo %}
++<form method="get" action="{{ url_for('reportes.ver', tipo=tipo) }}" class="card no-hover mb-3 no-print"><div class="card-body">
++    <div class="row g-2 align-items-end">
++        <div class="col-6 col-md-3"><label class="form-label small mb-1" for="rep-desde">Desde</label>
++            <input type="date" id="rep-desde" name="desde" value="{{ desde }}" class="form-control" required></div>
++        <div class="col-6 col-md-3"><label class="form-label small mb-1" for="rep-hasta">Hasta</label>
++            <input type="date" id="rep-hasta" name="hasta" value="{{ hasta }}" class="form-control" required></div>
++        <div class="col-12 col-md-3">
++            <button class="btn btn-primary px-4"><i class="bi bi-funnel"></i> Aplicar</button>
++        </div>
++    </div>
++    <div class="d-flex flex-wrap gap-2 mt-3 align-items-center">
++        <small class="text-secondary me-1">Rangos rápidos:</small>
++        {% for v in ventanas %}
++        <a class="btn btn-sm border {{ 'btn-primary' if (v.desde == desde and v.hasta == hasta) else 'btn-light' }}"
++           href="{{ url_for('reportes.ver', tipo=tipo, desde=v.desde, hasta=v.hasta) }}">{{ v.etiqueta }}</a>
++        {% endfor %}
++    </div>
++</div></form>
++{% else %}
++<div class="alert alert-info py-2 no-print">
++    <i class="bi bi-info-circle"></i> Este reporte es una foto del momento actual; no depende de un periodo.
++    {% if tipo == 'inventario' %}«Stock bajo» significa {{ umbral_stock_bajo }} unidades o menos.{% endif %}
++</div>
++{% endif %}
++
++{% if rep %}
++{# ---------------- título y acciones ---------------- #}
++<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
++    <h2 class="h5 fw-bold mb-0">{{ rep.titulo }}</h2>
++    <div class="d-flex flex-wrap gap-2 no-print">
++        <a class="btn btn-sm btn-outline-success" href="{{ csv_url }}"><i class="bi bi-filetype-csv"></i> CSV</a>
++        <a class="btn btn-sm btn-outline-danger" href="{{ pdf_url }}"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
++        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Imprimir</button>
++    </div>
++</div>
++
++{# ---------------- tarjetas de resumen ---------------- #}
++<div class="row g-3 mb-4">
++    {% for r in rep.resumen %}
++    <div class="col-6 col-lg-3"><div class="card no-hover h-100"><div class="card-body">
++        <small class="text-secondary">{{ r.etiqueta }}</small>
++        <div class="h4 fw-bold mb-0 {{ 'text-primary' if loop.first }}">{{ r.valor }}</div>
++    </div></div></div>
++    {% endfor %}
++</div>
++
++{# ---------------- tabla ---------------- #}
++<div class="card no-hover">
++    <div class="table-responsive">
++        <table class="table table-hover align-middle mb-0">
++            <thead><tr>
++                {% for c in rep.columnas %}
++                <th class="{{ 'text-end' if loop.index0 in rep.alinear_derecha }}">{{ c }}</th>
++                {% endfor %}
++            </tr></thead>
++            <tbody>
++            {% for fila in rep.filas %}
++                <tr>
++                    {% for celda in fila %}
++                    <td class="{{ 'text-end' if loop.index0 in rep.alinear_derecha }} {{ 'fw-semibold' if loop.first }}">{{ celda }}</td>
++                    {% endfor %}
++                </tr>
++            {% else %}
++                <tr><td colspan="{{ rep.columnas|length }}" class="text-center py-5 text-secondary">
++                    <div class="fs-1"><i class="bi bi-inbox"></i></div>Sin datos en este periodo</td></tr>
++            {% endfor %}
++            </tbody>
++        </table>
++    </div>
++</div>
++{% endif %}
++{% endblock %}
+diff --git a/app/templates/base.html b/app/templates/base.html
+index 00b189c..84cfd6d 100644
+--- a/app/templates/base.html
++++ b/app/templates/base.html
+@@ -59,6 +59,7 @@
+                         {% if es_admin %}
+                             {{ item('admin.dashboard', 'Panel', 'nav-panel', 'speedometer2') }}
+                             {{ item('kpi.panel', 'KPIs', 'nav-kpis', 'graph-up-arrow') }}
++                            {{ item('reportes.indice', 'Reportes', 'nav-reportes', 'file-earmark-bar-graph', request.endpoint if request.endpoint in ('reportes.indice','reportes.ver') else None) }}
+                             {{ item('admin.citas_listado', 'Citas', 'nav-citas', 'calendar-check') }}
+                             {{ item('ventas.listado', 'Ventas', 'nav-ventas', 'receipt', 'ventas.listado') }}
+                             {{ item('admin.productos', 'Productos', 'nav-productos', 'box-seam') }}

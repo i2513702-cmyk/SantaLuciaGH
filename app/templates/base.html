@@ -59,6 +59,7 @@
                         {% if es_admin %}
                             {{ item('admin.dashboard', 'Panel', 'nav-panel', 'speedometer2') }}
                             {{ item('kpi.panel', 'KPIs', 'nav-kpis', 'graph-up-arrow') }}
+                            {{ item('reportes.indice', 'Reportes', 'nav-reportes', 'file-earmark-bar-graph', request.endpoint if request.endpoint in ('reportes.indice','reportes.ver') else None) }}
                             {{ item('admin.citas_listado', 'Citas', 'nav-citas', 'calendar-check') }}
                             {{ item('ventas.listado', 'Ventas', 'nav-ventas', 'receipt', 'ventas.listado') }}
                             {{ item('admin.productos', 'Productos', 'nav-productos', 'box-seam') }}
