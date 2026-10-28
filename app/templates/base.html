@@ -59,12 +59,14 @@
                         {% if es_admin %}
                             {{ item('admin.dashboard', 'Panel', 'nav-panel', 'speedometer2') }}
                             {{ item('kpi.panel', 'KPIs', 'nav-kpis', 'graph-up-arrow') }}
+                            {{ item('reportes.indice', 'Reportes', 'nav-reportes', 'file-earmark-bar-graph', request.endpoint if request.endpoint in ('reportes.indice','reportes.ver') else None) }}
                             {{ item('admin.citas_listado', 'Citas', 'nav-citas', 'calendar-check') }}
                             {{ item('ventas.listado', 'Ventas', 'nav-ventas', 'receipt', 'ventas.listado') }}
                             {{ item('admin.productos', 'Productos', 'nav-productos', 'box-seam') }}
                             {{ item('auth.usuarios_sistema', 'Usuarios', 'nav-usuarios', 'people') }}
                             {{ item('seguridad.panel', 'Seguridad', 'nav-seguridad', 'shield-lock') }}
                         {% else %}
+                            {% if rol != 'TECNICO' %}
                             {{ item('main.home', 'Inicio', 'nav-inicio', 'house') }}
                             {{ item('main.tienda', 'Catálogo', 'nav-catalogo', 'shop') }}
                             <li class="nav-item ms-lg-2">
@@ -73,6 +75,7 @@
                                 </a>
                             </li>
                             <li class="nav-item"><a class="nav-link d-flex align-items-center gap-2" href="{{ url_for('main.home') }}#nosotros">{{ icono('nav-nosotros', 'info-circle', 18) }}<span>Nosotros</span></a></li>
+                            {% endif %}
                             {% if rol_panel == 'worker' %}
                                 {{ item('worker.dashboard', 'Panel', 'nav-panel', 'speedometer2') }}
                             {% endif %}

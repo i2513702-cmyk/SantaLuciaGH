@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Reparación OS-{{ reparacion.id }} — {{ app_name }}{% endblock %}
+
+{% block content %}
+<section class="panel-head">
+    <div>
+        <h1>Orden de Servicio OS-{{ reparacion.id }}</h1>
+        <p>
+            Estado: <span class="badge">{{ estados_labels.get(reparacion.estado, reparacion.estado) }}</span>
+            {% if reparacion.fecha_ingreso %} | Ingreso: {{ reparacion.fecha_ingreso[:10] }}{% endif %}
+        </p>
+    </div>
+    <div class="panel-actions">
+        <a class="btn btn-outline" href="{{ url_for('worker.dashboard') }}">Volver al panel</a>
+        <a class="btn btn-outline" href="{{ url_for('worker.reparacion_pdf', reparacion_id=reparacion.id) }}">Descargar PDF</a>
+    </div>
+</section>
+
+<div class="row g-3">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Cliente</h5>
+                <p class="mb-1"><strong>{{ cliente.nombres or '' }} {{ cliente.apellidos or '' }} {{ cliente.razon_social or '' }}</strong></p>
+                {% if cliente.telefono %}<p class="mb-1">Tel: {{ cliente.telefono }}</p>{% endif %}
+                {% if cliente.numero_documento %}<p class="mb-1">Doc: {{ cliente.numero_documento }}</p>{% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Equipo</h5>
+                <p class="mb-1">{{ equipo.modelo or reparacion.problema or '—' }}</p>
+                {% if equipo.numero_serie %}<p class="mb-1">N/S: {{ equipo.numero_serie }}</p>{% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-3">
+    <div class="card-body">
+        <h5 class="card-title">Cambiar estado</h5>
+        <form method="POST" action="{{ url_for('worker.reparacion_cambiar_estado', reparacion_id=reparacion.id) }}" class="d-flex flex-wrap gap-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <select name="estado" class="form-select" style="max-width: 280px;" required>
+                <option value="">Seleccionar...</option>
+                {% for est in transiciones %}
+                <option value="{{ est }}">{{ estados_labels.get(est, est) }}</option>
+                {% endfor %}
+            </select>
+            <button class="btn btn-primary">Actualizar</button>
+        </form>
+        <small class="text-muted">Transiciones válidas según el estado actual.</small>
+    </div>
+</div>
+
+<div class="card mt-3">
+    <div class="card-body">
+        <h5 class="card-title">Diagnóstico, notas y costo estimado</h5>
+        <form method="POST" action="{{ url_for('worker.reparacion_guardar_diagnostico', reparacion_id=reparacion.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="mb-2">
+                <label class="form-label">Diagnóstico</label>
+                <textarea name="diagnostico" class="form-control" rows="3">{{ reparacion.diagnostico or '' }}</textarea>
+            </div>
+            <div class="mb-2">
+                <label class="form-label">Notas del técnico</label>
+                <textarea name="notas_tecnico" class="form-control" rows="3">{{ reparacion.notas_tecnico or '' }}</textarea>
+            </div>
+            <div class="mb-2" style="max-width: 240px;">
+                <label class="form-label">Costo estimado (S/)</label>
+                <input type="number" step="0.01" name="costo_estimado" class="form-control" value="{{ reparacion.costo_estimado or '' }}">
+            </div>
+            <button class="btn btn-primary">Guardar</button>
+        </form>
+    </div>
+</div>
+
+<div class="card mt-3">
+    <div class="card-body">
+        <h5 class="card-title">Fotos</h5>
+        <form method="POST" action="{{ url_for('worker.reparacion_subir_foto', reparacion_id=reparacion.id) }}" enctype="multipart/form-data" class="d-flex flex-wrap gap-2 align-items-center mb-3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="file" name="foto" accept="image/*" class="form-control" style="max-width: 320px;" required>
+            <button class="btn btn-outline">Subir foto</button>
+        </form>
+        <div class="row g-2">
+            {% for f in fotos %}
+            <div class="col-6 col-md-3">
+                <a href="{{ f.url }}" target="_blank" rel="noopener">
+                    <img src="{{ f.url }}" alt="Foto reparación" class="img-fluid rounded border">
+                </a>
+            </div>
+            {% else %}
+            <p class="text-muted">Sin fotos.</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

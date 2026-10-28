@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Reportes — {{ app_name }}{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-4">
+    <div>
+        <h1 class="h3 fw-bold mb-0"><i class="bi bi-file-earmark-bar-graph"></i> Reportes</h1>
+        <small class="text-secondary">Información del negocio lista para revisar, descargar o imprimir</small>
+    </div>
+    <a class="btn btn-sm btn-outline-secondary no-print" href="{{ url_for('admin.dashboard') }}">
+        <i class="bi bi-arrow-left"></i> Volver al panel
+    </a>
+</div>
+
+{# ---------------- pestañas por reporte ---------------- #}
+<ul class="nav nav-tabs mb-3 no-print">
+    {% for clave, r in reportes.items() %}
+    <li class="nav-item">
+        <a class="nav-link {{ 'active fw-semibold' if clave == tipo }}"
+           href="{{ url_for('reportes.ver', tipo=clave) }}">
+            <i class="bi bi-{{ r.icono }}"></i> {{ r.nombre }}
+        </a>
+    </li>
+    {% endfor %}
+</ul>
+
+{% if error_periodo %}
+<div class="alert alert-warning no-print">{{ error_periodo }} Se muestra el periodo por defecto.</div>
+{% endif %}
+{% if error %}<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> {{ error }}</div>{% endif %}
+
+{# ---------------- filtro de periodo ---------------- #}
+{% if definicion.usa_periodo %}
+<form method="get" action="{{ url_for('reportes.ver', tipo=tipo) }}" class="card no-hover mb-3 no-print"><div class="card-body">
+    <div class="row g-2 align-items-end">
+        <div class="col-6 col-md-3"><label class="form-label small mb-1" for="rep-desde">Desde</label>
+            <input type="date" id="rep-desde" name="desde" value="{{ desde }}" class="form-control" required></div>
+        <div class="col-6 col-md-3"><label class="form-label small mb-1" for="rep-hasta">Hasta</label>
+            <input type="date" id="rep-hasta" name="hasta" value="{{ hasta }}" class="form-control" required></div>
+        <div class="col-12 col-md-3">
+            <button class="btn btn-primary px-4"><i class="bi bi-funnel"></i> Aplicar</button>
+        </div>
+    </div>
+    <div class="d-flex flex-wrap gap-2 mt-3 align-items-center">
+        <small class="text-secondary me-1">Rangos rápidos:</small>
+        {% for v in ventanas %}
+        <a class="btn btn-sm border {{ 'btn-primary' if (v.desde == desde and v.hasta == hasta) else 'btn-light' }}"
+           href="{{ url_for('reportes.ver', tipo=tipo, desde=v.desde, hasta=v.hasta) }}">{{ v.etiqueta }}</a>
+        {% endfor %}
+    </div>
+</div></form>
+{% else %}
+<div class="alert alert-info py-2 no-print">
+    <i class="bi bi-info-circle"></i> Este reporte es una foto del momento actual; no depende de un periodo.
+    {% if tipo == 'inventario' %}«Stock bajo» significa {{ umbral_stock_bajo }} unidades o menos.{% endif %}
+</div>
+{% endif %}
+
+{% if rep %}
+{# ---------------- título y acciones ---------------- #}
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <h2 class="h5 fw-bold mb-0">{{ rep.titulo }}</h2>
+    <div class="d-flex flex-wrap gap-2 no-print">
+        <a class="btn btn-sm btn-outline-success" href="{{ csv_url }}"><i class="bi bi-filetype-csv"></i> CSV</a>
+        <a class="btn btn-sm btn-outline-danger" href="{{ pdf_url }}"><i class="bi bi-file-earmark-pdf"></i> PDF</a>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="window.print()"><i class="bi bi-printer"></i> Imprimir</button>
+    </div>
+</div>
+
+{# ---------------- tarjetas de resumen ---------------- #}
+<div class="row g-3 mb-4">
+    {% for r in rep.resumen %}
+    <div class="col-6 col-lg-3"><div class="card no-hover h-100"><div class="card-body">
+        <small class="text-secondary">{{ r.etiqueta }}</small>
+        <div class="h4 fw-bold mb-0 {{ 'text-primary' if loop.first }}">{{ r.valor }}</div>
+    </div></div></div>
+    {% endfor %}
+</div>
+
+{# ---------------- tabla ---------------- #}
+<div class="card no-hover">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead><tr>
+                {% for c in rep.columnas %}
+                <th class="{{ 'text-end' if loop.index0 in rep.alinear_derecha }}">{{ c }}</th>
+                {% endfor %}
+            </tr></thead>
+            <tbody>
+            {% for fila in rep.filas %}
+                <tr>
+                    {% for celda in fila %}
+                    <td class="{{ 'text-end' if loop.index0 in rep.alinear_derecha }} {{ 'fw-semibold' if loop.first }}">{{ celda }}</td>
+                    {% endfor %}
+                </tr>
+            {% else %}
+                <tr><td colspan="{{ rep.columnas|length }}" class="text-center py-5 text-secondary">
+                    <div class="fs-1"><i class="bi bi-inbox"></i></div>Sin datos en este periodo</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

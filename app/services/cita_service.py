@@ -118,27 +118,38 @@ def validar(datos: dict) -> None:
 
 
 def horarios_disponibles(fecha: str) -> list:
-    """Horas de HORARIOS cubiertas por al menos un técnico disponible.
+    """Horas de HORARIOS con técnico disponible en la fecha indicada.
 
-    Un técnico cubre la franja [hora_inicio, hora_fin) de `agenda_tecnicos`
-    para la fecha indicada. Devuelve la lista de horas seleccionables.
+    Un técnico cubre la franja [hora_inicio, hora_fin) de `agenda_tecnicos`.
+    Si la fecha no tiene ninguna franja cargada (lun-sáb) se asume el horario
+    base 09:00-18:00. Para hoy solo se ofrecen las horas que aún no pasaron.
     """
+    lima = datetime.now(timezone(timedelta(hours=-5)))
     try:
-        resp = (
+        dia = date_cls.fromisoformat(fecha)
+    except (TypeError, ValueError):
+        return []
+    if dia < lima.date():
+        return []
+    try:
+        franjas = (
             get_reader()
             .table("agenda_tecnicos")
-            .select("hora_inicio,hora_fin")
+            .select("hora_inicio,hora_fin,disponible")
             .eq("fecha", fecha)
-            .eq("disponible", True)
             .execute()
+            .data
+            or []
         )
     except Exception:  # noqa: BLE001
         return []
-    franjas = resp.data or []
-    disponibles = []
-    for hora in HORARIOS:
-        if any(_cubre_franja(franja, hora) for franja in franjas):
-            disponibles.append(hora)
+    if franjas:
+        franjas = [f for f in franjas if f.get("disponible")]
+    elif dia.weekday() != 6:
+        franjas = [{"hora_inicio": HORARIOS[0], "hora_fin": "18:00"}]
+    disponibles = [h for h in HORARIOS if any(_cubre_franja(f, h) for f in franjas)]
+    if dia == lima.date():
+        disponibles = [h for h in disponibles if h > lima.strftime("%H:%M")]
     return disponibles
 
 

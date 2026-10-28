@@ -25,6 +25,8 @@ ESTADO_ACTIVO = "ACTIVO"
 MAX_CANTIDAD = 99
 
 ESTADO_VENTA = "PENDIENTE_PAGO"
+ESTADO_VENTA_PAGADA = "PAGO_CONFIRMADO"
+ESTADO_VENTA_RECHAZADA = "PAGO_RECHAZADO"
 CANAL_VENTA = "TIENDA"
 TIPO_ENTREGA = "NO_APLICA"
 
@@ -646,7 +648,7 @@ def pagar(
             "descuento": 0.0,
             "costo_envio": 0.0,
             "total": total,
-            "estado": ESTADO_VENTA,
+            "estado": ESTADO_VENTA_PAGADA,
             "observaciones": f"Pago simulado ({metodo['nombre']})",
         }).execute()
     except Exception as exc:  # noqa: BLE001
@@ -707,6 +709,12 @@ def pagar(
             "observaciones": "Pago simulado por el sistema (demo).",
         }).execute()
     except Exception as exc:  # noqa: BLE001
+        try:
+            get_admin_client().table("ventas").update(
+                {"estado": ESTADO_VENTA_RECHAZADA}
+            ).eq("id", venta_id).execute()
+        except Exception:  # noqa: BLE001
+            pass
         raise ValidationError(
             f"No se pudo registrar el pago: {error_postgrest(exc)}"
         ) from exc

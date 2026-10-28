@@ -219,9 +219,10 @@
         if (e.target && e.target.id === 'tipo_atencion') actualizarDomicilio();
     });
 
-    aplicarDisponibles(disponiblesIniciales);
     if (document.getElementById('fecha_reserva').value) {
         cargarDisponibles(aplicarDisponibles);
+    } else {
+        aplicarDisponibles({{ horarios | tojson | safe }});
     }
 
     function mostrarOtroTipo(sel) {
