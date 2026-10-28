@@ -50,15 +50,13 @@
         <p>Trabajamos con las principales marcas del mercado</p>
         <div class="section-divider"></div>
     </div>
-    {% set marcas_copias = 4 %}
     <div class="marcas-viewport">
-        <div class="marcas-track" style="--marcas-grupos: {{ marcas_copias }}">
-            {% for grupo in range(marcas_copias) %}
-                <div class="marcas-group"{% if grupo > 0 %} aria-hidden="true"{% endif %}>
-                    {% for marca in marcas %}
-                        <div class="marca-card">{{ marca.nombre }}</div>
-                    {% endfor %}
-                </div>
+        <div class="marcas-track">
+            {% for marca in marcas %}
+                <div class="marca-card">{{ marca.nombre }}</div>
+            {% endfor %}
+            {% for marca in marcas %}
+                <div class="marca-card">{{ marca.nombre }}</div>
             {% endfor %}
         </div>
     </div>
@@ -239,11 +237,14 @@
             <button type="submit" class="btn btn-primary">Enviar mensaje</button>
         </form>
         <div class="contacto-info">
-            <h3>Taller central</h3>
-            <p>Av. Los Talleres 245, Lima</p>
-            <p>+51 987 654 321</p>
-            <p>contacto@santalucia.pe</p>
-            <p>Lun a Sáb · 9:00 – 19:00</p>
+            <div class="contacto-fachada">
+                <img src="{{ url_for('static', filename='img/taller-santa-lucia.jpg') }}" alt="Taller Santa Lucía Servicio Técnico" loading="lazy" onerror="this.src='{{ url_for('static', filename='img/fachada-taller.jpg') }}';">
+            </div>
+            <h3>Taller Santa Lucía</h3>
+            <p>Av. 28 de Julio 723, Chilca, Huancayo</p>
+            <p>+51 964 618 892</p>
+            <p>coorporacionsantalucia@gmail.com</p>
+            <p>Lun a Sáb · 8:00 – 19:00</p>
             <div class="contacto-cta">
                 <a class="btn btn-accent" href="{{ url_for('citas.agendar_form') }}">Agendar cita</a>
             </div>
@@ -251,8 +252,4 @@
     </div>
 </section>
 
-{% endblock %}
-
-{% block scripts %}
-<script src="{{ url_for('static', filename='js/marcas.js') }}"></script>
 {% endblock %}
