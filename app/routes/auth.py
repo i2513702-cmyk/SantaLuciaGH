@@ -16,7 +16,7 @@ from flask import (
 )
 
 from app.decorators import admin_required, es_no_comprador, login_required, panel_for
-from app.exceptions import AppError, AuthorizationError, ValidationError
+from app.exceptions import AppError, AuthorizationError, CuentaBloqueadaError, ValidationError
 from app.services import login_guard, rest_auth_service
 
 bp = Blueprint("auth", __name__)
@@ -74,7 +74,7 @@ def login():
             identificador = request.form.get("username", "").strip()
             password = request.form.get("password", "")
             try:
-                usuario = rest_auth_service.login(identificador, password)
+                usuario = rest_auth_service.login(identificador, password, ip)
                 login_guard.registrar_exito(ip)
                 session.clear()
                 session["usuario_id"] = usuario["id"]
@@ -93,6 +93,9 @@ def login():
                 if not destino or not destino.startswith("/") or destino.startswith("//"):
                     destino = url_for("auth.panel")
                 return redirect(destino)
+            except CuentaBloqueadaError as exc:
+                # Cuenta bloqueada: no suma fallo a la IP, se avisa del bloqueo.
+                error = exc.message
             except AuthorizationError as exc:
                 error = login_guard.registrar_fallo(ip, identificador) or exc.message
                 bloqueo = login_guard.estado(ip)

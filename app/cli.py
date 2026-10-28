@@ -69,3 +69,18 @@ def register_cli(app):
 
         login_guard.desbloquear(ip, "cli")
         click.echo(f"IP {ip} desbloqueada.")
+
+    @app.cli.command("cuenta:desbloquear")
+    @click.argument("usuario")
+    def cuenta_desbloquear(usuario):
+        """Libera una cuenta bloqueada por intentos fallidos (nombre de usuario o correo)."""
+        from app.services import cuenta_guard, rest_auth_service
+
+        fila = rest_auth_service._buscar_usuario(usuario)
+        if not fila:
+            click.echo(f"No existe el usuario «{usuario}».")
+            raise SystemExit(1)
+        if not cuenta_guard.desbloquear(fila["id"], "cli", fila.get("nombre_usuario", "")):
+            click.echo("No se pudo desbloquear (¿ejecutaste docs/sql/002_seguridad_historial_cuentas.sql?).")
+            raise SystemExit(1)
+        click.echo(f"Cuenta {fila.get('nombre_usuario')} desbloqueada.")

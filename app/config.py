@@ -79,6 +79,11 @@ class Config:
     LOGIN_FALLOS_BLOQUEO = int(_float_env("LOGIN_FALLOS_BLOQUEO", 2))
     TRUST_PROXY = os.getenv("TRUST_PROXY", "0") == "1"
 
+    # Seguridad del login (por cuenta): a los N fallos seguidos la cuenta queda
+    # bloqueada M minutos (bloqueo temporal; se libera sola o desde el panel).
+    CUENTA_MAX_INTENTOS = int(_float_env("CUENTA_MAX_INTENTOS", 5))
+    CUENTA_BLOQUEO_MIN = int(_float_env("CUENTA_BLOQUEO_MIN", 15))
+
     # Iconos: si existe static/img/icons/<nombre>.(svg|png|webp|jpg) se usa la imagen;
     # si no, el icono de Bootstrap Icons.
     ICONS_DIR = "img/icons"

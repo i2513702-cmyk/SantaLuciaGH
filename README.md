@@ -48,6 +48,7 @@ python app.py
 flask --app app.py supabase:test    # verifica conexion con Supabase
 flask --app app.py kpi:snapshot     # guarda la foto semanal de KPI-04
 flask --app app.py ip:desbloquear <ip>  # desbloquea una IP del login
+flask --app app.py cuenta:desbloquear <usuario>  # libera una cuenta bloqueada (usuario o correo)
 ```
 
 ## Rutas principales
@@ -64,7 +65,7 @@ flask --app app.py ip:desbloquear <ip>  # desbloquea una IP del login
 | `/admin/kpis` | **KPIs del negocio (solo ADMINISTRADOR)** |
 | `/worker` | Panel de trabajo (demas roles) |
 | `/sistema/usuarios` | Gestion de usuarios (solo admin) |
-| `/admin/seguridad` | IPs con intentos fallidos / bloqueadas; desbloqueo (solo ADMINISTRADOR) |
+| `/admin/seguridad` | IPs y cuentas con intentos fallidos / bloqueadas, historial de eventos y desbloqueo (solo ADMINISTRADOR) |
 | `/cambiar_clave` | Cambio de contrasena |
 | `/supabase/status` | Estado de la conexion (JSON) |
 
@@ -104,3 +105,18 @@ nuevas en la base de datos**, y el frontend solo dibuja.
 
 Ver `docs/kpis.md` para el detalle de cada formula, los supuestos aplicados al
 esquema real, las metas configurables y como probarlo.
+
+## Seguridad de acceso (IP y cuenta)
+
+Ejecutar una vez en Supabase (SQL Editor): `docs/sql/001_seguridad_login.sql` y
+`docs/sql/002_seguridad_historial_cuentas.sql` (historial `seguridad_eventos`,
+columnas de bloqueo en `usuarios` y la vista `v_cuentas_en_riesgo`).
+
+| Variable | Defecto | Efecto |
+|----------|---------|--------|
+| `LOGIN_MAX_INTENTOS` / `LOGIN_ESPERA_MIN` / `LOGIN_FALLOS_BLOQUEO` | 3 / 5 / 2 | Bloqueo por IP (espera y luego bloqueo hasta que el admin desbloquee) |
+| `CUENTA_MAX_INTENTOS` | 5 | Fallos seguidos que bloquean una cuenta |
+| `CUENTA_BLOQUEO_MIN` | 15 | Minutos de bloqueo temporal de la cuenta |
+
+Si el SQL 002 aun no se aplico, el login sigue funcionando: el bloqueo por cuenta
+y el historial simplemente no se guardan (queda una advertencia en el log).

@@ -50,3 +50,10 @@ class BusinessRuleError(AppError):
 
     def __init__(self, message="Regla de negocio violada", payload=None):
         super().__init__(message=message, status_code=422, payload=payload)
+
+
+class CuentaBloqueadaError(AuthorizationError):
+    """Cuenta bloqueada temporalmente por demasiados intentos fallidos (403)."""
+
+    def __init__(self, message="La cuenta está bloqueada temporalmente", payload=None):
+        super().__init__(message=message, payload=payload)

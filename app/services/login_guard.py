@@ -19,6 +19,7 @@ from app.supabase_client import get_admin_client, get_reader
 
 log = logging.getLogger(__name__)
 TABLA = "ip_acceso"
+EVENTOS = "seguridad_eventos"
 UTC = timezone.utc
 _memoria: dict[str, dict] = {}
 _lock = threading.Lock()
@@ -60,6 +61,47 @@ def _guardar(fila: dict) -> None:
             _memoria[fila["ip"]] = dict(fila)
 
 
+def registrar_evento(
+    tipo: str,
+    ip: str | None = None,
+    usuario: str | None = None,
+    admin: str | None = None,
+    detalle: str | None = None,
+) -> None:
+    """Guarda un evento en `seguridad_eventos` (historial). Nunca rompe el login:
+    si la tabla aun no existe solo deja una advertencia en el log."""
+    try:
+        get_admin_client().table(EVENTOS).insert(
+            {
+                "tipo": tipo,
+                "ip": ip,
+                "usuario": usuario[:80] if usuario else None,
+                "admin": admin,
+                "detalle": detalle[:300] if detalle else None,
+            }
+        ).execute()
+    except Exception:  # noqa: BLE001
+        log.warning("login_guard: no se pudo registrar el evento %s", tipo)
+
+
+def listar_eventos(limite: int = 50) -> list[dict]:
+    """Ultimos eventos de seguridad (mas recientes primero)."""
+    try:
+        return (
+            get_reader()
+            .table(EVENTOS)
+            .select("*")
+            .order("fecha", desc=True)
+            .limit(limite)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:  # noqa: BLE001
+        log.warning("login_guard: tabla %s no disponible", EVENTOS)
+        return []
+
+
 def estado(ip: str) -> dict:
     """{'bloqueada': bool, 'espera_segundos': int, 'intentos': int}."""
     fila = _leer(ip)
@@ -94,12 +136,15 @@ def registrar_fallo(ip: str, usuario: str = "") -> str:
         ultimo_usuario=(usuario or "")[:80],
         ultimo_intento=ahora.isoformat(),
     )
+    evento = "FALLO_LOGIN"
     if n >= tope:
         fila.update(bloqueada=True, fecha_bloqueo=ahora.isoformat(), bloqueo_hasta=None)
         aviso = "Tu IP fue bloqueada por demasiados intentos fallidos. Contacta al administrador."
+        evento = "BLOQUEO_IP_AUTO"
     elif n == Config.LOGIN_MAX_INTENTOS:
         fila["bloqueo_hasta"] = (ahora + timedelta(minutes=Config.LOGIN_ESPERA_MIN)).isoformat()
         aviso = f"Alcanzaste {n} intentos fallidos. Espera {Config.LOGIN_ESPERA_MIN} minutos."
+        evento = "ESPERA_IP"
     elif n < Config.LOGIN_MAX_INTENTOS:
         aviso = f"Usuario o contraseña incorrectos. Te quedan {Config.LOGIN_MAX_INTENTOS - n} intento(s)."
     else:
@@ -108,6 +153,7 @@ def registrar_fallo(ip: str, usuario: str = "") -> str:
             "antes de que tu IP sea bloqueada."
         )
     _guardar(fila)
+    registrar_evento(evento, ip=ip, usuario=usuario, detalle=f"intento {n}")
     return aviso
 
 
@@ -117,6 +163,7 @@ def registrar_exito(ip: str) -> None:
         return
     fila.update(intentos_fallidos=0, bloqueo_hasta=None)
     _guardar(fila)
+    registrar_evento("LOGIN_OK", ip=ip, detalle="reinicio de intentos fallidos")
 
 
 def listar() -> list[dict]:
@@ -141,6 +188,7 @@ def desbloquear(ip: str, admin: str) -> None:
         fecha_desbloqueo=_ahora().isoformat(),
     )
     _guardar(fila)
+    registrar_evento("DESBLOQUEO_IP", ip=ip, admin=admin)
 
 
 def bloquear(ip: str, admin: str) -> None:
@@ -148,3 +196,4 @@ def bloquear(ip: str, admin: str) -> None:
     fila.update(bloqueada=True, fecha_bloqueo=_ahora().isoformat(), bloqueo_hasta=None)
     fila["ultimo_usuario"] = f"manual:{admin}"[:80]
     _guardar(fila)
+    registrar_evento("BLOQUEO_IP_MANUAL", ip=ip, admin=admin)

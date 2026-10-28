@@ -13,6 +13,8 @@
     <span class="kpi-pill {{ 'text-bg-danger' if n_bloqueadas else 'text-bg-success' }}">{{ n_bloqueadas }} IP bloqueada(s)</span>
 </div>
 
+<h2 class="h5 fw-bold mb-2">IPs</h2>
+
 <div class="card no-hover mb-4">
     <div class="table-responsive">
         <table class="table align-middle mb-0">
@@ -52,6 +54,60 @@
             <div class="col-sm-8 col-md-5"><input name="ip" class="form-control" placeholder="Ej: 190.12.34.56" required></div>
             <div class="col-auto"><button class="btn btn-outline-danger"><i class="bi bi-slash-circle"></i> Bloquear</button></div>
         </form>
+    </div>
+</div>
+
+<h2 class="h5 fw-bold mt-4 mb-1">Cuentas</h2>
+<p class="text-secondary small">A los {{ cuenta_max }} fallos seguidos la cuenta se bloquea {{ cuenta_min }} min (se libera sola o desde aquí).</p>
+<div class="card no-hover mb-4">
+    <div class="table-responsive">
+        <table class="table align-middle mb-0">
+            <thead><tr><th>Usuario</th><th>Estado</th><th>Fallos</th><th>Último fallo</th><th>Bloqueada hasta</th><th class="text-end">Acción</th></tr></thead>
+            <tbody>
+            {% for c in cuentas %}
+                <tr>
+                    <td class="fw-semibold">{{ c.nombre_usuario }}</td>
+                    <td>{% if c.bloqueada_ahora %}<span class="badge text-bg-danger">Bloqueada</span>{% else %}<span class="badge text-bg-warning">Con fallos</span>{% endif %}</td>
+                    <td>{{ c.intentos_fallidos }}</td>
+                    <td class="small text-secondary">{{ (c.ultimo_fallo or '')[:16].replace('T', ' ') or '—' }}</td>
+                    <td class="small text-secondary">{{ (c.bloqueo_hasta or '')[:16].replace('T', ' ') or '—' }}</td>
+                    <td class="text-end">
+                        <form method="POST" action="{{ url_for('seguridad.desbloquear_cuenta') }}" class="d-inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="usuario_id" value="{{ c.id }}">
+                            <input type="hidden" name="nombre_usuario" value="{{ c.nombre_usuario }}">
+                            <button class="btn btn-sm btn-outline-success"><i class="bi bi-unlock"></i> Desbloquear</button>
+                        </form>
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="6" class="text-center text-secondary py-5">Ninguna cuenta con fallos ni bloqueada.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<h2 class="h5 fw-bold mt-4 mb-2">Historial reciente</h2>
+<div class="card no-hover mb-4">
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead><tr><th>Fecha (UTC)</th><th>Evento</th><th>IP</th><th>Usuario</th><th>Admin</th><th>Detalle</th></tr></thead>
+            <tbody>
+            {% for e in eventos %}
+                <tr>
+                    <td class="small text-secondary">{{ (e.fecha or '')[:16].replace('T', ' ') }}</td>
+                    <td><span class="badge text-bg-{{ 'danger' if 'BLOQUEO' in e.tipo else ('success' if e.tipo in ('LOGIN_OK', 'DESBLOQUEO_IP', 'DESBLOQUEO_CUENTA') else 'warning') }}">{{ e.tipo.replace('_', ' ').capitalize() }}</span></td>
+                    <td>{{ e.ip or '—' }}</td>
+                    <td>{{ e.usuario or '—' }}</td>
+                    <td>{{ e.admin or '—' }}</td>
+                    <td class="small text-secondary">{{ e.detalle or '—' }}</td>
+                </tr>
+            {% else %}
+                <tr><td colspan="6" class="text-center text-secondary py-5">Sin eventos registrados.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
 {% endblock %}

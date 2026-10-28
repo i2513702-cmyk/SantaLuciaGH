@@ -9,12 +9,15 @@ Escrituras (crear usuario, cambiar clave) usan SUPABASE_SERVICE_KEY porque la
 publishable key no puede escribir (RLS activa en el proyecto).
 """
 
+from app.config import Config
 from app.exceptions import (
     AuthorizationError,
+    CuentaBloqueadaError,
     NotFoundError,
     ValidationError,
 )
 from app.security import check_password, hash_password
+from app.services import cuenta_guard
 from app.supabase_client import (
     error_postgrest,
     get_admin_client,
@@ -83,8 +86,12 @@ def _tabla_escritura():
     return get_admin_client().table(TABLA_USUARIOS)
 
 
-def login(identificador: str, password: str) -> dict:
-    """Valida credenciales contra Supabase y devuelve la fila del usuario."""
+def login(identificador: str, password: str, ip: str = "") -> dict:
+    """Valida credenciales contra Supabase y devuelve la fila del usuario.
+
+    Ademas aplica el bloqueo temporal por cuenta (cuenta_guard): si la cuenta
+    esta bloqueada lanza CuentaBloqueadaError sin comprobar la contraseña.
+    """
     if not identificador or not password:
         raise ValidationError("Usuario y contraseña son obligatorios")
 
@@ -95,9 +102,18 @@ def login(identificador: str, password: str) -> dict:
     if usuario.get("activo") is False:
         raise AuthorizationError("El usuario está inactivo.")
 
+    espera = cuenta_guard.segundos_de_espera(usuario)
+    if espera:
+        raise CuentaBloqueadaError(cuenta_guard.mensaje_bloqueo(espera))
+
     if not check_password(usuario.get("password", ""), password):
+        if cuenta_guard.registrar_fallo(usuario, ip):
+            raise CuentaBloqueadaError(
+                cuenta_guard.mensaje_bloqueo(Config.CUENTA_BLOQUEO_MIN * 60)
+            )
         raise AuthorizationError("Usuario o contraseña incorrectos.")
 
+    cuenta_guard.registrar_exito(usuario)
     return usuario
 
 
