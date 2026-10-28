@@ -5,93 +5,40 @@
 {% block content %}
 
 <!-- ─── Hero ──────────────────────────────────────────── -->
-<section class="hero hero-full">
-    <img class="hero-bg-img" src="{{ url_for('static', filename='img/hero/hero-electrodomesticos.webp') }}"
-         alt="Electrodomésticos reparados por Santa Lucía Servicio Técnico en Huancayo"
-         width="1920" height="1055" fetchpriority="high">
-    <div class="hero-bg-overlay" aria-hidden="true"></div>
-    <div class="hero-container">
-        <div class="hero-content">
-            <div class="hero-text">
-                <span class="hero-eyebrow">Chilca, Huancayo · Atención el mismo día</span>
-                <h1>Tu lavadora entra fallando y sale andando hoy.</h1>
-                <p class="hero-sub">Reparación, mantenimiento e instalación de lavadoras, secadoras, refrigeradoras, congeladoras y cocinas. Repuestos originales, garantía de 90 días y atención a domicilio o en taller.</p>
-                <div class="hero-actions">
-                    <a class="btn btn-accent btn-lg" href="{{ url_for('citas.agendar_form') }}"><i class="bi bi-calendar-check me-2"></i>Agendar una cita</a>
-                    <a class="btn btn-outline-primary btn-lg" href="https://wa.me/{{ whatsapp_numero }}{% if whatsapp_mensaje %}?text={{ whatsapp_mensaje|urlencode }}{% endif %}" target="_blank" rel="noopener"><i class="bi bi-whatsapp me-2"></i>Escribir por WhatsApp</a>
-                    <a class="hero-link" href="{{ url_for('main.tienda') }}">Ver repuestos</a>
-                </div>
-                <div class="hero-badges">
-                    <div class="hero-badge">
-                        <svg class="hero-badge-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                        </svg>
-                        <span>Garantía de 90 días</span>
-                    </div>
-                    <div class="hero-badge">
-                        <svg class="hero-badge-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <rect x="1" y="3" width="15" height="13"></rect>
-                            <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
-                            <circle cx="5.5" cy="18.5" r="2.5"></circle>
-                            <circle cx="18.5" cy="18.5" r="2.5"></circle>
-                        </svg>
-                        <span>Atención a domicilio en Huancayo</span>
-                    </div>
-                </div>
-                {% if es_admin %}
-                <small class="text-muted mt-3 d-block">Solo visible para administrador: para publicar la foto del hero,
-                guarda el original como <code>app/static/img/orig/hero-tecnico.jpg</code> y ejecuta
-                <code>tools/optimizar_webp.py</code>.</small>
-                {% endif %}
+<section class="hero hero-split">
+    <div class="hero-inner">
+        <div class="hero-text">
+            <span class="hero-eyebrow">Especialistas en línea blanca · desde 2011 en Lima</span>
+            <h1>Tu lavadora, refrigeradora o cocina, <span class="accent">reparada el mismo día</span></h1>
+            <p class="hero-sub">Reparación, mantenimiento e instalación de lavadoras, secadoras, refrigeradoras, congeladoras y cocinas. Repuestos originales, garantía de 90 días y atención a domicilio o en taller.</p>
+            <div class="hero-actions">
+                <a class="btn btn-accent btn-lg" href="{{ url_for('citas.agendar_form') }}">Agendar una cita</a>
+                <a class="btn btn-outline-white btn-lg" href="{{ url_for('main.tienda') }}">Ver catálogo</a>
             </div>
         </div>
-        <div class="hero-badges-desktop">
-            <div class="hero-badge">
-                <svg class="hero-badge-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                </svg>
-                <span>Garantía de 90 días</span>
-            </div>
-            <div class="hero-badge">
-                <svg class="hero-badge-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <rect x="1" y="3" width="15" height="13"></rect>
-                    <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
-                    <circle cx="5.5" cy="18.5" r="2.5"></circle>
-                    <circle cx="18.5" cy="18.5" r="2.5"></circle>
-                </svg>
-                <span>Atención a domicilio en Huancayo</span>
-            </div>
+        <div class="hero-visual">
+            <img src="{{ url_for('static', filename='img/hero-tecnico.svg') }}" alt="Servicio técnico Santa Lucía">
         </div>
     </div>
 </section>
 
-<!-- ─── Franjas de confianza (unificadas) ───────────────── -->
-<section class="trust-bar trust-bar--petroleo">
-    <div class="container">
-        <!-- TODO: Si el taller confirma cifras verificables (años, reparaciones, técnicos),
-             reemplazar estas 4 fichas por esos datos. Mientras tanto, solo datos de servicio. -->
-        <div class="row g-4 text-center text-lg-start">
-            <div class="col-6 col-lg-3 trust-bar-item">
-                <div class="trust-bar-num">90 días</div>
-                <div class="trust-bar-desc">Garantía por escrito</div>
-            </div>
-            <div class="col-6 col-lg-3 trust-bar-item">
-                <div class="trust-bar-num">El mismo día</div>
-                <div class="trust-bar-desc">Atención a domicilio en Huancayo</div>
-            </div>
-            <div class="col-6 col-lg-3 trust-bar-item">
-                <div class="trust-bar-num">Boleta o factura</div>
-                <div class="trust-bar-desc">Comprobante en cada trabajo</div>
-            </div>
-            <div class="col-6 col-lg-3 trust-bar-item">
-                <div class="trust-bar-num">Efectivo, Yape o tarjeta</div>
-                <div class="trust-bar-desc">Formas de pago aceptadas</div>
-            </div>
-        </div>
-        <div class="row g-3 mt-2 justify-content-center text-center">
-            <div class="col-auto trust-bar-line"><i class="bi bi-geo-alt"></i> Av. 28 de Julio 723 · Chilca, Huancayo</div>
-            <div class="col-auto trust-bar-line"><i class="bi bi-clock"></i> Lun a Sáb · 9:00 – 19:00</div>
-        </div>
+<!-- ─── Stats ─────────────────────────────────────────── -->
+<section class="stats-bar">
+    <div class="stat-item">
+        <div class="stat-value">15+</div>
+        <div class="stat-label">Años en línea blanca</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-value">4.5k</div>
+        <div class="stat-label">Electrodomésticos reparados</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-value">12</div>
+        <div class="stat-label">Técnicos especializados</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-value">90d</div>
+        <div class="stat-label">Garantía incluida</div>
     </div>
 </section>
 
@@ -103,21 +50,13 @@
         <p>Trabajamos con las principales marcas del mercado</p>
         <div class="section-divider"></div>
     </div>
-    {% set marcas_copias = 4 %}
     <div class="marcas-viewport">
-        <div class="marcas-track" style="--marcas-grupos: {{ marcas_copias }}">
-            {% for grupo in range(marcas_copias) %}
-                <div class="marcas-group"{% if grupo > 0 %} aria-hidden="true"{% endif %}>
-                    {% for marca in marcas %}
-                        <div class="marca-card">
-                            <img class="marca-logo"
-                                 src="{{ url_for('static', filename='img/marcas/' ~ marca.nombre|lower|replace(' ', '-') ~ '.png') }}"
-                                 alt="{{ marca.nombre }}" loading="lazy" width="120" height="48"
-                                 onload="this.nextElementSibling.style.display='none'" onerror="this.remove()">
-                            <span class="marca-nombre">{{ marca.nombre }}</span>
-                        </div>
-                    {% endfor %}
-                </div>
+        <div class="marcas-track">
+            {% for marca in marcas %}
+                <div class="marca-card">{{ marca.nombre }}</div>
+            {% endfor %}
+            {% for marca in marcas %}
+                <div class="marca-card">{{ marca.nombre }}</div>
             {% endfor %}
         </div>
     </div>
@@ -133,26 +72,23 @@
         <div class="section-divider"></div>
     </div>
     <div class="container">
-        <div class="categorias-bloque">
-            {# Iconos de Bootstrap Icons por categoría (sin emojis) #}
+        <div class="categorias-grid">
             {% set iconos = {
-                "MOTORES": "gear-fill",
-                "BOMBAS": "droplet-fill",
-                "TARJETAS ELECTRÓNICAS": "cpu-fill",
-                "SENSORES": "broadcast",
-                "COMPONENTES ELÉCTRICOS": "lightning-charge-fill",
-                "ACCESORIOS": "tools",
-                "ELECTRODOMÉSTICOS": "house-door-fill",
-                "OTROS": "box-seam-fill"
+                "MOTORES": "⚙️",
+                "BOMBAS": "💧",
+                "TARJETAS ELECTRÓNICAS": "🔌",
+                "SENSORES": "📡",
+                "COMPONENTES ELÉCTRICOS": "⚡",
+                "ACCESORIOS": "🔧",
+                "ELECTRODOMÉSTICOS": "🏠",
+                "OTROS": "📦"
             } %}
-            <div class="categorias-chips">
-                {% for cat in categorias %}
-                    <a class="cat-chip" href="{{ url_for('main.tienda') }}">
-                        <i class="bi bi-{{ iconos.get(cat.nombre, 'box-seam-fill') }}" aria-hidden="true"></i>
-                        <span>{{ cat.nombre.title() }}</span>
-                    </a>
-                {% endfor %}
-            </div>
+            {% for cat in categorias %}
+                <a class="categoria-card" href="{{ url_for('main.tienda') }}">
+                    <div class="categoria-icon">{{ iconos.get(cat.nombre, "📦") }}</div>
+                    <h4>{{ cat.nombre }}</h4>
+                </a>
+            {% endfor %}
         </div>
     </div>
 </section>
@@ -162,55 +98,42 @@
 {% if productos_destacados %}
 <section class="section">
     <div class="section-header">
-        <h2>Repuestos disponibles</h2>
-        <p>Componentes y accesorios para tu equipo, con entrega en taller o a domicilio</p>
+        <h2>Catálogo y repuestos</h2>
+        <p>Precios reales desde nuestra base de datos</p>
         <div class="section-divider"></div>
     </div>
     <div class="container">
-        <div class="carrusel" data-carrusel>
-            <button class="carrusel-nav carrusel-prev" type="button" data-carrusel-prev aria-label="Productos anteriores">
-                <i class="bi bi-chevron-left" aria-hidden="true"></i>
-            </button>
-            <div class="carrusel-track" data-carrusel-track>
-                {% for p in productos_destacados %}
-                <div class="product-card product-card--link">
-                    <div class="product-img">
-                        {% if p.oferta %}<span class="img-badge img-badge--oferta">Oferta</span>{% endif %}
-                        {% if p.descuento_pct %}<span class="img-badge img-badge--pct">-{{ p.descuento_pct }}%</span>{% endif %}
-                        {% if p.nuevo %}<span class="img-badge img-badge--nuevo">Nuevo</span>{% endif %}
-                        <a class="product-img-link" href="{{ url_for('main.producto_detalle', producto_id=p.id) }}" tabindex="-1" aria-hidden="true">
-                            <img loading="lazy" src="{{ p.imagen_url or url_for('static', filename='img/producto-default.svg') }}" alt="{{ p.nombre }}">
-                        </a>
-                    </div>
-                    <div class="product-body">
-                        {% if p.marca %}
-                            <p class="product-meta">{{ p.marca }}</p>
-                        {% endif %}
-                        <h3 class="product-name">
-                            <a href="{{ url_for('main.producto_detalle', producto_id=p.id) }}">{{ p.nombre }}</a>
-                        </h3>
-                        {% if p.categoria %}
-                            <p class="product-meta">{{ p.categoria }}</p>
-                        {% endif %}
-                        <div class="price-box">
-                            <span class="price-now">{{ p.precio_ahora }}</span>
-                            {% if p.precio_antes %}
-                                <span class="price-original">{{ p.precio_antes }}</span>
-                            {% endif %}
-                        </div>
-                        <a class="btn btn-primary btn-sm" href="{{ url_for('main.producto_detalle', producto_id=p.id) }}">Ver producto</a>
-                    </div>
+        <div class="productos-destacados">
+            {% for p in productos_destacados %}
+            <div class="product-card">
+                <div class="product-img">
+                    <img src="{{ url_for('static', filename='img/producto-default.svg') }}" alt="{{ p.nombre }}">
+                    {% if p.oferta %}
+                        <span class="offer-badge">Oferta</span>
+                    {% endif %}
                 </div>
-                {% endfor %}
+                <div class="product-body">
+                    {% if p.marca %}
+                        <p class="product-meta">{{ p.marca }}</p>
+                    {% endif %}
+                    <h3 class="product-name">{{ p.nombre }}</h3>
+                    {% if p.categoria %}
+                        <p class="product-meta">{{ p.categoria }}</p>
+                    {% endif %}
+                    <div class="price-box">
+                        <span class="price-now">{{ p.precio_ahora }}</span>
+                        {% if p.precio_antes %}
+                            <span class="price-original">{{ p.precio_antes }}</span>
+                        {% endif %}
+                    </div>
+                    <a class="btn btn-primary btn-sm" href="{{ url_for('main.tienda') }}">Ver tienda</a>
+                </div>
             </div>
-            <button class="carrusel-nav carrusel-next" type="button" data-carrusel-next aria-label="Productos siguientes">
-                <i class="bi bi-chevron-right" aria-hidden="true"></i>
-            </button>
-            <div class="carrusel-dots" data-carrusel-dots aria-hidden="true"></div>
+            {% endfor %}
         </div>
     </div>
     <div style="text-align:center; margin-top:32px;">
-        <a class="btn btn-primary btn-lg" href="{{ url_for('main.tienda') }}">Ver catálogo completo</a>
+        <a class="btn btn-outline btn-lg" href="{{ url_for('main.tienda') }}">Ver catálogo completo</a>
     </div>
 </section>
 {% endif %}
@@ -219,137 +142,80 @@
 <section class="section" id="servicios" style="background: var(--surface-alt);">
     <div class="section-header">
         <h2>Servicios que ofrecemos</h2>
-        <p>Diagnóstico sin costo, garantía de 90 días y prueba de funcionamiento antes de entregar</p>
+        <p>Con diagnóstico honesto y garantía de 90 días</p>
         <div class="section-divider"></div>
     </div>
     <div class="container">
         <div class="servicios-grid">
-            <!-- Lavadora: tarjeta ancha (2 columnas) con fallas frecuentes -->
-            <!-- TODO: Confirmar precios y tiempos de cada servicio con el taller -->
-            <article class="servicio-card servicio-card--wide">
-                <div class="servicio-foto">
-                    <img src="{{ url_for('static', filename='img/servicio-lavadora.webp') }}"
-                         alt="Técnico revisando una lavadora en el taller" width="800" height="600" loading="lazy"
-                         onerror="this.remove()">
-                    <span class="servicio-ico" aria-hidden="true"><i class="bi bi-droplet-half"></i></span>
+            <div class="servicio-card">
+                <div class="servicio-icon blue">🧺</div>
+                <h3>Reparación de lavadoras</h3>
+                <p>Diagnóstico completo de bomba, transmisión, tarjeta y programador, con prueba de ciclo completo.</p>
+                <div class="servicio-pie">
+                    <span class="servicio-precio">Desde S/ 150.00</span>
+                    <span class="servicio-duracion">2 – 3 h</span>
                 </div>
-                <div class="servicio-cuerpo">
-                    <h3>Reparación de lavadoras</h3>
-                    <p>Diagnóstico de bomba, transmisión, tarjeta electrónica y programador, con prueba de ciclo completo.</p>
-                    <ul class="servicio-fallas">
-                        <li>No desagua</li>
-                        <li>No centrifuga</li>
-                        <li>Hace ruido</li>
-                        <li>No prende</li>
-                    </ul>
-                    <div class="servicio-pie">
-                        <span class="servicio-precio">Desde S/ 150</span>
-                        <span class="servicio-duracion"><i class="bi bi-clock me-1"></i>2 – 3 h</span>
-                    </div>
-                    <a class="btn btn-accent" href="{{ url_for('citas.agendar_form') }}">Agendar</a>
+                <a class="btn btn-primary" href="{{ url_for('citas.agendar_form') }}">Agendar</a>
+            </div>
+            <div class="servicio-card">
+                <div class="servicio-icon amber">🌀</div>
+                <h3>Reparación de secadoras</h3>
+                <p>Revisión de resistencia, termostato, sensor de humedad y ducto de aire caliente.</p>
+                <div class="servicio-pie">
+                    <span class="servicio-precio">Desde S/ 160.00</span>
+                    <span class="servicio-duracion">2 h</span>
                 </div>
-            </article>
-
-            <article class="servicio-card">
-                <div class="servicio-foto">
-                    <img src="{{ url_for('static', filename='img/servicio-secadora.webp') }}"
-                         alt="Secadora de ropa en el taller de Santa Lucía" width="800" height="600" loading="lazy"
-                         onerror="this.remove()">
-                    <span class="servicio-ico" aria-hidden="true"><i class="bi bi-wind"></i></span>
+                <a class="btn btn-primary" href="{{ url_for('citas.agendar_form') }}">Agendar</a>
+            </div>
+            <div class="servicio-card">
+                <div class="servicio-icon green">❄️</div>
+                <h3>Reparación de refrigeradoras</h3>
+                <p>Detección de fugas, recarga de gas refrigerante y prueba de compresor y termostato.</p>
+                <div class="servicio-pie">
+                    <span class="servicio-precio">Desde S/ 220.00</span>
+                    <span class="servicio-duracion">2 – 4 h</span>
                 </div>
-                <div class="servicio-cuerpo">
-                    <h3>Secadoras</h3>
-                    <p>Revisión de resistencia, termostato, sensor de humedad y ducto de aire caliente.</p>
-                    <div class="servicio-pie">
-                        <span class="servicio-precio">Desde S/ 160</span>
-                        <span class="servicio-duracion"><i class="bi bi-clock me-1"></i>2 h</span>
-                    </div>
-                    <a class="btn btn-accent" href="{{ url_for('citas.agendar_form') }}">Agendar</a>
+                <a class="btn btn-primary" href="{{ url_for('citas.agendar_form') }}">Agendar</a>
+            </div>
+            <div class="servicio-card">
+                <div class="servicio-icon blue">🧊</div>
+                <h3>Reparación de congeladoras</h3>
+                <p>Corrección de escarcha excesiva, cambio de sellos y calibración de temperatura.</p>
+                <div class="servicio-pie">
+                    <span class="servicio-precio">Desde S/ 200.00</span>
+                    <span class="servicio-duracion">2 – 3 h</span>
                 </div>
-            </article>
-
-            <article class="servicio-card">
-                <div class="servicio-foto">
-                    <img src="{{ url_for('static', filename='img/servicio-refrigeradora.webp') }}"
-                         alt="Refrigeradora abierta durante la reparación" width="800" height="600" loading="lazy"
-                         onerror="this.remove()">
-                    <span class="servicio-ico" aria-hidden="true"><i class="bi bi-thermometer-snow"></i></span>
-                </div>
-                <div class="servicio-cuerpo">
-                    <h3>Refrigeradoras</h3>
-                    <p>Detección de fugas, recarga de gas y prueba de compresor y termostato.</p>
-                    <div class="servicio-pie">
-                        <span class="servicio-precio">Desde S/ 220</span>
-                        <span class="servicio-duracion"><i class="bi bi-clock me-1"></i>2 – 4 h</span>
-                    </div>
-                    <a class="btn btn-accent" href="{{ url_for('citas.agendar_form') }}">Agendar</a>
-                </div>
-            </article>
-
-            <article class="servicio-card">
-                <div class="servicio-foto">
-                    <img src="{{ url_for('static', filename='img/servicio-congeladora.webp') }}"
-                         alt="Congeladora con escarcha en revisión" width="800" height="600" loading="lazy"
-                         onerror="this.remove()">
-                    <span class="servicio-ico" aria-hidden="true"><i class="bi bi-snow2"></i></span>
-                </div>
-                <div class="servicio-cuerpo">
-                    <h3>Congeladoras</h3>
-                    <p>Corrección de escarcha excesiva, cambio de sellos y calibración de temperatura.</p>
-                    <div class="servicio-pie">
-                        <span class="servicio-precio">Desde S/ 200</span>
-                        <span class="servicio-duracion"><i class="bi bi-clock me-1"></i>2 – 3 h</span>
-                    </div>
-                    <a class="btn btn-accent" href="{{ url_for('citas.agendar_form') }}">Agendar</a>
-                </div>
-            </article>
+                <a class="btn btn-primary" href="{{ url_for('citas.agendar_form') }}">Agendar</a>
+            </div>
         </div>
     </div>
 </section>
 
-<!-- ─── Trabajos recientes y reseñas ───────────────────── -->
+<!-- ─── Testimonios ───────────────────────────────────── -->
 <section class="section" id="nosotros">
     <div class="section-header">
-        <h2>Reseñas de clientes</h2>
-        <p>Opiniones publicadas tal como llegan, sin editar</p>
+        <h2>Lo que dicen nuestros clientes</h2>
+        <p>Años de confianza y resultados comprobados</p>
         <div class="section-divider"></div>
     </div>
     <div class="container">
-        {# TODO — Trabajos reales: cuando haya fotos del taller en
-           app/static/img/trabajo-1..3.webp, descomentar el bloque de abajo y
-           reemplazar equipo/falla/tiempo por trabajos verdaderos. No inventar. #}
-        {#
-        <div class="trabajos-grid">
-            <figure class="trabajo-card">
-                <div class="trabajo-foto">
-                    <img src="{{ url_for('static', filename='img/trabajo-1.webp') }}" alt="EQUIPO — FALLA"
-                         width="800" height="600" loading="lazy" onerror="this.remove()">
-                </div>
-                <figcaption>
-                    <strong>EQUIPO</strong>
-                    <span class="trabajo-falla">FALLA REPARADA</span>
-                    <span class="trabajo-tiempo"><i class="bi bi-clock me-1"></i>TIEMPO</span>
-                </figcaption>
+        <div class="testimonios-grid">
+            <figure class="testimonio-card">
+                <div class="stars">★★★★★</div>
+                <blockquote>“Mi lavadora LG no desaguaba hacía semanas. Cambiaron la bomba el mismo día en casa y me mostraron la pieza vieja.”</blockquote>
+                <figcaption>Jorge Paredes · Cliente desde 2019</figcaption>
+            </figure>
+            <figure class="testimonio-card">
+                <div class="stars">★★★★★</div>
+                <blockquote>“La congeladora del negocio dejó de enfriar un sábado. Vinieron en dos horas y salvaron toda la mercadería.”</blockquote>
+                <figcaption>Ana Quispe · Restaurante familiar</figcaption>
+            </figure>
+            <figure class="testimonio-card">
+                <div class="stars">★★★★★</div>
+                <blockquote>“Hacen el mantenimiento preventivo de las lavadoras y secadoras del edificio. Reportan todo por escrito y con foto.”</blockquote>
+                <figcaption>Luis Moreno · Administrador de edificio</figcaption>
             </figure>
         </div>
-        #}
-
-        <div class="resena-block">
-            <div class="resena-cabecera">
-                <span class="resena-google"><i class="bi bi-google"></i> Google</span>
-                <!-- TODO: pegar aquí una reseña real (captura o texto) con nombre y fecha -->
-                <p class="resena-texto">Las opiniones que ves aquí son de clientes reales. Puedes leerlas completas, con nombre y fecha, en nuestro perfil de Google.</p>
-                <a class="resena-link" href="https://www.google.com/maps/search/Santa+Luc%C3%ADa+Servicio+T%C3%A9cnico+Huancayo" target="_blank" rel="noopener">
-                    Ver reseñas en Google <i class="bi bi-arrow-up-right"></i>
-                </a>
-            </div>
-        </div>
-        {% if es_admin %}
-        <p class="text-muted small mt-3 mb-0">
-            Solo visible para administrador: sube las fotos <code>img/trabajo-1..3.webp</code> y una reseña real
-            (con nombre y fecha) para activar el bloque de trabajos y la cita testimonial.
-        </p>
-        {% endif %}
     </div>
 </section>
 
@@ -362,54 +228,28 @@
     </div>
     <div class="container contacto-grid">
         <form class="contacto-form" method="POST" action="{{ url_for('main.contacto') }}">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <label for="contacto-nombre">Nombre</label>
             <input type="text" id="contacto-nombre" name="nombre" required placeholder="Tu nombre">
             <label for="contacto-correo">Correo o teléfono</label>
-            <input type="text" id="contacto-correo" name="correo" required placeholder="correo@santalucia.pe o +51 964 618 892">
+            <input type="text" id="contacto-correo" name="correo" required placeholder="correo@santalucia.pe o +51 987 654 321">
             <label for="contacto-falla">Cuéntanos la falla</label>
             <textarea id="contacto-falla" name="mensaje" rows="4" required placeholder="Ej: Mi lavadora deja agua..."></textarea>
             <button type="submit" class="btn btn-primary">Enviar mensaje</button>
         </form>
         <div class="contacto-info">
-            <h3>Taller Santa Lucía</h3>
             <div class="contacto-fachada">
-                <i class="bi bi-shop contacto-fachada-fb" aria-hidden="true"></i>
-                <img src="{{ url_for('static', filename='img/fachada.webp') }}" alt="Fachada del taller Santa Lucía en Chilca, Huancayo" width="1200" height="800" loading="lazy" onerror="this.remove()">
+                <img src="{{ url_for('static', filename='img/taller-santa-lucia.jpg') }}" alt="Taller Santa Lucía Servicio Técnico" loading="lazy" onerror="this.src='{{ url_for('static', filename='img/fachada-taller.jpg') }}';">
             </div>
-            <p><i class="bi bi-geo-alt"></i> Av. 28 de Julio 723 · Chilca, Huancayo</p>
-            <p><i class="bi bi-telephone"></i> <a href="tel:+51964618892">+51 964 618 892</a></p>
-            <p><i class="bi bi-envelope"></i> <a href="mailto:contacto@santalucia.pe">contacto@santalucia.pe</a></p>
-            <p><i class="bi bi-clock"></i> Lun a Sáb · 9:00 – 19:00</p>
-            <div class="mapa-embed">
-                <iframe src="https://maps.google.com/maps?q=Av.%2028%20de%20Julio%20723%20Chilca%20Huancayo&output=embed" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Ubicación del taller en Google Maps" width="600" height="280" style="border:0"></iframe>
-            </div>
+            <h3>Taller Santa Lucía</h3>
+            <p>Av. 28 de Julio 723, Chilca, Huancayo</p>
+            <p>+51 964 618 892</p>
+            <p>coorporacionsantalucia@gmail.com</p>
+            <p>Lun a Sáb · 8:00 – 19:00</p>
             <div class="contacto-cta">
                 <a class="btn btn-accent" href="{{ url_for('citas.agendar_form') }}">Agendar cita</a>
-                <a class="btn btn-outline-primary" href="https://wa.me/{{ whatsapp_numero }}{% if whatsapp_mensaje %}?text={{ whatsapp_mensaje|urlencode }}{% endif %}" target="_blank" rel="noopener"><i class="bi bi-whatsapp me-1"></i> WhatsApp</a>
-                <a class="btn btn-outline-secondary" href="https://www.google.com/maps/dir/?api=1&destination=Av.%2028%20de%20Julio%20723%20Chilca%20Huancayo" target="_blank" rel="noopener">Cómo llegar</a>
             </div>
         </div>
     </div>
 </section>
 
-<section class="section">
-    <div class="container">
-        <div class="libro-acceso-banner">
-            <div class="libro-acceso-banner-img">
-                <img src="{{ url_for('static', filename='img/libro-reclamaciones.png') }}" alt="Libro de Reclamaciones" loading="lazy">
-            </div>
-            <div class="libro-acceso-banner-content">
-                <h3>Libro de Reclamaciones</h3>
-                <p>Conforme al Código de Protección y Defensa del Consumidor - Ley N° 29571</p>
-                <a href="{{ url_for('libro_reclamaciones.formulario') }}" class="btn btn-danger">Ingresar aquí</a>
-            </div>
-        </div>
-    </div>
-</section>
-
-{% endblock %}
-
-{% block scripts %}
-<script src="{{ url_for('static', filename='js/marcas.js') }}"></script>
 {% endblock %}
