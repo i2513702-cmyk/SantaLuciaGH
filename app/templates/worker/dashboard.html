@@ -5,13 +5,13 @@
 {% block content %}
 <section class="panel-head">
     <div>
-        <h1>Panel del Técnico</h1>
+        <h1>Panel de Trabajo</h1>
         <p>
             Bienvenido, <strong>{{ nombre }}</strong>.
             {% if es_tecnico %}
                 Técnico: <strong>{{ (tecnico.empleados or {}).get('nombres', '') }} {{ (tecnico.empleados or {}).get('apellidos', '') }}</strong>.
             {% else %}
-                Tu cuenta no está vinculada a un técnico.
+                Tu cuenta no está vinculada a un técnico. Algunas acciones están deshabilitadas.
             {% endif %}
         </p>
     </div>
@@ -92,7 +92,7 @@
         <div class="tab-content">
             <div class="tab-pane fade show active" id="pane-reparaciones" role="tabpanel" aria-labelledby="tab-reparaciones" tabindex="0">
             {% if ordenes %}
-                <div class="table-wrap">
+                <div class="table-responsive">
                     <table class="table">
                         <thead>
                             <tr>
@@ -101,6 +101,7 @@
                                 <th>Atención</th>
                                 <th>Ingreso</th>
                                 <th>Estado</th>
+                                <th></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -111,26 +112,37 @@
                                 <td>{{ orden.tipo }}</td>
                                 <td>{{ orden.ingreso }}</td>
                                 <td><span class="badge {{ orden.badge_class }}">{{ orden.estado }}</span></td>
+                                <td class="text-end">
+                                    {% if es_tecnico and orden.id %}
+                                    <a class="btn btn-sm btn-outline" href="{{ url_for('worker.reparacion_detalle', reparacion_id=orden.id) }}">Ver/Atender</a>
+                                    {% endif %}
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
                     </table>
                 </div>
             {% else %}
-                <p class="text-secondary">No hay reparaciones registradas todavía.</p>
+                <p class="text-secondary">No hay reparaciones asignadas.</p>
             {% endif %}
             </div>
             {% if es_tecnico %}
             <div class="tab-pane fade" id="pane-citas" role="tabpanel" aria-labelledby="tab-citas" tabindex="0">
             {% if citas %}
-                <div class="btn-group btn-group-sm mb-3 flex-wrap" id="citas-filtros" role="group" aria-label="Filtrar citas">
-                    <button type="button" class="btn btn-outline-secondary active" data-filtro="todas">Todas</button>
-                    <button type="button" class="btn btn-outline-secondary" data-filtro="domicilio">A domicilio</button>
-                    <button type="button" class="btn btn-outline-secondary" data-filtro="taller">En taller</button>
-                    <button type="button" class="btn btn-outline-secondary" data-filtro="mias">Mis citas</button>
-                    <button type="button" class="btn btn-outline-secondary" data-filtro="libres">Sin asignar</button>
+                <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+                    <div class="btn-group btn-group-sm flex-wrap" id="citas-filtros" role="group" aria-label="Filtrar citas">
+                        <button type="button" class="btn btn-outline-secondary active" data-filtro="todas">Todas</button>
+                        <button type="button" class="btn btn-outline-secondary" data-filtro="domicilio">A domicilio</button>
+                        <button type="button" class="btn btn-outline-secondary" data-filtro="taller">En taller</button>
+                        <button type="button" class="btn btn-outline-secondary" data-filtro="mias">Mis citas</button>
+                        <button type="button" class="btn btn-outline-secondary" data-filtro="libres">Sin asignar</button>
+                        <button type="button" class="btn btn-outline-secondary" data-filtro="hoy">Hoy</button>
+                        <button type="button" class="btn btn-outline-secondary" data-filtro="proximas">Próximas</button>
+                        <button type="button" class="btn btn-outline-secondary" data-filtro="pasadas">Pasadas</button>
+                    </div>
+                    <input type="search" id="citas-buscar" class="form-control form-control-sm" style="max-width: 260px;" placeholder="Buscar por cliente o equipo...">
                 </div>
-                <div class="table-wrap">
+                <div class="table-responsive">
                     <table class="table align-middle" id="tabla-citas">
                         <thead>
                             <tr>
@@ -140,18 +152,22 @@
                                 <th>Atención</th>
                                 <th>Estado</th>
                                 <th>Asignada</th>
+                                <th></th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for c in citas %}
-                            <tr data-tipo="{{ (c.tipo_atencion or '')|lower }}" data-asig="{{ 'mias' if c.mia else 'libres' }}">
+                            <tr data-tipo="{{ (c.tipo_atencion or '')|lower }}" data-asig="{{ 'mias' if c.mia else 'libres' }}" data-fecha="{{ c.fecha }}" data-busq="{{ (c.cliente_nombre ~ ' ' ~ c.equipo ~ ' ' ~ c.motivo)|lower }}">
                                 <td>{{ c.fecha }}<div class="text-secondary small">{{ c.hora }}{% if c.hora_fin %} – {{ c.hora_fin }}{% endif %}</div></td>
                                 <td>
                                     <strong>{{ c.cliente_nombre or '—' }}</strong>
                                     {% if c.cliente_telefono %}<div class="small"><a href="tel:{{ c.cliente_telefono }}">{{ c.cliente_telefono }}</a></div>{% endif %}
+                                    {% if c.cliente_documento %}<div class="small text-muted">{{ c.cliente_documento }}</div>{% endif %}
                                 </td>
                                 <td>
                                     {{ c.equipo or '—' }}
+                                    {% if c.modelo %}<div class="text-secondary small">Modelo: {{ c.modelo }}</div>{% endif %}
+                                    {% if c.numero_serie %}<div class="text-secondary small">N/S: {{ c.numero_serie }}</div>{% endif %}
                                     {% if c.motivo %}<div class="text-secondary small">{{ c.motivo }}</div>{% endif %}
                                     {% if c.observaciones %}<div class="text-secondary small fst-italic">{{ c.observaciones }}</div>{% endif %}
                                 </td>
@@ -159,7 +175,7 @@
                                     {% if c.tipo_atencion == 'DOMICILIO' %}
                                         <span class="badge text-bg-info">🏠 A domicilio</span>
                                         {% if c.distrito or c.direccion %}
-                                        <div class="small mt-1">📍 {% if c.distrito %}<strong>{{ c.distrito }}</strong>{% if c.direccion %} · {% endif %}{% endif %}{{ c.direccion }}</div>
+                                        <div class="small mt-1">📍 {% if c.distrito %}<strong>{{ c.distrito }}</strong>{% if c.direccion and c.direccion != c.distrito %} · {% endif %}{% endif %}{% if c.direccion and c.direccion != c.distrito %}{{ c.direccion }}{% endif %}</div>
                                         {% endif %}
                                     {% else %}
                                         <span class="badge text-bg-light border">🛠 En taller</span>
@@ -167,9 +183,28 @@
                                 </td>
                                 <td><span class="badge {{ c.badge_class }}">{{ c.estado }}</span></td>
                                 <td>{% if c.mia %}<span class="badge text-bg-success">Mía</span>{% else %}<span class="badge text-bg-warning">Sin asignar</span>{% endif %}</td>
+                                <td class="text-end">
+                                    {% if es_tecnico and c.mia and c.estado_raw == 'CONFIRMADA' %}
+                                    <form method="POST" action="{{ url_for('worker.cita_cambiar_estado', cita_id=c.id) }}" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <input type="hidden" name="estado" value="EN_ATENCION">
+                                        <button class="btn btn-sm btn-outline-primary">Atender</button>
+                                    </form>
+                                    {% elif es_tecnico and c.mia and c.estado_raw == 'EN_ATENCION' %}
+                                    <form method="POST" action="{{ url_for('worker.cita_cambiar_estado', cita_id=c.id) }}" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <input type="hidden" name="estado" value="COMPLETADA">
+                                        <button class="btn btn-sm btn-outline-success">Completar</button>
+                                    </form>
+                                    <form method="POST" action="{{ url_for('worker.cita_crear_reparacion', cita_id=c.id) }}" class="d-inline">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <button class="btn btn-sm btn-primary">Crear reparación</button>
+                                    </form>
+                                    {% endif %}
+                                </td>
                             </tr>
                             {% endfor %}
-                            <tr id="citas-vacio" class="d-none"><td colspan="6" class="text-center text-secondary py-4">No hay citas para este filtro.</td></tr>
+                            <tr id="citas-vacio" class="d-none"><td colspan="7" class="text-center text-secondary py-4">No hay citas para este filtro.</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -189,30 +224,39 @@
         <button class="collapse-btn" type="button" data-toggle-collapse aria-expanded="true">▾</button>
     </div>
     <div class="collapse-body">
-    <div class="card" style="margin-bottom: 20px; max-width: 640px;">
-        <form method="POST" action="{{ url_for('worker.agenda_agregar') }}" class="cita-form-row" style="grid-template-columns: 1.4fr 1fr 1fr auto;">
+    <div class="card" style="margin-bottom: 20px; max-width: 720px;">
+        <form method="POST" action="{{ url_for('worker.agenda_agregar') }}" class="d-flex flex-wrap gap-2 align-items-end">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div>
-                <input type="date" name="fecha" required>
+                <label class="form-label">Fecha(s)</label>
+                <input type="date" name="fechas" class="form-control" required>
+                <small class="text-muted">Puedes agregar más fechas desde el formulario si lo editas.</small>
             </div>
             <div>
-                <input type="time" name="hora_inicio" value="09:00" required>
+                <label class="form-label">Desde</label>
+                <input type="time" name="hora_inicio" value="09:00" class="form-control" required>
             </div>
             <div>
-                <input type="time" name="hora_fin" value="18:00" required>
+                <label class="form-label">Hasta</label>
+                <input type="time" name="hora_fin" value="18:00" class="form-control" required>
             </div>
-            <button type="submit" class="btn btn-primary">Agregar</button>
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" name="disponible" value="true" id="disp-activa" checked>
+                <label class="form-check-label" for="disp-activa">Activa</label>
+            </div>
+            <button type="submit" class="btn btn-primary mb-2">Agregar</button>
         </form>
     </div>
 
     {% if disponibilidad %}
-        <div class="table-wrap">
+        <div class="table-responsive">
             <table class="table">
                 <thead>
                     <tr>
                         <th>Fecha</th>
                         <th>Desde</th>
                         <th>Hasta</th>
+                        <th>Estado</th>
                         <th></th>
                     </tr>
                 </thead>
@@ -222,11 +266,16 @@
                         <td>{{ franja.fecha }}</td>
                         <td>{{ franja.hora_inicio }}</td>
                         <td>{{ franja.hora_fin }}</td>
-                        <td>
+                        <td>{% if franja.disponible %}<span class="badge text-bg-success">Activa</span>{% else %}<span class="badge text-bg-secondary">Inactiva</span>{% endif %}</td>
+                        <td class="text-end d-flex gap-1 justify-content-end">
+                            <form method="POST" action="{{ url_for('worker.agenda_toggle', franja_id=franja.id) }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button type="submit" class="btn btn-sm btn-outline">{% if franja.disponible %}Desactivar{% else %}Activar{% endif %}</button>
+                            </form>
                             <form method="POST" action="{{ url_for('worker.agenda_quitar', franja_id=franja.id) }}"
                                   onsubmit="return confirm('¿Eliminar esta franja de disponibilidad?');">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                <button type="submit" class="btn btn-sm btn-outline">Quitar</button>
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Quitar</button>
                             </form>
                         </td>
                     </tr>
@@ -382,20 +431,44 @@
     var tab = document.getElementById('tab-citas');
     if (tab && location.hash === '#citas') bootstrap.Tab.getOrCreateInstance(tab).show();
     var barra = document.getElementById('citas-filtros');
+    var buscar = document.getElementById('citas-buscar');
     if (!barra) return;
     var filas = document.querySelectorAll('#tabla-citas tbody tr[data-tipo]');
     var vacio = document.getElementById('citas-vacio');
+    var filtroActual = 'todas';
+    var hoy = new Date();
+    var hoyIso = hoy.getFullYear() + '-' + String(hoy.getMonth()+1).padStart(2,'0') + '-' + String(hoy.getDate()).padStart(2,'0');
+
+    function aplicar() {
+        var q = (buscar && buscar.value || '').toLowerCase().trim();
+        var visibles = 0;
+        filas.forEach(function (tr) {
+            var tipo = tr.dataset.tipo || '';
+            var asig = tr.dataset.asig || '';
+            var fecha = tr.dataset.fecha || '';
+            var busq = tr.dataset.busq || '';
+            var ok = true;
+            if (filtroActual === 'domicilio') ok = tipo === 'domicilio';
+            else if (filtroActual === 'taller') ok = tipo !== 'domicilio';
+            else if (filtroActual === 'mias') ok = asig === 'mias';
+            else if (filtroActual === 'libres') ok = asig === 'libres';
+            else if (filtroActual === 'hoy') ok = fecha === hoyIso;
+            else if (filtroActual === 'proximas') ok = fecha >= hoyIso;
+            else if (filtroActual === 'pasadas') ok = fecha < hoyIso;
+            if (ok && q) ok = busq.indexOf(q) >= 0;
+            tr.classList.toggle('d-none', !ok);
+            if (ok) visibles++;
+        });
+        if (vacio) vacio.classList.toggle('d-none', visibles > 0);
+    }
+
     barra.addEventListener('click', function (ev) {
         var b = ev.target.closest('[data-filtro]');
         if (!b) return;
         barra.querySelectorAll('.btn').forEach(function (x) { x.classList.toggle('active', x === b); });
-        var f = b.dataset.filtro, visibles = 0;
-        filas.forEach(function (tr) {
-            var ok = f === 'todas' || tr.dataset.tipo === f || tr.dataset.asig === f;
-            tr.classList.toggle('d-none', !ok);
-            if (ok) visibles++;
-        });
-        vacio.classList.toggle('d-none', visibles > 0);
+        filtroActual = b.dataset.filtro || 'todas';
+        aplicar();
     });
+    if (buscar) buscar.addEventListener('input', aplicar);
 })();
 </script>
