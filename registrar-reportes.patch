@@ -1,0 +1,21 @@
+diff --git a/app/__init__.py b/app/__init__.py
+index d46bd51..b14eb01 100644
+--- a/app/__init__.py
++++ b/app/__init__.py
+@@ -24,7 +24,7 @@ def create_app() -> Flask:
+     bcrypt.init_app(app)
+ 
+     # --- Blueprints ---
+-    from app.routes import admin, api, auth, carrito, checkout, citas, identidad, kpi, libro_reclamaciones, main, seguridad, ventas, worker
++    from app.routes import admin, api, auth, carrito, checkout, citas, identidad, kpi, libro_reclamaciones, main, reportes, seguridad, ventas, worker
+     from app.routes.supabase import bp as supabase_bp
+ 
+     app.register_blueprint(main.bp)
+@@ -37,6 +37,7 @@ def create_app() -> Flask:
+     app.register_blueprint(kpi.bp)
+     app.register_blueprint(seguridad.bp)
+     app.register_blueprint(ventas.bp)
++    app.register_blueprint(reportes.bp)
+     app.register_blueprint(supabase_bp)
+     app.register_blueprint(api.bp)
+     app.register_blueprint(identidad.bp)
