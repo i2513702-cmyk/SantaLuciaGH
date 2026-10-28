@@ -2547,6 +2547,77 @@ h1, h2, h3, .brand-name, .kpi-value, .stat-value {
     .wa-float i { font-size: 1.5rem; }
 }
 
+/* Acceso al Libro de Reclamaciones en inicio */
+.libro-acceso-home {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+    color: #1a1a1a;
+    transition: transform 0.3s ease;
+}
+.libro-acceso-home:hover {
+    color: #dc2626;
+    transform: translateY(-4px);
+}
+.libro-acceso-home-libro {
+    position: relative;
+    width: 140px;
+    height: 100px;
+    perspective: 600px;
+}
+.libro-acceso-home-pagina {
+    position: absolute;
+    width: 68px;
+    height: 90px;
+    background: linear-gradient(90deg, #f8f6f1 0%, #fdfcfb 50%, #f8f6f1 100%);
+    border: 1px solid #d4c4a9;
+    top: 5px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.libro-acceso-home-pagina-izq {
+    left: 2px;
+    border-radius: 2px 0 0 2px;
+    background-image: repeating-linear-gradient(to bottom, transparent 0px, transparent 6px, #e8dcc0 6px, #e8dcc0 7px);
+}
+.libro-acceso-home-pagina-der {
+    right: 2px;
+    border-radius: 0 2px 2px 0;
+    background-image: repeating-linear-gradient(to bottom, transparent 0px, transparent 6px, #e8dcc0 6px, #e8dcc0 7px);
+}
+.libro-acceso-home-lomo {
+    position: absolute;
+    left: 50%;
+    top: 3px;
+    width: 6px;
+    height: 94px;
+    background: linear-gradient(90deg, #8b7355 0%, #a08968 50%, #8b7355 100%);
+    transform: translateX(-50%);
+    z-index: 2;
+    border-radius: 1px;
+}
+.libro-acceso-home-hojas {
+    position: absolute;
+    left: 4px;
+    top: 7px;
+    width: 64px;
+    height: 86px;
+    background: repeating-linear-gradient(90deg, transparent 0px, transparent 2px, rgba(139,115,85,0.1) 2px, rgba(139,115,85,0.1) 4px);
+    pointer-events: none;
+}
+.libro-acceso-home-texto {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 1rem;
+}
+.libro-acceso-home-texto i {
+    color: #dc2626;
+    font-size: 1.2rem;
+}
+
 /* ---------- botón WhatsApp en línea ---------- */
 .btn-wa { background: #25d366; border-color: #25d366; color: #fff; }
 .btn-wa:hover { background: #1ebe5b; border-color: #1ebe5b; color: #fff; }
