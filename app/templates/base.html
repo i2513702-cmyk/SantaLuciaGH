@@ -183,10 +183,10 @@
                     {% else %}
                         <a href="{{ url_for('main.tienda') }}">Catálogo y repuestos</a>
                         <a href="{{ url_for('citas.agendar_form') }}">Agendar una cita</a>
-                        <a href="{{ url_for('libro_reclamaciones.formulario') }}">Libro de Reclamaciones</a>
                     {% endif %}
                     <a href="{{ url_for('auth.cambiar_clave') }}">Cambiar contraseña</a>
                     <a href="{{ url_for('auth.panel') }}">Paneles por rol</a>
+                    <a href="{{ url_for('libro_reclamaciones.formulario') }}"><i class="bi bi-journal-text me-1"></i>Libro de Reclamaciones</a>
                 </div>
             </div>
             <div class="footer-bottom">
@@ -203,10 +203,6 @@
     {% endblock %}
 
     {# --- Botón flotante de WhatsApp (atención directa al cliente) --- #}
-    <a class="libro-reclamo-float" href="{{ url_for('libro_reclamaciones.formulario') }}" aria-label="Libro de Reclamaciones">
-        <i class="bi bi-journal-text"></i>
-        <span class="libro-reclamo-float-txt">Libro de Reclamaciones</span>
-    </a>
     {% if whatsapp_numero %}
     <a class="wa-float" href="https://wa.me/{{ whatsapp_numero }}?text={{ whatsapp_mensaje|urlencode }}"
        target="_blank" rel="noopener" aria-label="Escríbenos por WhatsApp">
