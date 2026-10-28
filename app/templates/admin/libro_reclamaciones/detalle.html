@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Reclamo {{ reclamo.numero_registro }} - Admin{% endblock %}
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">Reclamo N° {{ reclamo.numero_registro }}</h1>
+        <a href="{{ url_for('libro_reclamaciones.admin_listado') }}" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Volver al listado</a>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header"><h5 class="mb-0">Datos del Consumidor</h5></div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6"><strong>Nombre:</strong> {{ reclamo.consumidor_nombres }} {{ reclamo.consumidor_apellidos }}</div>
+                        <div class="col-md-6"><strong>{{ reclamo.tipo_documento }}:</strong> {{ reclamo.numero_documento }}</div>
+                        <div class="col-md-6 mt-2"><strong>Teléfono:</strong> {{ reclamo.telefono }}</div>
+                        <div class="col-md-6 mt-2"><strong>Email:</strong> {{ reclamo.email }}</div>
+                        <div class="col-12 mt-2"><strong>Domicilio:</strong> {{ reclamo.domicilio_consumidor }}</div>
+                        {% if reclamo.es_menor %}
+                        <div class="col-12 mt-2"><strong>Apoderado:</strong> {{ reclamo.apoderado_nombre }} ({{ reclamo.apoderado_parentesco }}) - Doc: {{ reclamo.apoderado_documento }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header"><h5 class="mb-0">Bien Contratado</h5></div>
+                <div class="card-body">
+                    <p><strong>Tipo:</strong> {{ reclamo.tipo_bien }}</p>
+                    <p><strong>Descripción:</strong> {{ reclamo.descripcion_bien }}</p>
+                    <p><strong>Monto Reclamado:</strong> S/ {{ reclamo.monto_reclamado }}</p>
+                </div>
+            </div>
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header"><h5 class="mb-0">Detalle de la {{ reclamo.tipo_solicitud }}</h5></div>
+                <div class="card-body">
+                    <p><strong>Detalle del hecho:</strong></p>
+                    <p class="bg-light p-3">{{ reclamo.detalle_hecho }}</p>
+                    <p><strong>Pedido del consumidor:</strong></p>
+                    <p class="bg-light p-3">{{ reclamo.pedido_consumidor }}</p>
+                </div>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white"><h5 class="mb-0">Respuesta al Consumidor</h5></div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('libro_reclamaciones.admin_responder', reclamo_id=reclamo.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <div class="mb-3">
+                            <label class="form-label">Estado</label>
+                            <select name="estado" class="form-select" required>
+                                <option value="pendiente" {% if reclamo.estado == 'pendiente' %}selected{% endif %}>Pendiente</option>
+                                <option value="en_proceso" {% if reclamo.estado == 'en_proceso' %}selected{% endif %}>En Proceso</option>
+                                <option value="atendido" {% if reclamo.estado == 'atendido' %}selected{% endif %}>Atendido</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Respuesta</label>
+                            <textarea name="respuesta" class="form-control" rows="6" placeholder="Escriba la respuesta al consumidor...">{{ reclamo.respuesta or '' }}</textarea>
+                        </div>
+                        {% if reclamo.fecha_respuesta %}
+                        <p class="text-muted"><small>Fecha de respuesta: {{ reclamo.fecha_respuesta }}</small></p>
+                        {% endif %}
+                        <button type="submit" class="btn btn-primary">Guardar Respuesta</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card shadow-sm">
+                <div class="card-header"><h5 class="mb-0">Información del Registro</h5></div>
+                <div class="card-body">
+                    <p><strong>Fecha de registro:</strong><br>{{ reclamo.fecha_registro }}</p>
+                    <p><strong>Tipo:</strong><br><span class="badge {% if reclamo.tipo_solicitud == 'RECLAMO' %}bg-danger{% else %}bg-warning{% endif %}">{{ reclamo.tipo_solicitud }}</span></p>
+                    <p><strong>Estado:</strong><br><span class="badge {% if reclamo.estado == 'atendido' %}bg-success{% elif reclamo.estado == 'en_proceso' %}bg-info{% else %}bg-secondary{% endif %}">{{ reclamo.estado|upper }}</span></p>
+                    <hr>
+                    <p class="small text-muted"><em>El registro original no puede ser modificado ni eliminado. Solo se puede cambiar el estado y agregar respuesta.</em></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

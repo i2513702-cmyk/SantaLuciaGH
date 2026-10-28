@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}Libro de Reclamaciones - {{ app_name }}{% endblock %}
+{% block main_wrap %}{% endblock %}
+{% block main_class %}p-0{% endblock %}
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="text-center mb-4">
+                <h1 class="h2">Libro de Reclamaciones</h1>
+                <p class="text-muted">Conforme al Código de Protección y Defensa del Consumidor - Ley N° 29571</p>
+            </div>
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">1. DATOS DEL PROVEEDOR</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4"><strong>Razón Social:</strong> {{ proveedor.razon_social }}</div>
+                        <div class="col-md-4"><strong>RUC:</strong> {{ proveedor.ruc }}</div>
+                        <div class="col-md-4"><strong>Domicilio:</strong> {{ proveedor.domicilio }}</div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-6"><strong>Fecha:</strong> {{ fecha }}</div>
+                        <div class="col-md-6"><strong>Hora:</strong> {{ hora }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <form method="POST" action="{{ url_for('libro_reclamaciones.enviar') }}" novalidate>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">2. IDENTIFICACIÓN DEL CONSUMIDOR</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Nombres <span class="text-danger">*</span></label>
+                                <input type="text" name="consumidor_nombres" class="form-control" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Apellidos <span class="text-danger">*</span></label>
+                                <input type="text" name="consumidor_apellidos" class="form-control" required>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Tipo de Documento <span class="text-danger">*</span></label>
+                                <select name="tipo_documento" class="form-select" required>
+                                    <option value="">Seleccionar</option>
+                                    <option value="DNI">DNI</option>
+                                    <option value="CE">Carné de Extranjería</option>
+                                    <option value="PASAPORTE">Pasaporte</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">N° de Documento <span class="text-danger">*</span></label>
+                                <input type="text" name="numero_documento" class="form-control" required maxlength="12">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Teléfono <span class="text-danger">*</span></label>
+                                <input type="tel" name="telefono" class="form-control" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Correo Electrónico <span class="text-danger">*</span></label>
+                                <input type="email" name="email" class="form-control" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Domicilio <span class="text-danger">*</span></label>
+                                <input type="text" name="domicilio_consumidor" class="form-control" required>
+                            </div>
+                            <div class="col-12">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="es_menor" id="es_menor">
+                                    <label class="form-check-label" for="es_menor">El consumidor es menor de edad</label>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Nombre del padre/madre/apoderado</label>
+                                <input type="text" name="apoderado_nombre" class="form-control">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Parentesco</label>
+                                <input type="text" name="apoderado_parentesco" class="form-control">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Documento del apoderado</label>
+                                <input type="text" name="apoderado_documento" class="form-control">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">3. IDENTIFICACIÓN DEL BIEN CONTRATADO</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Tipo <span class="text-danger">*</span></label>
+                                <select name="tipo_bien" class="form-select" required>
+                                    <option value="">Seleccionar</option>
+                                    <option value="PRODUCTO">Producto</option>
+                                    <option value="SERVICIO">Servicio</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Monto Reclamado (S/)</label>
+                                <input type="text" name="monto_reclamado" class="form-control" placeholder="0.00">
+                            </div>
+                            <div class="col-md-12">
+                                <label class="form-label">Descripción del bien contratado <span class="text-danger">*</span></label>
+                                <input type="text" name="descripcion_bien" class="form-control" required>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">4. DETALLE DE LA RECLAMACIÓN</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Tipo <span class="text-danger">*</span></label>
+                                <select name="tipo_solicitud" class="form-select" required>
+                                    <option value="">Seleccionar</option>
+                                    <option value="RECLAMO">Reclamo</option>
+                                    <option value="QUEJA">Queja</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Detalle del hecho <span class="text-danger">*</span></label>
+                                <textarea name="detalle_hecho" class="form-control" rows="4" required placeholder="Describa los hechos que motivan su reclamo o queja"></textarea>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label">Pedido del consumidor <span class="text-danger">*</span></label>
+                                <textarea name="pedido_consumidor" class="form-control" rows="3" required placeholder="Indique qué solicitud o acción espera del proveedor"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm mb-4">
+                    <div class="card-body">
+                        <div class="form-check mb-3">
+                            <input class="form-check-input" type="checkbox" name="acepta_privacidad" id="acepta_privacidad" required>
+                            <label class="form-check-label" for="acepta_privacidad">
+                                Acepto la <a href="#" target="_blank">Política de Privacidad</a> y el tratamiento de mis datos personales conforme a la Ley N° 29733 <span class="text-danger">*</span>
+                            </label>
+                        </div>
+                        <div class="alert alert-info">
+                            <small>
+                                <strong>IMPORTANTE:</strong> El proveedor deberá dar respuesta al reclamo en un plazo no mayor a treinta (30) días calendario, pudiendo ampliarse el plazo hasta por treinta (30) días más, previa comunicación al consumidor. La formulación del reclamo no impide acudir a otras vías de solución de controversias ni es requisito previo para interponer una denuncia ante el Indecopi.
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-center mb-4">
+                    <button type="submit" class="btn btn-primary btn-lg px-5">Enviar Reclamo</button>
+                    <a href="{{ url_for('main.home') }}" class="btn btn-outline-secondary btn-lg px-5">Cancelar</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

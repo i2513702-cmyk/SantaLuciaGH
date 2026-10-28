@@ -671,6 +671,12 @@ def dashboard():
             "url": "supabase.status",
             "modal": "supabase",
         },
+        {
+            "nombre": "Libro de Reclamaciones",
+            "descripcion": "Gestionar reclamos y quejas de clientes",
+            "icon": "📋",
+            "url": "libro_reclamaciones.admin_listado",
+        },
     ]
     return render_template(
         "admin/dashboard.html",

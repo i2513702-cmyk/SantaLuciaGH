@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Libro de Reclamaciones - Admin{% endblock %}
+{% block content %}
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3">Libro de Reclamaciones</h1>
+        <div>
+            <a href="{{ url_for('libro_reclamaciones.exportar_csv') }}" class="btn btn-success"><i class="bi bi-file-earmark-spreadsheet"></i> Exportar CSV</a>
+            <a href="{{ url_for('libro_reclamaciones.exportar_xlsx') }}" class="btn btn-success"><i class="bi bi-file-earmark-excel"></i> Exportar Excel</a>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form method="GET" class="row g-3">
+                <div class="col-md-3">
+                    <input type="text" name="q" class="form-control" placeholder="Buscar por nombre, documento, email..." value="{{ q }}">
+                </div>
+                <div class="col-md-2">
+                    <select name="estado" class="form-select">
+                        <option value="">Todos los estados</option>
+                        <option value="pendiente" {% if estado_filtro == 'pendiente' %}selected{% endif %}>Pendiente</option>
+                        <option value="en_proceso" {% if estado_filtro == 'en_proceso' %}selected{% endif %}>En Proceso</option>
+                        <option value="atendido" {% if estado_filtro == 'atendido' %}selected{% endif %}>Atendido</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select name="tipo" class="form-select">
+                        <option value="">Todos los tipos</option>
+                        <option value="RECLAMO" {% if tipo_filtro == 'RECLAMO' %}selected{% endif %}>Reclamo</option>
+                        <option value="QUEJA" {% if tipo_filtro == 'QUEJA' %}selected{% endif %}>Queja</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <input type="date" name="fecha_desde" class="form-control" value="{{ fecha_desde }}">
+                </div>
+                <div class="col-md-2">
+                    <input type="date" name="fecha_hasta" class="form-control" value="{{ fecha_hasta }}">
+                </div>
+                <div class="col-md-1">
+                    <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>N° Registro</th>
+                        <th>Fecha</th>
+                        <th>Tipo</th>
+                        <th>Consumidor</th>
+                        <th>Documento</th>
+                        <th>Estado</th>
+                        <th>Plazo</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in reclamos %}
+                    <tr class="{% if r.proximo_vencer %}table-warning{% endif %}">
+                        <td><strong>{{ r.numero_registro }}</strong></td>
+                        <td>{{ r.fecha_registro[:10] }}</td>
+                        <td><span class="badge {% if r.tipo_solicitud == 'RECLAMO' %}bg-danger{% else %}bg-warning{% endif %}">{{ r.tipo_solicitud }}</span></td>
+                        <td>{{ r.consumidor_nombres }} {{ r.consumidor_apellidos }}</td>
+                        <td>{{ r.tipo_documento }}: {{ r.numero_documento }}</td>
+                        <td>
+                            <span class="badge {% if r.estado == 'atendido' %}bg-success{% elif r.estado == 'en_proceso' %}bg-info{% else %}bg-secondary{% endif %}">
+                                {{ r.estado|upper }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if r.estado != 'atendido' %}
+                                {% if r.proximo_vencer %}<span class="text-danger"><i class="bi bi-exclamation-triangle"></i> Vence en {{ r.vence_en }} días</span>{% else %}<span class="text-muted">{{ r.vence_en }} días restantes</span>{% endif %}
+                            {% else %}
+                                <span class="text-success">Atendido</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ url_for('libro_reclamaciones.admin_detalle', reclamo_id=r.id) }}" class="btn btn-sm btn-primary">Ver/Responder</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center text-muted py-4">No hay reclamos registrados</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Reclamo Registrado - {{ app_name }}{% endblock %}
+{% block main_wrap %}{% endblock %}
+{% block main_class %}p-0{% endblock %}
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm text-center">
+                <div class="card-body py-5">
+                    <i class="bi bi-check-circle-fill text-success" style="font-size: 4rem;"></i>
+                    <h1 class="h2 mt-3">¡Reclamo Registrado!</h1>
+                    <p class="lead">Su reclamo/queja ha sido registrado correctamente</p>
+                    <div class="alert alert-success mt-4">
+                        <h4 class="mb-0">N° de Registro: <strong>{{ reclamo.numero_registro }}</strong></h4>
+                    </div>
+                    <p class="text-muted">Hemos enviado una copia de su reclamo a su correo electrónico.</p>
+                    <div class="alert alert-info text-start">
+                        <small>
+                            <strong>IMPORTANTE:</strong> El proveedor deberá dar respuesta al reclamo en un plazo no mayor a treinta (30) días calendario, pudiendo ampliarse el plazo hasta por treinta (30) días más, previa comunicación al consumidor. La formulación del reclamo no impide acudir a otras vías de solución de controversias ni es requisito previo para interponer una denuncia ante el Indecopi.
+                        </small>
+                    </div>
+                    <div class="mt-4">
+                        <a href="{{ url_for('main.home') }}" class="btn btn-primary">Volver al Inicio</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
