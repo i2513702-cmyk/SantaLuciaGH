@@ -394,20 +394,17 @@
 </section>
 
 <section class="section">
-    <div class="container text-center">
-        <a href="{{ url_for('libro_reclamaciones.formulario') }}" class="libro-acceso-home" aria-label="Libro de Reclamaciones">
-            <div class="libro-acceso-home-libro">
-                <div class="libro-acceso-home-pagina libro-acceso-home-pagina-izq"></div>
-                <div class="libro-acceso-home-lomo"></div>
-                <div class="libro-acceso-home-pagina libro-acceso-home-pagina-der"></div>
-                <div class="libro-acceso-home-hojas"></div>
+    <div class="container">
+        <div class="libro-acceso-banner">
+            <div class="libro-acceso-banner-img">
+                <img src="{{ url_for('static', filename='img/libro-reclamaciones.png') }}" alt="Libro de Reclamaciones" loading="lazy">
             </div>
-            <div class="libro-acceso-home-texto">
-                <i class="bi bi-journal-text"></i>
-                <span>Libro de Reclamaciones</span>
+            <div class="libro-acceso-banner-content">
+                <h3>Libro de Reclamaciones</h3>
+                <p>Conforme al Código de Protección y Defensa del Consumidor - Ley N° 29571</p>
+                <a href="{{ url_for('libro_reclamaciones.formulario') }}" class="btn btn-danger">Ingresar aquí</a>
             </div>
-        </a>
-        <p class="text-muted small mt-3 mb-0">Conforme al Código de Protección y Defensa del Consumidor - Ley N° 29571</p>
+        </div>
     </div>
 </section>
 
