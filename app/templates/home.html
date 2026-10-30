@@ -15,7 +15,7 @@
             <div class="hero-text">
                 <span class="hero-eyebrow">Chilca, Huancayo · Atención el mismo día</span>
                 <h1>Tu lavadora entra fallando y sale andando hoy.</h1>
-                <p class="hero-sub">Reparación, mantenimiento e instalación de lavadoras, secadoras, refrigeradoras, congeladoras y cocinas. Repuestos originales, garantía de 90 días y atención a domicilio o en taller.</p>
+                <p class="hero-sub">Reparación, mantenimiento e instalación de lavadoras, secadoras, refrigeradoras, congeladoras, microondas y cocinas. Repuestos originales, garantía de 90 días y atención a domicilio o en taller.</p>
                 <div class="hero-actions">
                     <a class="btn btn-accent btn-lg" href="{{ url_for('citas.agendar_form') }}"><i class="bi bi-calendar-check me-2"></i>Agendar una cita</a>
                     <a class="btn btn-outline-primary btn-lg" href="https://wa.me/{{ whatsapp_numero }}{% if whatsapp_mensaje %}?text={{ whatsapp_mensaje|urlencode }}{% endif %}" target="_blank" rel="noopener"><i class="bi bi-whatsapp me-2"></i>Escribir por WhatsApp</a>
@@ -299,6 +299,24 @@
                     <div class="servicio-pie">
                         <span class="servicio-precio">Desde S/ 200</span>
                         <span class="servicio-duracion"><i class="bi bi-clock me-1"></i>2 – 3 h</span>
+                    </div>
+                    <a class="btn btn-accent" href="{{ url_for('citas.agendar_form') }}">Agendar</a>
+                </div>
+            </article>
+
+            <article class="servicio-card">
+                <div class="servicio-foto">
+                    <img src="{{ url_for('static', filename='img/servicio-microondas.webp') }}"
+                         alt="Microondas en revisión en el taller de Santa Lucía" width="800" height="600" loading="lazy"
+                         onerror="this.remove()">
+                    <span class="servicio-ico" aria-hidden="true"><i class="bi bi-lightning-charge"></i></span>
+                </div>
+                <div class="servicio-cuerpo">
+                    <h3>Microondas</h3>
+                    <p>Revisión de magnetrón, transformador, plato giratorio y panel de control.</p>
+                    <div class="servicio-pie">
+                        <span class="servicio-precio">Consultar</span>
+                        <span class="servicio-duracion"><i class="bi bi-clock me-1"></i>1 – 2 h</span>
                     </div>
                     <a class="btn btn-accent" href="{{ url_for('citas.agendar_form') }}">Agendar</a>
                 </div>

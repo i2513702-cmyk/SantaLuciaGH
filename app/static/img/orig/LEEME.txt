@@ -8,6 +8,7 @@ Fotos originales para la portada de Santa Lucía
    servicio-secadora       -> foto de secadora
    servicio-refrigeradora  -> foto de refrigeradora
    servicio-congeladora    -> foto de congeladora
+   servicio-microondas     -> foto de microondas
    trabajo-1               -> foto de un trabajo (1)
    trabajo-2               -> foto de un trabajo (2)
    trabajo-3               -> foto de un trabajo (3)
