@@ -375,7 +375,7 @@
             <h3>Taller Santa Lucía</h3>
             <div class="contacto-fachada">
                 <i class="bi bi-shop contacto-fachada-fb" aria-hidden="true"></i>
-                <img src="{{ url_for('static', filename='img/fachada.webp') }}" alt="Fachada del taller Santa Lucía en Chilca, Huancayo" width="1200" height="800" loading="lazy" onerror="this.remove()">
+                <img src="{{ url_for('static', filename='img/fachada.webp') }}" alt="Fachada del taller Santa Lucía en Chilca, Huancayo" width="1200" height="800" loading="lazy" decoding="async" onerror="this.onerror=null; this.src='{{ url_for('static', filename='img/taller-santa-lucia.jpg') }}';">
             </div>
             <p><i class="bi bi-geo-alt"></i> Av. 28 de Julio 723 · Chilca, Huancayo</p>
             <p><i class="bi bi-telephone"></i> <a href="tel:+51964618892">+51 964 618 892</a></p>
