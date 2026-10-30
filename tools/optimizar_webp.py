@@ -6,7 +6,7 @@ Uso:
 
         hero-tecnico          (foto del hero)
         servicio-lavadora     servicio-secadora
-        servicio-refrigeradora  servicio-congeladora
+        servicio-refrigeradora  servicio-congeladora  servicio-microondas
         trabajo-1  trabajo-2  trabajo-3
         fachada   equipo
 
@@ -34,6 +34,7 @@ TARGETS = [
     ("servicio-secadora", (800, 600), 78, 100),
     ("servicio-refrigeradora", (800, 600), 78, 100),
     ("servicio-congeladora", (800, 600), 78, 100),
+    ("servicio-microondas", (800, 600), 78, 100),
     ("trabajo-1", (800, 600), 78, 100),
     ("trabajo-2", (800, 600), 78, 100),
     ("trabajo-3", (800, 600), 78, 100),
