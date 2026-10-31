@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Mis citas ? {{ app_name }}{% endblock %}
+{% block title %}Mis citas — {{ app_name }}{% endblock %}
 
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/citas_seguimiento.css') }}">
@@ -8,40 +8,40 @@
 
 {% block content %}
 {% macro tarjeta_cita(c) %}
-<article class="card cita-seg-card no-hover">
+<article class="card no-hover cita-seg-card">
     <div class="cita-seg-head">
         <div>
             <span class="cita-seg-code">Cita #{{ c.id }}</span>
-            <h3>{{ c.fecha_legible }}{% if c.hora %} ? {{ c.hora }}{% if c.hora_fin %} ? {{ c.hora_fin }}{% endif %} hrs{% endif %}</h3>
-            <p class="cita-seg-equipo">{{ c.equipo }}{% if c.numero_serie %} ? N/S {{ c.numero_serie }}{% endif %}</p>
+            <h3>{{ c.fecha_legible }}{% if c.hora %} · {{ c.hora }}{% if c.hora_fin %} – {{ c.hora_fin }}{% endif %} hrs{% endif %}</h3>
+            <p class="cita-seg-equipo">{{ c.equipo }}{% if c.numero_serie %} · N/S {{ c.numero_serie }}{% endif %}</p>
         </div>
         <div class="cita-seg-estado">
-            <span class="badge {{ c.badge }} cita-seg-badge"><i class="bi bi-{{ c.icono }}"></i> {{ c.estado_label }}</span>
-            <span class="text-muted text-sm">{{ c.tipo_atencion_label }}</span>
+            <span class="badge {{ c.badge }}"><i class="bi bi-{{ c.icono }}"></i> {{ c.estado_label }}</span>
+            <span class="text-secondary small">{{ c.tipo_atencion_label }}</span>
         </div>
     </div>
 
     {% if c.estado_raw != 'CANCELADA' %}
         {% set pasos_hechos = c.pasos|selectattr('estado', 'equalto', 'hecho')|list|length %}
-        {% set progreso = (pasos_hechos * 100 // (c.pasos|length or 1)) %}
-        <div class="cita-progress" aria-hidden="true"><span style="width: {{ progreso }}%"></span></div>
+        {% set total_pasos = c.pasos|length or 1 %}
+        <div class="cita-progress" aria-hidden="true"><span style="width: {{ (pasos_hechos * 100 // total_pasos) }}%"></span></div>
     {% else %}
-        <div class="cita-progress" aria-hidden="true"><span style="width: 100%; background: linear-gradient(90deg, #dc2626, #ef4444);"></span></div>
+        <div class="cita-progress cita-progress--cancel" aria-hidden="true"><span style="width: 100%"></span></div>
     {% endif %}
 
     <p class="cita-seg-mensaje">{{ c.mensaje }}</p>
 
     {% if c.estado_raw == 'CANCELADA' %}
     <div class="cita-cancelada">
-        <i class="bi bi-x-circle-fill"></i>
-        <span>Esta cita fue cancelada. Si a?n necesitas el servicio, puedes agendar una nueva cita.</span>
+        <i class="bi bi-x-circle"></i>
+        <span>Esta cita fue cancelada. Si aún necesitas el servicio, puedes agendar una nueva cita.</span>
     </div>
     {% else %}
     <ol class="cita-timeline" aria-label="Avance de la cita">
         {% for paso in c.pasos %}
         <li class="cita-paso {{ paso.estado }}">
             <span class="cita-paso-dot" aria-hidden="true">
-                <i class="bi bi-{{ 'check-lg' if paso.estado == 'hecho' else ('record-fill' if paso.estado == 'activo' else 'circle') }}"></i>
+                <i class="bi bi-{{ 'check' if paso.estado == 'hecho' else ('circle-fill' if paso.estado == 'activo' else 'circle') }}"></i>
             </span>
             <div class="cita-paso-texto">
                 <strong>{{ paso.titulo }}</strong>
@@ -55,9 +55,9 @@
 
     <div class="cita-seg-meta">
         <span><i class="bi bi-shop"></i> {{ c.tipo_atencion_label }}</span>
-        {% if c.tecnico %}<span><i class="bi bi-person-gear"></i> T?cnico: {{ c.tecnico }}</span>{% endif %}
+        {% if c.tecnico %}<span><i class="bi bi-person-gear"></i> Técnico: {{ c.tecnico }}</span>{% endif %}
         {% if c.direccion %}<span><i class="bi bi-geo-alt"></i> {{ c.direccion }}</span>{% endif %}
-        {% if c.creada %}<span><i class="bi bi-clock-history"></i> Registrada: {{ c.creada }}</span>{% endif %}
+        {% if c.creada %}<span><i class="bi bi-clock"></i> Registrada: {{ c.creada }}</span>{% endif %}
     </div>
 
     {% if c.motivo or c.observaciones %}
@@ -71,7 +71,7 @@
     <div class="cita-reparacion">
         <div>
             <span class="cita-reparacion-title"><i class="bi bi-tools"></i> Orden de servicio OS-{{ c.reparacion.id }}</span>
-            <span class="text-muted text-sm">Tu equipo est? en el taller{% if c.reparacion.fecha %} ? actualizado el {{ c.reparacion.fecha }}{% endif %}</span>
+            <span class="text-secondary small">Tu equipo está en el taller{% if c.reparacion.fecha %} · actualizado el {{ c.reparacion.fecha }}{% endif %}</span>
         </div>
         <span class="badge {{ c.reparacion.badge }}"><i class="bi bi-{{ c.reparacion.icono }}"></i> {{ c.reparacion.label }}</span>
     </div>
@@ -79,58 +79,50 @@
 </article>
 {% endmacro %}
 
-<section class="citas-hero">
-    <div class="citas-hero-inner">
-        <div>
-            <span class="citas-hero-kicker"><i class="bi bi-radar"></i> Seguimiento en vivo</span>
-            <h1>Seguimiento de mis citas</h1>
-            <p>Consulta el estado de tus citas de servicio t?cnico y el avance de cada atenci?n, todo en un solo lugar.</p>
-            <a class="btn btn-hero" href="{{ url_for('citas.agendar_form') }}"><i class="bi bi-calendar-plus"></i> Agendar otra cita</a>
-        </div>
-        <div class="citas-hero-visual"><i class="bi bi-calendar2-check"></i></div>
+<section class="panel-head">
+    <div>
+        <h1>Mis citas</h1>
+        <p>Consulta el estado de tus citas de servicio técnico y el avance de cada atención.</p>
+    </div>
+    <div class="panel-actions">
+        <a class="btn btn-primary btn-sm" href="{{ url_for('citas.agendar_form') }}">
+            <i class="bi bi-calendar-plus"></i> Agendar otra cita
+        </a>
     </div>
 </section>
 
 {% if not cliente_vinculado %}
-    <div class="citas-empty">
-        <div class="empty-icon">??</div>
-        <h3>Cuenta no vinculada</h3>
-        <p>Tu cuenta no est? vinculada a un cliente. Pide al personal que revise tu registro para poder mostrarte tus citas.</p>
-        <a class="btn btn-primary" href="{{ url_for('main.perfil') }}">Ir a mi perfil</a>
+    <div class="empty-state">
+        <p class="text-secondary">Tu cuenta no está vinculada a un cliente. Pide al personal que revise tu registro para poder mostrarte tus citas.</p>
+        <a class="btn btn-outline btn-sm" href="{{ url_for('main.perfil') }}">Ir a mi perfil</a>
     </div>
 {% elif not citas %}
-    <div class="citas-empty">
-        <div class="empty-icon">??</div>
-        <h3>A?n no tienes citas</h3>
-        <p>A?n no tienes citas registradas. Agenda tu primera cita y aqu? podr?s seguir su estado paso a paso.</p>
-        <a class="btn btn-primary" href="{{ url_for('citas.agendar_form') }}">Agendar mi primera cita</a>
+    <div class="empty-state">
+        <p class="text-secondary">Aún no tienes citas registradas. Agenda tu primera cita y aquí podrás seguir su estado.</p>
+        <a class="btn btn-primary btn-sm" href="{{ url_for('citas.agendar_form') }}">Agendar mi primera cita</a>
     </div>
 {% else %}
-    <section class="citas-resumen" aria-label="Resumen de mis citas">
-        <div class="resumen-item">
-            <span class="resumen-icon"><i class="bi bi-calendar2-week"></i></span>
-            <div><strong>{{ resumen.total }}</strong><span>Total de citas</span></div>
+    <div class="citas-resumen">
+        <div class="card no-hover resumen-item">
+            <i class="bi bi-calendar2-week text-primary"></i>
+            <div><strong>{{ resumen.total }}</strong><span>Total</span></div>
         </div>
-        <div class="resumen-item">
-            <span class="resumen-icon"><i class="bi bi-hourglass-split"></i></span>
+        <div class="card no-hover resumen-item">
+            <i class="bi bi-hourglass-split text-warning"></i>
             <div><strong>{{ resumen.activas }}</strong><span>En seguimiento</span></div>
         </div>
-        <div class="resumen-item">
-            <span class="resumen-icon"><i class="bi bi-check-circle"></i></span>
+        <div class="card no-hover resumen-item">
+            <i class="bi bi-check-circle text-success"></i>
             <div><strong>{{ resumen.completadas }}</strong><span>Completadas</span></div>
         </div>
-        <div class="resumen-item">
-            <span class="resumen-icon"><i class="bi bi-x-circle"></i></span>
+        <div class="card no-hover resumen-item">
+            <i class="bi bi-x-circle text-danger"></i>
             <div><strong>{{ resumen.canceladas }}</strong><span>Canceladas</span></div>
         </div>
-    </section>
+    </div>
 
     {% if activas %}
-    <div class="citas-section-title">
-        <span class="dot"></span>
-        <h2>Citas en seguimiento</h2>
-        <span class="count">{{ activas|length }}</span>
-    </div>
+    <h2 class="section-title">Citas en seguimiento</h2>
     <div class="citas-seguimiento">
         {% for c in activas %}
             {{ tarjeta_cita(c) }}
@@ -139,11 +131,7 @@
     {% endif %}
 
     {% if historial %}
-    <div class="citas-section-title">
-        <span class="dot" style="background: var(--muted); box-shadow: 0 0 0 5px rgba(148, 163, 184, .15);"></span>
-        <h2>Historial de citas</h2>
-        <span class="count">{{ historial|length }}</span>
-    </div>
+    <h2 class="section-title">Historial de citas</h2>
     <div class="citas-seguimiento">
         {% for c in historial %}
             {{ tarjeta_cita(c) }}

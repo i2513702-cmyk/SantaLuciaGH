@@ -142,3 +142,15 @@
     mostrar(0);
   });
 })();
+/* Envuelve la moneda "S/" del precio para darle menor tamano. */
+(function () {
+  'use strict';
+  document.querySelectorAll('.carrusel .price-now').forEach(function (el) {
+    if (el.querySelector('.price-currency')) return;
+    var txt = (el.textContent || '').trim();
+    var m = txt.match(/^S\/?\s*(.*)$/);
+    if (m) {
+      el.innerHTML = '<span class="price-currency">S/</span> ' + m[1];
+    }
+  });
+})();

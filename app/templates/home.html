@@ -5,9 +5,9 @@
 {% block content %}
 
 <!-- ─── Hero ──────────────────────────────────────────── -->
-<section class="hero hero-full">
+<section class="hero hero-full hero--garantias">
     <img class="hero-bg-img" src="{{ url_for('static', filename='img/hero/hero-electrodomesticos.webp') }}"
-         alt="Electrodomésticos reparados por Santa Lucía Servicio Técnico en Huancayo"
+         alt="Electrodomésticos reparados por Santa Lucía Servicio Técnico en HuancayoX"
          width="1920" height="1055" fetchpriority="high">
     <div class="hero-bg-overlay" aria-hidden="true"></div>
     <div class="hero-container">
@@ -35,7 +35,7 @@
                             <circle cx="5.5" cy="18.5" r="2.5"></circle>
                             <circle cx="18.5" cy="18.5" r="2.5"></circle>
                         </svg>
-                        <span>Atención a domicilio en Huancayo</span>
+                        <span>Atención a domicilio</span>
                     </div>
                 </div>
                 {% if es_admin %}
@@ -59,40 +59,74 @@
                     <circle cx="5.5" cy="18.5" r="2.5"></circle>
                     <circle cx="18.5" cy="18.5" r="2.5"></circle>
                 </svg>
-                <span>Atención a domicilio en Huancayo</span>
+                <span>Atención a domicilio</span>
             </div>
         </div>
     </div>
 </section>
 
-<!-- ─── Franjas de confianza (unificadas) ───────────────── -->
-<section class="trust-bar trust-bar--petroleo">
-    <div class="container">
-        <!-- TODO: Si el taller confirma cifras verificables (años, reparaciones, técnicos),
-             reemplazar estas 4 fichas por esos datos. Mientras tanto, solo datos de servicio. -->
-        <div class="row g-4 text-center text-lg-start">
-            <div class="col-6 col-lg-3 trust-bar-item">
-                <div class="trust-bar-num">90 días</div>
-                <div class="trust-bar-desc">Garantía por escrito</div>
-            </div>
-            <div class="col-6 col-lg-3 trust-bar-item">
-                <div class="trust-bar-num">El mismo día</div>
-                <div class="trust-bar-desc">Atención a domicilio en Huancayo</div>
-            </div>
-            <div class="col-6 col-lg-3 trust-bar-item">
-                <div class="trust-bar-num">Boleta o factura</div>
-                <div class="trust-bar-desc">Comprobante en cada trabajo</div>
-            </div>
-            <div class="col-6 col-lg-3 trust-bar-item">
-                <div class="trust-bar-num">Efectivo, Yape o tarjeta</div>
-                <div class="trust-bar-desc">Formas de pago aceptadas</div>
-            </div>
+<!-- Franja de garantias -->
+<section class="garantias">
+  <div class="garantias-container">
+    <div class="garantias-grid">
+      <article class="garantia-card">
+        <div class="garantia-body">
+          <div class="garantia-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+          </div>
+          <div class="garantia-text">
+            <h3 class="garantia-title">90 días</h3>
+            <p class="garantia-sub">Garantía por escrito</p>
+          </div>
         </div>
-        <div class="row g-3 mt-2 justify-content-center text-center">
-            <div class="col-auto trust-bar-line"><i class="bi bi-geo-alt"></i> Av. 28 de Julio 723 · Chilca, Huancayo</div>
-            <div class="col-auto trust-bar-line"><i class="bi bi-clock"></i> Lun a Sáb · 9:00 – 19:00</div>
+      </article>
+
+      <article class="garantia-card">
+        <div class="garantia-body">
+          <div class="garantia-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="m9 15 2 2 4-4"/></svg>
+          </div>
+          <div class="garantia-text">
+            <h3 class="garantia-title">El mismo día</h3>
+            <p class="garantia-sub">Atención a domicilio en Huancayo</p>
+          </div>
         </div>
+      </article>
+
+      <article class="garantia-card">
+        <div class="garantia-body">
+          <div class="garantia-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l3-2 3 2 3-2 3 2 3-2 3 2V2l-3 2-3-2-3 2-3-2-3 2-3-2z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+          </div>
+          <div class="garantia-text">
+            <h3 class="garantia-title">Boleta o factura</h3>
+            <p class="garantia-sub">Comprobante en cada trabajo</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="garantia-card">
+        <div class="garantia-body">
+          <div class="garantia-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M16 12h.01"/><path d="M3 9h18"/></svg>
+          </div>
+          <div class="garantia-text">
+            <h3 class="garantia-title">Yape, efectivo, tarjeta</h3>
+            <p class="garantia-sub">Formas de pago aceptadas</p>
+          </div>
+        </div>
+      </article>
     </div>
+
+    <div class="garantias-bottom">
+      <a class="garantia-pill" href="https://www.google.com/maps/search/?api=1&query=Av.+28+de+Julio+723,+Chilca,+Huancayo" target="_blank" rel="noopener noreferrer">
+        <i class="bi bi-geo-alt"></i> Av. 28 de Julio 723 · Chilca, Huancayo
+      </a>
+      <span class="garantia-pill">
+        <i class="bi bi-clock"></i> Lun a Sáb · 9:00 – 19:00
+      </span>
+    </div>
+  </div>
 </section>
 
 <!-- ─── Marcas ────────────────────────────────────────── -->
@@ -134,23 +168,44 @@
     </div>
     <div class="container">
         <div class="categorias-bloque">
-            {# Iconos de Bootstrap Icons por categoría (sin emojis) #}
             {% set iconos = {
                 "MOTORES": "gear-fill",
                 "BOMBAS": "droplet-fill",
-                "TARJETAS ELECTRÓNICAS": "cpu-fill",
+                "TARJETAS ELECTRONICAS": "cpu",
                 "SENSORES": "broadcast",
-                "COMPONENTES ELÉCTRICOS": "lightning-charge-fill",
+                "COMPONENTES ELECTRICOS": "bolt",
                 "ACCESORIOS": "tools",
-                "ELECTRODOMÉSTICOS": "house-door-fill",
-                "OTROS": "box-seam-fill"
+                "ELECTRODOMESTICOS": "wash",
+                "OTROS": "dots"
+            } %}
+            {% set nombres = {
+                "MOTORES": "Motores",
+                "BOMBAS": "Bombas",
+                "TARJETAS ELECTRONICAS": "Tarjetas electrónicas",
+                "SENSORES": "Sensores",
+                "COMPONENTES ELECTRICOS": "Componentes eléctricos",
+                "ACCESORIOS": "Accesorios",
+                "ELECTRODOMESTICOS": "Electrodomésticos",
+                "OTROS": "Otros"
             } %}
             <div class="categorias-chips">
                 {% for cat in categorias %}
-                    <a class="cat-chip" href="{{ url_for('main.tienda') }}">
+                    {% if cat.nombre|upper != "OTROS" %}
+                    <a class="cat-chip" href="{{ url_for('main.tienda', cat=cat.id) }}" aria-label="Ver {{ nombres.get(cat.nombre, cat.nombre.title()) }}">
+                        {% if iconos.get(cat.nombre, "box") == "cpu" %}
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/></svg>
+                        {% elif iconos.get(cat.nombre, "box") == "bolt" %}
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                        {% elif iconos.get(cat.nombre, "box") == "wash" %}
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2"/><circle cx="12" cy="13" r="5"/><path d="M7 6h.01M10 6h.01"/></svg>
+                        {% elif iconos.get(cat.nombre, "box") == "dots" %}
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
+                        {% else %}
                         <i class="bi bi-{{ iconos.get(cat.nombre, 'box-seam-fill') }}" aria-hidden="true"></i>
-                        <span>{{ cat.nombre.title() }}</span>
+                        {% endif %}
+                        <span>{{ nombres.get(cat.nombre, cat.nombre.title()) }}</span>
                     </a>
+                    {% endif %}
                 {% endfor %}
             </div>
         </div>
