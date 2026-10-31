@@ -215,6 +215,353 @@ def datos_usuario(usuario_id) -> dict:
     }
 
 
+# --- Seguimiento de citas para el cliente ---------------------------------
+
+ESTADO_CITA_UI = {
+    "PENDIENTE": {
+        "label": "Pendiente de confirmación",
+        "badge": "text-bg-warning",
+        "icono": "hourglass-split",
+        "mensaje": "Recibimos tu solicitud. Te contactaremos para confirmar la cita.",
+    },
+    "CONFIRMADA": {
+        "label": "Confirmada",
+        "badge": "text-bg-info",
+        "icono": "calendar-check",
+        "mensaje": "Tu cita está confirmada. Un técnico fue asignado para atenderte.",
+    },
+    "EN_ATENCION": {
+        "label": "En atención",
+        "badge": "text-bg-primary",
+        "icono": "tools",
+        "mensaje": "El técnico ya está trabajando en la atención de tu cita.",
+    },
+    "COMPLETADA": {
+        "label": "Completada",
+        "badge": "text-bg-success",
+        "icono": "check-circle",
+        "mensaje": "La atención de tu cita finalizó correctamente.",
+    },
+    "ATENDIDA": {
+        "label": "Atendida",
+        "badge": "text-bg-success",
+        "icono": "check-circle",
+        "mensaje": "La atención de tu cita finalizó correctamente.",
+    },
+    "CANCELADA": {
+        "label": "Cancelada",
+        "badge": "text-bg-danger",
+        "icono": "x-circle",
+        "mensaje": "Esta cita fue cancelada. Puedes agendar una nueva cuando lo necesites.",
+    },
+}
+
+ESTADOS_CITA_ACTIVOS = ("PENDIENTE", "CONFIRMADA", "EN_ATENCION")
+ESTADOS_CITA_FINALES = ("COMPLETADA", "ATENDIDA")
+
+_ORDEN_ESTADO_CITA = {
+    "PENDIENTE": 0,
+    "CONFIRMADA": 1,
+    "EN_ATENCION": 2,
+    "COMPLETADA": 3,
+    "ATENDIDA": 3,
+}
+
+_ALIAS_ESTADO_CITA = {
+    "ATENDIDO": "ATENDIDA",
+    "EN_PROCESO": "EN_ATENCION",
+    "FINALIZADA": "COMPLETADA",
+}
+
+ESTADO_REPARACION_UI = {
+    "RECIBIDO": ("Recibido", "text-bg-secondary", "inbox"),
+    "DIAGNOSTICO": ("En diagnóstico", "text-bg-info", "search"),
+    "ESPERANDO_APROBACION": ("Esperando aprobación", "text-bg-warning", "hourglass-split"),
+    "APROBADO": ("Aprobado", "text-bg-info", "check2-circle"),
+    "ESPERANDO_REPUESTO": ("Esperando repuesto", "text-bg-warning", "box-seam"),
+    "EN_REPARACION": ("En reparación", "text-bg-primary", "tools"),
+    "REPARADO": ("Reparado", "text-bg-success", "check-circle"),
+    "LISTO_ENTREGA": ("Listo para entrega", "text-bg-success", "box2-heart"),
+    "ENTREGADO": ("Entregado", "text-bg-success", "bag-check"),
+    "NO_REPARABLE": ("No reparable", "text-bg-danger", "x-octagon"),
+    "CANCELADO": ("Cancelado", "text-bg-danger", "x-circle"),
+}
+
+# Columnas para el seguimiento. `distrito` no se incluye porque es opcional en
+# la base (migración 04) y la dirección completa ya vive en `calle`.
+_CAMPOS_CITA_CLIENTE = (
+    "id,fecha_reserva,hora_inicio,hora_fin,estado,tipo_atencion,motivo,"
+    "observaciones,calle,fecha_creacion,fecha_actualizacion,"
+    "fecha_primera_atencion,"
+    "electrodomesticos(modelo,numero_serie,marcas(nombre),"
+    "tipos_electrodomestico(nombre)),"
+    "tecnicos(id,empleados(nombres,apellidos))"
+)
+
+_CAMPOS_CITA_CLIENTE_BASE = (
+    "id,fecha_reserva,hora_inicio,hora_fin,estado,tipo_atencion,motivo,"
+    "observaciones,calle,fecha_creacion,fecha_actualizacion,"
+    "fecha_primera_atencion,electrodomestico_id,tecnico_id"
+)
+
+_CAMPOS_REPARACION_CLIENTE = (
+    "id,reserva_id,estado,problema,fecha_ingreso,fecha_actualizacion,"
+    "fecha_entrega,garantia_dias,costo_total"
+)
+
+
+def _normalizar_estado_cita(estado) -> str:
+    """Normaliza el estado guardado en BD (incluye valores históricos)."""
+    valor = (str(estado or "PENDIENTE")).strip().upper()
+    return _ALIAS_ESTADO_CITA.get(valor, valor)
+
+
+def _fecha_corta(valor) -> str:
+    """Devuelve `DD/MM/AAAA` a partir de una fecha ISO."""
+    texto = str(valor or "").strip()
+    if not texto:
+        return ""
+    try:
+        return date_cls.fromisoformat(texto[:10]).strftime("%d/%m/%Y")
+    except ValueError:
+        return texto[:10]
+
+
+def _fecha_hora_corta(valor) -> str:
+    """Devuelve `DD/MM/AAAA HH:MM` a partir de una marca ISO."""
+    texto = str(valor or "").strip()
+    if not texto:
+        return ""
+    try:
+        return datetime.fromisoformat(texto.replace("Z", "+00:00")).strftime("%d/%m/%Y %H:%M")
+    except ValueError:
+        return texto[:16].replace("T", " ")
+
+
+def _hora_corta(valor) -> str:
+    return str(valor or "").strip()[:5]
+
+
+def _nombre_tecnico(reserva: dict) -> str:
+    tecnico = reserva.get("tecnicos") or {}
+    empleado = tecnico.get("empleados") or {}
+    return " ".join(
+        parte for parte in (empleado.get("nombres"), empleado.get("apellidos")) if parte
+    ).strip()
+
+
+def _equipo_cita(reserva: dict) -> tuple:
+    """Devuelve (texto del equipo, número de serie) a partir del join."""
+    equipo = reserva.get("electrodomesticos") or {}
+    tipo = (equipo.get("tipos_electrodomestico") or {}).get("nombre")
+    marca = (equipo.get("marcas") or {}).get("nombre")
+    modelo = equipo.get("modelo")
+    partes = [str(p).strip() for p in (tipo, marca, modelo) if p and str(p).strip()]
+    return " · ".join(partes), (equipo.get("numero_serie") or "").strip()
+
+
+def _pasos_cita(reserva: dict, estado: str, reparacion: dict | None) -> list:
+    """Arma la línea de tiempo visible para el cliente."""
+    reparacion = reparacion or {}
+    indice = _ORDEN_ESTADO_CITA.get(estado, 0)
+    cancelada = estado == "CANCELADA"
+    definiciones = [
+        (
+            "Solicitud recibida",
+            "Registramos tu cita en el sistema.",
+            _fecha_corta(reserva.get("fecha_creacion")),
+        ),
+        (
+            "Cita confirmada",
+            "Asignamos un técnico y confirmamos tu cita.",
+            _fecha_corta(reserva.get("fecha_primera_atencion")),
+        ),
+        (
+            "En atención",
+            "El técnico está revisando tu equipo.",
+            _fecha_corta(reparacion.get("fecha_ingreso")),
+        ),
+        (
+            "Atención completada",
+            "La cita terminó correctamente.",
+            _fecha_corta(
+                reparacion.get("fecha_entrega") or reserva.get("fecha_actualizacion")
+            ),
+        ),
+    ]
+
+    pasos = []
+    for posicion, (titulo, descripcion, fecha) in enumerate(definiciones):
+        if cancelada:
+            estado_paso = "hecho" if posicion == 0 else "pendiente"
+        elif posicion < indice or (
+            posicion == indice and estado in ESTADOS_CITA_FINALES
+        ):
+            estado_paso = "hecho"
+        elif posicion == indice:
+            estado_paso = "activo"
+        else:
+            estado_paso = "pendiente"
+        pasos.append({
+            "titulo": titulo,
+            "descripcion": descripcion,
+            "fecha": fecha if estado_paso != "pendiente" else "",
+            "estado": estado_paso,
+        })
+    return pasos
+
+
+def _reparacion_cita(reparacion: dict | None) -> dict | None:
+    if not reparacion:
+        return None
+    estado = (str(reparacion.get("estado") or "")).strip().upper()
+    label, badge, icono = ESTADO_REPARACION_UI.get(
+        estado, (estado.replace("_", " ").title() or "En taller", "text-bg-secondary", "wrench")
+    )
+    return {
+        "id": reparacion.get("id"),
+        "estado": estado,
+        "label": label,
+        "badge": badge,
+        "icono": icono,
+        "fecha": _fecha_corta(
+            reparacion.get("fecha_actualizacion") or reparacion.get("fecha_ingreso")
+        ),
+    }
+
+
+def _leer_citas_cliente(cliente_id) -> list:
+    """Citas del cliente. Si el join falla, se reintenta sin relaciones."""
+    for campos in (_CAMPOS_CITA_CLIENTE, _CAMPOS_CITA_CLIENTE_BASE):
+        try:
+            return (
+                get_reader()
+                .table("reservas")
+                .select(campos)
+                .eq("cliente_id", cliente_id)
+                .order("fecha_reserva", desc=True)
+                .order("hora_inicio", desc=True)
+                .limit(200)
+                .execute()
+                .data
+                or []
+            )
+        except Exception:  # noqa: BLE001
+            continue
+    log.exception("No se pudieron cargar las citas del cliente %s", cliente_id)
+    return []
+
+
+def _leer_reparaciones_citas(reserva_ids: list) -> dict:
+    """Última orden de reparación por cita (si el equipo pasó al taller)."""
+    if not reserva_ids:
+        return {}
+    try:
+        filas = (
+            get_reader()
+            .table("reparaciones")
+            .select(_CAMPOS_REPARACION_CLIENTE)
+            .in_("reserva_id", reserva_ids)
+            .order("id", desc=True)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:  # noqa: BLE001
+        log.exception("No se pudieron cargar las reparaciones de las citas")
+        return {}
+
+    por_reserva = {}
+    for fila in filas:
+        reserva_id = fila.get("reserva_id")
+        if reserva_id is not None:
+            por_reserva.setdefault(reserva_id, fila)
+    return por_reserva
+
+
+def listar_citas_cliente(cliente_id) -> dict:
+    """Citas y seguimiento del cliente, agrupados para la vista pública.
+
+    Devuelve ``activas`` (pendiente/confirmada/en atención), ``historial``
+    (completadas, atendidas o canceladas) y un ``resumen`` con los contadores.
+    """
+    vacio = {
+        "citas": [],
+        "activas": [],
+        "historial": [],
+        "resumen": {"total": 0, "activas": 0, "completadas": 0, "canceladas": 0},
+    }
+    if not cliente_id:
+        return vacio
+
+    filas = _leer_citas_cliente(cliente_id)
+    reparaciones = _leer_reparaciones_citas([
+        fila.get("id") for fila in filas if fila.get("id") is not None
+    ])
+
+    citas = []
+    for fila in filas:
+        estado = _normalizar_estado_cita(fila.get("estado"))
+        info = ESTADO_CITA_UI.get(
+            estado,
+            {
+                "label": estado.replace("_", " ").title() or "Pendiente",
+                "badge": "text-bg-secondary",
+                "icono": "dot",
+                "mensaje": "Consulta con nosotros el estado de tu cita.",
+            },
+        )
+        equipo, numero_serie = _equipo_cita(fila)
+        reparacion = reparaciones.get(fila.get("id"))
+        tipo_atencion = (fila.get("tipo_atencion") or "").strip().upper()
+
+        citas.append({
+            "id": fila.get("id"),
+            "fecha": (fila.get("fecha_reserva") or "")[:10],
+            "fecha_legible": _fecha_corta(fila.get("fecha_reserva")),
+            "hora": _hora_corta(fila.get("hora_inicio")),
+            "hora_fin": _hora_corta(fila.get("hora_fin")),
+            "estado_raw": estado,
+            "estado_label": info["label"],
+            "badge": info["badge"],
+            "icono": info["icono"],
+            "mensaje": info["mensaje"],
+            "tipo_atencion": tipo_atencion,
+            "tipo_atencion_label": (
+                "A domicilio" if tipo_atencion == "DOMICILIO" else "En taller"
+            ),
+            "equipo": equipo or "Equipo registrado",
+            "numero_serie": numero_serie,
+            "motivo": (fila.get("motivo") or "").strip(),
+            "observaciones": (fila.get("observaciones") or "").strip(),
+            "direccion": (fila.get("calle") or "").strip(),
+            "tecnico": _nombre_tecnico(fila),
+            "creada": _fecha_hora_corta(fila.get("fecha_creacion")),
+            "actualizada": _fecha_hora_corta(fila.get("fecha_actualizacion")),
+            "pasos": _pasos_cita(fila, estado, reparacion),
+            "reparacion": _reparacion_cita(reparacion),
+        })
+
+    activas = [c for c in citas if c["estado_raw"] in ESTADOS_CITA_ACTIVOS]
+    historial = [c for c in citas if c["estado_raw"] not in ESTADOS_CITA_ACTIVOS]
+    activas.sort(key=lambda c: (c["fecha"], c["hora"]))
+    historial.sort(key=lambda c: (c["fecha"], c["hora"]), reverse=True)
+
+    return {
+        "citas": activas + historial,
+        "activas": activas,
+        "historial": historial,
+        "resumen": {
+            "total": len(citas),
+            "activas": len(activas),
+            "completadas": sum(
+                1 for c in citas if c["estado_raw"] in ESTADOS_CITA_FINALES
+            ),
+            "canceladas": sum(1 for c in citas if c["estado_raw"] == "CANCELADA"),
+        },
+    }
+
+
 def seed_demo() -> dict:
     """Crea técnicos desde los usuarios con rol TECNICO y su agenda demo.
 
