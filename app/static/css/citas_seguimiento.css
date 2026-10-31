@@ -1,0 +1,246 @@
+/* ============================================================
+   SEGUIMIENTO DE CITAS DEL CLIENTE - diseno llamativo
+   ============================================================ */
+
+/* ---------- Hero ---------- */
+.citas-hero {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--radius-lg);
+    padding: 34px 32px;
+    margin-bottom: 28px;
+    background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 55%, var(--primary-light) 100%);
+    color: #fff;
+    box-shadow: var(--shadow-lg);
+    animation: fadeUp .5s ease both;
+}
+.citas-hero::before,
+.citas-hero::after {
+    content: "";
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .12);
+    pointer-events: none;
+}
+.citas-hero::before { width: 260px; height: 260px; top: -90px; right: -60px; }
+.citas-hero::after { width: 180px; height: 180px; bottom: -70px; left: -40px; }
+.citas-hero-inner { position: relative; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; }
+.citas-hero-kicker {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 12px; border-radius: 999px;
+    background: rgba(255, 255, 255, .18); backdrop-filter: blur(4px);
+    font-size: .78rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+    margin-bottom: 10px;
+}
+.citas-hero h1 { margin: 0 0 6px; font-size: 2rem; color: #fff; line-height: 1.15; }
+.citas-hero p { margin: 0 0 16px; color: rgba(255, 255, 255, .88); font-size: 1rem; max-width: 620px; }
+.citas-hero .btn-hero {
+    background: #fff; color: var(--primary-dark); border: 0; font-weight: 700;
+    box-shadow: 0 8px 20px rgba(2, 76, 120, .25);
+}
+.citas-hero .btn-hero:hover { background: var(--surface-alt); color: var(--primary-dark); transform: translateY(-2px); }
+.citas-hero-visual { position: relative; z-index: 1; font-size: 4.6rem; line-height: 1; opacity: .9; }
+
+/* ---------- Resumen ---------- */
+.citas-resumen {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 28px;
+}
+.resumen-item {
+    display: flex; align-items: center; gap: 16px;
+    padding: 20px 22px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+    animation: fadeUp .5s ease both;
+}
+.resumen-item:hover { transform: translateY(-5px); box-shadow: var(--shadow-lg); border-color: var(--primary-light); }
+.resumen-item:nth-child(1) { animation-delay: .05s; }
+.resumen-item:nth-child(2) { animation-delay: .1s; }
+.resumen-item:nth-child(3) { animation-delay: .15s; }
+.resumen-item:nth-child(4) { animation-delay: .2s; }
+.resumen-icon {
+    width: 54px; height: 54px; flex: 0 0 54px;
+    display: grid; place-items: center;
+    border-radius: 14px; font-size: 1.55rem; line-height: 1;
+    background: var(--surface-alt); color: var(--primary-dark);
+}
+.resumen-item:nth-child(1) .resumen-icon { background: #e0f2fe; color: #0369a1; }
+.resumen-item:nth-child(2) .resumen-icon { background: #fef3c7; color: #b45309; }
+.resumen-item:nth-child(3) .resumen-icon { background: #dcfce7; color: #15803d; }
+.resumen-item:nth-child(4) .resumen-icon { background: #fee2e2; color: #b91c1c; }
+.resumen-item div { display: flex; flex-direction: column; line-height: 1.2; }
+.resumen-item strong { font-size: 1.8rem; font-weight: 800; color: var(--text); }
+.resumen-item div span { font-size: .82rem; font-weight: 600; color: var(--muted); }
+
+/* ---------- Titulos de seccion ---------- */
+.citas-section-title {
+    display: flex; align-items: center; gap: 10px;
+    margin: 30px 0 16px;
+}
+.citas-section-title .dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    background: var(--primary); box-shadow: 0 0 0 5px rgba(14, 165, 233, .15);
+}
+.citas-section-title h2 { margin: 0; font-size: 1.25rem; font-weight: 800; }
+.citas-section-title .count {
+    margin-left: auto; padding: 3px 12px; border-radius: 999px;
+    background: var(--surface-alt); color: var(--primary-dark); font-size: .78rem; font-weight: 700;
+}
+
+/* ---------- Tarjetas ---------- */
+.citas-seguimiento { display: flex; flex-direction: column; gap: 20px; }
+.cita-seg-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    padding: 0; overflow: hidden;
+    transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
+    animation: fadeUp .5s ease both;
+}
+.cita-seg-card:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); border-color: var(--primary-light); }
+.cita-seg-card.no-hover:hover { transform: none; box-shadow: var(--shadow); border-color: var(--border); }
+
+.cita-seg-head {
+    display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between;
+    gap: 16px; padding: 22px 24px 0;
+}
+.cita-seg-code {
+    display: inline-block; margin-bottom: 4px;
+    font-size: .72rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--primary);
+}
+.cita-seg-head h3 { margin: 0 0 4px; font-size: 1.15rem; font-weight: 800; }
+.cita-seg-equipo { margin: 0; font-size: .9rem; color: var(--text-secondary); }
+.cita-seg-estado { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; text-align: right; }
+.cita-seg-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px; font-size: .8rem; font-weight: 700; }
+
+.cita-progress { height: 7px; margin: 14px 24px 0; background: var(--surface-alt); border-radius: 999px; overflow: hidden; }
+.cita-progress span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--primary-dark), var(--primary)); transition: width .7s ease; }
+
+.cita-seg-mensaje {
+    margin: 14px 24px 0;
+    padding: 12px 16px;
+    font-size: .92rem; color: var(--text-secondary);
+    background: var(--surface-alt);
+    border-left: 4px solid var(--primary);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+/* ---------- Linea de tiempo ---------- */
+.cita-timeline {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
+    margin: 22px 24px; padding: 0; list-style: none;
+}
+.cita-paso {
+    position: relative; display: flex; flex-direction: column; align-items: center; gap: 9px;
+    padding: 0 10px; text-align: center;
+}
+.cita-paso::before {
+    content: ""; position: absolute; top: 17px; left: -50%; width: 100%; height: 3px;
+    background: var(--border); border-radius: 2px;
+}
+.cita-paso:first-child::before { display: none; }
+.cita-paso.hecho::before, .cita-paso.activo::before {
+    background: linear-gradient(90deg, var(--primary-dark), var(--primary));
+}
+.cita-paso-dot {
+    position: relative; z-index: 1;
+    width: 36px; height: 36px; flex: 0 0 36px;
+    display: grid; place-items: center;
+    border: 2px solid var(--border); border-radius: 50%;
+    background: #fff; color: var(--muted); font-size: .88rem;
+    transition: all .3s ease;
+}
+.cita-paso.hecho .cita-paso-dot {
+    background: var(--primary-dark); border-color: var(--primary-dark); color: #fff;
+    box-shadow: 0 4px 10px rgba(3, 105, 161, .35);
+}
+.cita-paso.activo .cita-paso-dot {
+    background: #fff; border-color: var(--primary); color: var(--primary);
+    box-shadow: 0 0 0 7px rgba(14, 165, 233, .14);
+    animation: pulse 1.9s ease-in-out infinite;
+}
+@keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 7px rgba(14, 165, 233, .14); }
+    50% { box-shadow: 0 0 0 12px rgba(14, 165, 233, .05); }
+}
+.cita-paso-texto { display: flex; flex-direction: column; gap: 1px; font-size: .78rem; color: var(--muted); line-height: 1.35; }
+.cita-paso-texto strong { font-size: .84rem; color: var(--text); }
+.cita-paso.pendiente .cita-paso-texto strong { color: var(--text-secondary); }
+.cita-paso-fecha { font-weight: 700; color: var(--primary-dark) !important; }
+
+/* ---------- Metadatos, detalle y reparacion ---------- */
+.cita-seg-meta {
+    display: flex; flex-wrap: wrap; gap: 8px 20px;
+    padding: 14px 24px; font-size: .84rem; color: var(--text-secondary);
+    background: var(--surface-alt); border-top: 1px dashed var(--border);
+}
+.cita-seg-meta span { display: inline-flex; align-items: center; gap: 6px; }
+.cita-seg-meta i { color: var(--primary-dark); }
+.cita-seg-detalle { padding: 14px 24px 0; font-size: .88rem; color: var(--text-secondary); }
+.cita-seg-detalle p { margin: 0 0 4px; }
+
+.cita-cancelada {
+    display: flex; align-items: flex-start; gap: 12px;
+    margin: 16px 24px; padding: 14px 16px;
+    font-size: .9rem; color: #991b1b;
+    background: #fef2f2; border: 1px solid #fecaca;
+    border-radius: var(--radius-sm);
+}
+.cita-cancelada i { font-size: 1.15rem; line-height: 1.4; }
+
+.cita-reparacion {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+    gap: 12px; margin: 16px 24px 22px; padding: 16px 18px;
+    background: linear-gradient(135deg, var(--surface-alt), #fff);
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    box-shadow: var(--shadow);
+}
+.cita-reparacion > div { display: flex; flex-direction: column; gap: 2px; }
+.cita-reparacion-title { font-size: .92rem; font-weight: 800; color: var(--primary-dark); }
+.cita-reparacion .badge { font-size: .78rem; }
+
+/* ---------- Estados vacios ---------- */
+.citas-empty {
+    text-align: center; padding: 70px 24px;
+    background: var(--surface); border: 1px dashed var(--border);
+    border-radius: var(--radius-lg);
+}
+.citas-empty .empty-icon { font-size: 4rem; margin-bottom: 12px; opacity: .85; }
+.citas-empty h3 { margin: 0 0 6px; font-size: 1.25rem; font-weight: 800; }
+.citas-empty p { color: var(--muted); margin: 0 0 18px; }
+
+/* ---------- Animaciones ---------- */
+@keyframes fadeUp {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: none; }
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 992px) {
+    .citas-resumen { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 768px) {
+    .citas-hero { padding: 26px 20px; }
+    .citas-hero h1 { font-size: 1.6rem; }
+    .citas-hero-visual { display: none; }
+    .cita-seg-head { padding: 18px 18px 0; }
+    .cita-seg-estado { align-items: flex-start; text-align: left; }
+    .cita-progress, .cita-seg-mensaje, .cita-cancelada, .cita-reparacion { margin-left: 18px; margin-right: 18px; }
+    .cita-seg-meta, .cita-seg-detalle { padding-left: 18px; padding-right: 18px; }
+    .cita-timeline { grid-template-columns: 1fr; margin: 18px; }
+    .cita-paso { flex-direction: row; align-items: flex-start; gap: 12px; padding: 0 0 18px; text-align: left; }
+    .cita-paso:last-child { padding-bottom: 0; }
+    .cita-paso::before { top: 36px; left: 17px; width: 3px; height: calc(100% - 36px); }
+    .cita-paso-texto { padding-top: 6px; }
+}
+@media (max-width: 480px) {
+    .citas-resumen { grid-template-columns: 1fr; }
+    .resumen-item { padding: 16px 18px; }
+}
