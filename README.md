@@ -63,7 +63,8 @@ flask --app app.py cuenta:desbloquear <usuario>  # libera una cuenta bloqueada (
 | `/admin/productos` | Catalogo: crear/editar/eliminar productos y subir su imagen |
 | `/admin/configuracion` | Marca de la tienda: cambiar/restaurar el logo (**solo ADMINISTRADOR**) |
 | `/admin/kpis` | **KPIs del negocio (solo ADMINISTRADOR)** |
-| `/worker` | Panel de trabajo (demas roles) |
+| `/worker` | Panel de trabajo (demas roles): citas, reparaciones y agenda del tecnico |
+| `/worker/reparaciones/<id>` | Orden de servicio: estado, diagnostico, fotos, historial y PDF |
 | `/sistema/usuarios` | Gestion de usuarios (solo admin) |
 | `/admin/seguridad` | IPs y cuentas con intentos fallidos / bloqueadas, historial de eventos y desbloqueo (solo ADMINISTRADOR) |
 | `/cambiar_clave` | Cambio de contrasena |
@@ -120,3 +121,34 @@ columnas de bloqueo en `usuarios` y la vista `v_cuentas_en_riesgo`).
 
 Si el SQL 002 aun no se aplico, el login sigue funcionando: el bloqueo por cuenta
 y el historial simplemente no se guardan (queda una advertencia en el log).
+
+
+## Modulo de tecnicos (citas y reparaciones)
+
+Migracion SQL (ya aplicada en SantaLuciaBD): `sql/07_tecnicos_mejoras.sql`. Anade
+roles validos en `usuarios`, triggers de `fecha_actualizacion`, un indice que evita
+que un tecnico tenga dos citas activas a la misma hora, una sola reparacion por
+cita, limpieza de franjas con fechas imposibles y la agenda de los proximos 14 dias.
+
+**Citas** (`reservas.estado`, los mismos valores que el CHECK de la base):
+
+```
+PENDIENTE -> CONFIRMADA -> EN_ATENCION -> ATENDIDA
+                 |                          (ASIGNADA equivale a CONFIRMADA)
+                 +-> NO_ASISTIO
+```
+
+- El tecnico toma una cita libre desde su panel (`Tomar cita`); el administrador
+  tambien puede asignarla en `/admin/citas`. Una cita en atencion o cerrada ya no se reasigna.
+- `Crear reparacion` abre la orden de servicio (OS-n) de una cita en atencion.
+
+**Reparaciones**: `RECIBIDO -> DIAGNOSTICO -> (ESPERANDO_APROBACION -> APROBADO) ->
+EN_REPARACION <-> ESPERANDO_REPUESTO -> REPARADO -> LISTO_ENTREGA -> ENTREGADO`
+(`NO_REPARABLE` y `CANCELADO` cierran la orden). Cada cambio queda en
+`historial_reparacion` y actualiza `electrodomesticos.estado`. Las fotos van al
+bucket publico `evidencias` (PNG/JPG/WEBP, 2 MB, hasta 12 por orden).
+
+**Cupo**: una hora se ofrece al cliente mientras queden tecnicos libres (franjas
+disponibles de `agenda_tecnicos` menos las citas ya agendadas). Si el dia no tiene
+agenda cargada se usa 09:00-18:00 con un cupo igual al numero de tecnicos.
+Cargar mas agenda: `flask --app app.py supabase:seed-demo` o desde el panel del tecnico.

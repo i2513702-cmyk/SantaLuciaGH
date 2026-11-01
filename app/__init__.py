@@ -56,7 +56,7 @@ def create_app() -> Flask:
     # --- Storage: asegurar que existan los buckets de imágenes (idempotente) ---
     from app.services import storage_service
 
-    for _bucket in (storage_service.BUCKET_PRODUCTOS, storage_service.BUCKET_LOGOS, storage_service.BUCKET_AVATARES):
+    for _bucket in (storage_service.BUCKET_PRODUCTOS, storage_service.BUCKET_LOGOS, storage_service.BUCKET_AVATARES, storage_service.BUCKET_EVIDENCIAS):
         storage_service.asegurar_bucket(_bucket)
 
     # --- Limpiar carritos vencidos en segundo plano al arrancar ---

@@ -164,13 +164,13 @@ def ventas_required(view):
 
 
 def tecnico_required(view):
-    """Requiere rol TECNICO."""
+    """Requiere rol TECNICO o SUPERVISOR (la vista valida además que tenga perfil de técnico)."""
 
     @wraps(view)
     def wrapped(*args, **kwargs):
         if "usuario_id" not in session:
             return redirect(url_for("auth.login"))
-        if session.get("rol") != "TECNICO":
+        if session.get("rol") not in ("TECNICO", "SUPERVISOR"):
             _denegar()
         return view(*args, **kwargs)
 

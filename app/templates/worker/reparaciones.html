@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Reparaciones — {{ app_name }}{% endblock %}
+
+{% block content %}
+<section class="panel-head">
+    <div>
+        <h1>Reparaciones</h1>
+        <p>Listado de reparaciones asignadas.</p>
+    </div>
+    <div class="panel-actions">
+        <a class="btn btn-outline" href="{{ url_for('worker.dashboard') }}">Volver al panel</a>
+    </div>
+</section>
+
+<div class="card">
+    <div class="card-body p-0">
+        {% if ordenes %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Código</th>
+                        <th>Cliente</th>
+                        <th>Problema / Equipo</th>
+                        <th>Ingreso</th>
+                        <th>Estado</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for orden in ordenes %}
+                    <tr>
+                        <td><strong>{{ orden.codigo }}</strong></td>
+                        <td>{{ orden.cliente }}</td>
+                        <td>{{ orden.problema }}</td>
+                        <td>{{ orden.ingreso or '—' }}</td>
+                        <td><span class="badge {{ orden.badge_class }}">{{ orden.estado }}</span></td>
+                        <td class="text-end">
+                            {% if es_tecnico and orden.id %}
+                            <a class="btn btn-sm btn-outline" href="{{ url_for('worker.reparacion_detalle', reparacion_id=orden.id) }}">Ver/Atender</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if paginas and paginas > 1 %}
+        <div class="p-3 d-flex justify-content-between align-items-center">
+            <div class="text-muted small">Mostrando {{ ordenes|length }} de {{ total }} registros</div>
+            <nav>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item {% if pagina <= 1 %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('worker.reparaciones_listado', p=pagina-1) }}">Anterior</a>
+                    </li>
+                    {% for p in range(1, paginas + 1) %}
+                    <li class="page-item {% if p == pagina %}active{% endif %}"><a class="page-link" href="{{ url_for('worker.reparaciones_listado', p=p) }}">{{ p }}</a></li>
+                    {% endfor %}
+                    <li class="page-item {% if pagina >= paginas %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('worker.reparaciones_listado', p=pagina+1) }}">Siguiente</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="p-4 text-center text-secondary">No hay reparaciones asignadas.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

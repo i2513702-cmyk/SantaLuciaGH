@@ -12,7 +12,8 @@
         </p>
     </div>
     <div class="panel-actions">
-        <a class="btn btn-outline" href="{{ url_for('worker.dashboard') }}">Volver al panel</a>
+        <a class="btn btn-outline" href="{{ url_for('worker.reparaciones_listado') }}">Volver a reparaciones</a>
+        <a class="btn btn-outline" href="{{ url_for('worker.dashboard') }}">Ir al panel</a>
         <a class="btn btn-outline" href="{{ url_for('worker.reparacion_pdf', reparacion_id=reparacion.id) }}">Descargar PDF</a>
     </div>
 </section>
@@ -32,7 +33,7 @@
         <div class="card">
             <div class="card-body">
                 <h5 class="card-title">Equipo</h5>
-                <p class="mb-1">{{ equipo.modelo or reparacion.problema or '—' }}</p>
+                <p class="mb-1">{{ equipo.descripcion or equipo.modelo or reparacion.problema or '—' }}</p>
                 {% if equipo.numero_serie %}<p class="mb-1">N/S: {{ equipo.numero_serie }}</p>{% endif %}
             </div>
         </div>
@@ -50,9 +51,10 @@
                 <option value="{{ est }}">{{ estados_labels.get(est, est) }}</option>
                 {% endfor %}
             </select>
-            <button class="btn btn-primary">Actualizar</button>
+            <input type="text" name="comentario" class="form-control" style="max-width: 320px;" maxlength="300" placeholder="Comentario (opcional)">
+            <button class="btn btn-primary" {% if not transiciones %}disabled{% endif %}>Actualizar</button>
         </form>
-        <small class="text-muted">Transiciones válidas según el estado actual.</small>
+        <small class="text-muted">{% if transiciones %}Transiciones válidas según el estado actual.{% else %}Esta orden está en un estado final: no admite más cambios de estado.{% endif %}</small>
     </div>
 </div>
 
@@ -83,7 +85,8 @@
         <h5 class="card-title">Fotos</h5>
         <form method="POST" action="{{ url_for('worker.reparacion_subir_foto', reparacion_id=reparacion.id) }}" enctype="multipart/form-data" class="d-flex flex-wrap gap-2 align-items-center mb-3">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <input type="file" name="foto" accept="image/*" class="form-control" style="max-width: 320px;" required>
+            <input type="file" name="foto" accept=".png,.jpg,.jpeg,.webp" class="form-control" style="max-width: 320px;" required>
+            <small class="text-muted">PNG, JPG o WEBP · máx. 2 MB · hasta {{ max_fotos }} fotos</small>
             <button class="btn btn-outline">Subir foto</button>
         </form>
         <div class="row g-2">
@@ -97,6 +100,26 @@
             <p class="text-muted">Sin fotos.</p>
             {% endfor %}
         </div>
+    </div>
+</div>
+
+<div class="card mt-3 mb-4">
+    <div class="card-body">
+        <h5 class="card-title">Historial de estados</h5>
+        {% if historial %}
+        <ul class="list-unstyled mb-0">
+            {% for h in historial %}
+            <li class="mb-2">
+                <strong>{{ estados_labels.get(h.estado_nuevo, h.estado_nuevo) }}</strong>
+                {% if h.estado_anterior %}<span class="text-secondary"> (antes: {{ estados_labels.get(h.estado_anterior, h.estado_anterior) }})</span>{% endif %}
+                <span class="text-secondary small"> · {{ (h.fecha or '')[:16].replace('T', ' ') }}</span>
+                {% if h.comentario %}<div class="small">{{ h.comentario }}</div>{% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted mb-0">Sin movimientos registrados.</p>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
