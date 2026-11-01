@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}Disponibilidad — {{ app_name }}{% endblock %}
+
+{% block content %}
+<section class="panel-head">
+    <div>
+        <h1>Mi disponibilidad</h1>
+        <p>Gestiona las franjas en las que puedes atender.</p>
+    </div>
+    <div class="panel-actions">
+        <a class="btn btn-outline" href="{{ url_for('worker.dashboard') }}">Volver al panel</a>
+    </div>
+</section>
+
+<div class="card mb-3" style="max-width: 720px;">
+    <div class="card-body">
+        <form method="POST" action="{{ url_for('worker.agenda_agregar') }}" class="d-flex flex-wrap gap-2 align-items-end">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div>
+                <label class="form-label">Fecha(s)</label>
+                <input type="date" name="fechas" class="form-control" required>
+            </div>
+            <div>
+                <label class="form-label">Desde</label>
+                <input type="time" name="hora_inicio" value="09:00" class="form-control" required>
+            </div>
+            <div>
+                <label class="form-label">Hasta</label>
+                <input type="time" name="hora_fin" value="18:00" class="form-control" required>
+            </div>
+            <div class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" name="disponible" value="true" id="disp-activa" checked>
+                <label class="form-check-label" for="disp-activa">Activa</label>
+            </div>
+            <button type="submit" class="btn btn-primary mb-2">Agregar</button>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        {% if disponibilidad %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Desde</th>
+                        <th>Hasta</th>
+                        <th>Estado</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for franja in disponibilidad %}
+                    <tr>
+                        <td>{{ franja.fecha }}</td>
+                        <td>{{ franja.hora_inicio }}</td>
+                        <td>{{ franja.hora_fin }}</td>
+                        <td>{% if franja.disponible %}<span class="badge text-bg-success">Activa</span>{% else %}<span class="badge text-bg-secondary">Inactiva</span>{% endif %}</td>
+                        <td class="text-end d-flex gap-1 justify-content-end">
+                            <form method="POST" action="{{ url_for('worker.agenda_toggle', franja_id=franja.id) }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button type="submit" class="btn btn-sm btn-outline">{% if franja.disponible %}Desactivar{% else %}Activar{% endif %}</button>
+                            </form>
+                            <form method="POST" action="{{ url_for('worker.agenda_quitar', franja_id=franja.id) }}" onsubmit="return confirm('¿Eliminar esta franja de disponibilidad?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Quitar</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% if paginas and paginas > 1 %}
+        <div class="p-3 d-flex justify-content-between align-items-center">
+            <div class="text-muted small">Mostrando {{ disponibilidad|length }} de {{ total }} franjas</div>
+            <nav>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item {% if pagina <= 1 %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('worker.disponibilidad_modulo', p=pagina-1) }}">Anterior</a>
+                    </li>
+                    {% for p in range(1, paginas + 1) %}
+                    <li class="page-item {% if p == pagina %}active{% endif %}"><a class="page-link" href="{{ url_for('worker.disponibilidad_modulo', p=p) }}">{{ p }}</a></li>
+                    {% endfor %}
+                    <li class="page-item {% if pagina >= paginas %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('worker.disponibilidad_modulo', p=pagina+1) }}">Siguiente</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="p-4 text-center text-secondary">No has registrado disponibilidad todavía.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

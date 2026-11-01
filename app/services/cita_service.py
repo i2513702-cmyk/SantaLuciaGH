@@ -117,12 +117,27 @@ def validar(datos: dict) -> None:
         raise CitaError("Las observaciones deben tener máximo 100 caracteres.")
 
 
-def horarios_disponibles(fecha: str) -> list:
-    """Horas de HORARIOS con técnico disponible en la fecha indicada.
+ESTADOS_SIN_CUPO = ("CANCELADA", "NO_ASISTIO")
 
-    Un técnico cubre la franja [hora_inicio, hora_fin) de `agenda_tecnicos`.
+
+def _total_tecnicos() -> int:
+    """Cantidad de técnicos registrados (cupo cuando el día no tiene agenda cargada)."""
+    try:
+        resp = get_reader().table("tecnicos").select("id", count="exact").limit(1).execute()
+        return max(int(resp.count or 0), 1)
+    except Exception:  # noqa: BLE001
+        return 1
+
+
+def horarios_disponibles(fecha: str) -> list:
+    """Horas de HORARIOS con cupo libre en la fecha indicada.
+
+    El cupo de cada hora es la cantidad de técnicos que la cubren con una franja
+    disponible de `agenda_tecnicos`; a eso se le restan las citas ya agendadas
+    en esa hora (las canceladas o con inasistencia no ocupan cupo).
     Si la fecha no tiene ninguna franja cargada (lun-sáb) se asume el horario
-    base 09:00-18:00. Para hoy solo se ofrecen las horas que aún no pasaron.
+    base 09:00-18:00 con un cupo igual a la cantidad de técnicos. Para hoy solo
+    se ofrecen las horas que aún no pasaron.
     """
     lima = datetime.now(timezone(timedelta(hours=-5)))
     try:
@@ -132,22 +147,48 @@ def horarios_disponibles(fecha: str) -> list:
     if dia < lima.date():
         return []
     try:
+        lector = get_reader()
         franjas = (
-            get_reader()
-            .table("agenda_tecnicos")
-            .select("hora_inicio,hora_fin,disponible")
+            lector.table("agenda_tecnicos")
+            .select("tecnico_id,hora_inicio,hora_fin,disponible")
             .eq("fecha", fecha)
+            .execute()
+            .data
+            or []
+        )
+        reservas = (
+            lector.table("reservas")
+            .select("hora_inicio,estado")
+            .eq("fecha_reserva", fecha)
             .execute()
             .data
             or []
         )
     except Exception:  # noqa: BLE001
         return []
+
+    ocupadas: dict = {}
+    for r in reservas:
+        if (r.get("estado") or "") in ESTADOS_SIN_CUPO:
+            continue
+        hora = (r.get("hora_inicio") or "")[:5]
+        ocupadas[hora] = ocupadas.get(hora, 0) + 1
+
     if franjas:
         franjas = [f for f in franjas if f.get("disponible")]
+
+        def cupo(hora: str) -> int:
+            return len({f.get("tecnico_id") for f in franjas if _cubre_franja(f, hora)})
     elif dia.weekday() != 6:
-        franjas = [{"hora_inicio": HORARIOS[0], "hora_fin": "18:00"}]
-    disponibles = [h for h in HORARIOS if any(_cubre_franja(f, h) for f in franjas)]
+        base = {"hora_inicio": HORARIOS[0], "hora_fin": "18:00"}
+        total = _total_tecnicos()
+
+        def cupo(hora: str) -> int:
+            return total if _cubre_franja(base, hora) else 0
+    else:
+        return []
+
+    disponibles = [h for h in HORARIOS if cupo(h) - ocupadas.get(h, 0) > 0]
     if dia == lima.date():
         disponibles = [h for h in disponibles if h > lima.strftime("%H:%M")]
     return disponibles

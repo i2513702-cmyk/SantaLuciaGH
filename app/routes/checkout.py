@@ -104,12 +104,20 @@ def procesar():
             cliente_nombre = " ".join(p for p in (nombres, apellidos) if p)
         cliente_documento = request.form.get("numero_documento", "").strip() or "—"
 
+    # Vincula la venta con el cliente del usuario (alimenta "Top clientes").
+    cliente_id = None
+    try:
+        cliente_id = rest_auth_service.obtener_usuario(session["usuario_id"]).get("cliente_id")
+    except Exception:  # noqa: BLE001  (si falla, la venta se registra igual sin cliente)
+        pass
+
     try:
         resul = carrito_service.pagar(
             carrito_id=carrito_id,
             metodo_pago_id=metodo_pago_id,
             usuario_id=session.get("usuario_id"),
             tipo_comprobante=tipo,
+            cliente_id=cliente_id,
         )
     except (AppError, ValidationError) as exc:
         flash(exc.message if isinstance(exc, AppError) else str(exc), "error")

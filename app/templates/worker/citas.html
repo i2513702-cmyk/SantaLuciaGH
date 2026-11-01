@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+
+{% block title %}Citas — {{ app_name }}{% endblock %}
+
+{% block content %}
+<section class="panel-head">
+    <div>
+        <h1>Citas</h1>
+        <p>Agenda de citas asignadas y libres.</p>
+    </div>
+    <div class="panel-actions">
+        <a class="btn btn-outline" href="{{ url_for('worker.dashboard') }}">Volver al panel</a>
+    </div>
+</section>
+
+<div class="card">
+    <div class="card-body p-0">
+        {% if citas %}
+        <div class="d-flex flex-wrap gap-2 align-items-center p-3 border-bottom">
+            <div class="btn-group btn-group-sm flex-wrap" id="citas-filtros" role="group">
+                <a class="btn btn-outline-secondary {% if (f_tipo=='todas' or not f_tipo) and (f_asig=='todas' or not f_asig) and (f_fecha=='todas' or not f_fecha) and not f_q %}active{% endif %}" href="{{ url_for('worker.citas_listado') }}">Todas</a>
+                <a class="btn btn-outline-secondary {% if f_tipo=='domicilio' %}active{% endif %}" href="{{ url_for('worker.citas_listado', tipo='domicilio', asig=f_asig if f_asig!='todas' else None, fecha=f_fecha if f_fecha!='todas' else None, q=f_q or None) }}">A domicilio</a>
+                <a class="btn btn-outline-secondary {% if f_tipo=='taller' %}active{% endif %}" href="{{ url_for('worker.citas_listado', tipo='taller', asig=f_asig if f_asig!='todas' else None, fecha=f_fecha if f_fecha!='todas' else None, q=f_q or None) }}">En taller</a>
+                <a class="btn btn-outline-secondary {% if f_asig=='mias' %}active{% endif %}" href="{{ url_for('worker.citas_listado', tipo=f_tipo if f_tipo!='todas' else None, asig='mias', fecha=f_fecha if f_fecha!='todas' else None, q=f_q or None) }}">Mis citas</a>
+                <a class="btn btn-outline-secondary {% if f_asig=='libres' %}active{% endif %}" href="{{ url_for('worker.citas_listado', tipo=f_tipo if f_tipo!='todas' else None, asig='libres', fecha=f_fecha if f_fecha!='todas' else None, q=f_q or None) }}">Sin asignar</a>
+                <a class="btn btn-outline-secondary {% if f_fecha=='hoy' %}active{% endif %}" href="{{ url_for('worker.citas_listado', tipo=f_tipo if f_tipo!='todas' else None, asig=f_asig if f_asig!='todas' else None, fecha='hoy', q=f_q or None) }}">Hoy</a>
+                <a class="btn btn-outline-secondary {% if f_fecha=='proximas' %}active{% endif %}" href="{{ url_for('worker.citas_listado', tipo=f_tipo if f_tipo!='todas' else None, asig=f_asig if f_asig!='todas' else None, fecha='proximas', q=f_q or None) }}">Próximas</a>
+                <a class="btn btn-outline-secondary {% if f_fecha=='pasadas' %}active{% endif %}" href="{{ url_for('worker.citas_listado', tipo=f_tipo if f_tipo!='todas' else None, asig=f_asig if f_asig!='todas' else None, fecha='pasadas', q=f_q or None) }}">Pasadas</a>
+            </div>
+            <form method="GET" action="{{ url_for('worker.citas_listado') }}" class="d-flex gap-2">
+                {% if f_tipo and f_tipo != 'todas' %}<input type="hidden" name="tipo" value="{{ f_tipo }}">{% endif %}
+                {% if f_asig and f_asig != 'todas' %}<input type="hidden" name="asig" value="{{ f_asig }}">{% endif %}
+                {% if f_fecha and f_fecha != 'todas' %}<input type="hidden" name="fecha" value="{{ f_fecha }}">{% endif %}
+                <input type="search" name="q" id="citas-buscar" class="form-control form-control-sm" style="max-width: 260px;" placeholder="Buscar por cliente o equipo..." value="{{ f_q }}">
+                <button class="btn btn-sm btn-outline-secondary">Buscar</button>
+            </form>
+            {% if n_citas_libres %}<span class="badge text-bg-warning">{{ n_citas_libres }} sin asignar</span>{% endif %}
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" id="tabla-citas">
+                <thead class="table-light">
+                    <tr>
+                        <th>Fecha y hora</th>
+                        <th>Cliente</th>
+                        <th>Equipo</th>
+                        <th>Atención</th>
+                        <th>Estado</th>
+                        <th>Asignada</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for c in citas %}
+                    <tr data-tipo="{{ (c.tipo_atencion or '')|lower }}" data-asig="{{ 'mias' if c.mia else 'libres' }}" data-fecha="{{ c.fecha }}" data-busq="{{ (c.cliente_nombre ~ ' ' ~ c.equipo ~ ' ' ~ c.motivo)|lower }}">
+                        <td>{{ c.fecha }}<div class="text-secondary small">{{ c.hora }}{% if c.hora_fin %} – {{ c.hora_fin }}{% endif %}</div></td>
+                        <td>
+                            <strong>{{ c.cliente_nombre or '—' }}</strong>
+                            {% if c.cliente_telefono %}<div class="small"><a href="tel:{{ c.cliente_telefono }}">{{ c.cliente_telefono }}</a></div>{% endif %}
+                            {% if c.cliente_documento %}<div class="small text-muted">{{ c.cliente_documento }}</div>{% endif %}
+                        </td>
+                        <td>
+                            {{ c.equipo or '—' }}
+                            {% if c.modelo %}<div class="text-secondary small">Modelo: {{ c.modelo }}</div>{% endif %}
+                            {% if c.numero_serie %}<div class="text-secondary small">N/S: {{ c.numero_serie }}</div>{% endif %}
+                            {% if c.motivo %}<div class="text-secondary small">{{ c.motivo }}</div>{% endif %}
+                            {% if c.observaciones %}<div class="text-secondary small fst-italic">{{ c.observaciones }}</div>{% endif %}
+                        </td>
+                        <td>
+                            {% if c.tipo_atencion == 'DOMICILIO' %}
+                                <span class="badge text-bg-info">🏠 A domicilio</span>
+                                {% if c.distrito or c.direccion %}
+                                <div class="small mt-1">📍 {% if c.distrito %}<strong>{{ c.distrito }}</strong>{% if c.direccion and c.direccion != c.distrito %} · {% endif %}{% endif %}{% if c.direccion and c.direccion != c.distrito %}{{ c.direccion }}{% endif %}</div>
+                                {% endif %}
+                            {% else %}
+                                <span class="badge text-bg-light border">🛠 En taller</span>
+                            {% endif %}
+                        </td>
+                        <td><span class="badge {{ c.badge_class }}">{{ c.estado }}</span>{% if c.vencida %} <span class="badge text-bg-danger">Vencida</span>{% endif %}</td>
+                        <td>{% if c.mia %}<span class="badge text-bg-success">Mía</span>{% else %}<span class="badge text-bg-warning">Sin asignar</span>{% endif %}</td>
+                        <td class="text-end">
+                            {% if es_tecnico and not c.mia and c.estado_raw == 'PENDIENTE' and not c.vencida %}
+                            <form method="POST" action="{{ url_for('worker.cita_tomar', cita_id=c.id) }}" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button class="btn btn-sm btn-primary">Tomar cita</button>
+                            </form>
+                            {% elif es_tecnico and c.mia and c.estado_raw == 'PENDIENTE' %}
+                            <form method="POST" action="{{ url_for('worker.cita_cambiar_estado', cita_id=c.id) }}" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="estado" value="CONFIRMADA">
+                                <button class="btn btn-sm btn-outline-primary">Confirmar</button>
+                            </form>
+                            {% elif es_tecnico and c.mia and c.estado_raw in ('CONFIRMADA', 'ASIGNADA') %}
+                            <form method="POST" action="{{ url_for('worker.cita_cambiar_estado', cita_id=c.id) }}" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="estado" value="EN_ATENCION">
+                                <button class="btn btn-sm btn-outline-primary">Atender</button>
+                            </form>
+                            <form method="POST" action="{{ url_for('worker.cita_cambiar_estado', cita_id=c.id) }}" class="d-inline" onsubmit="return confirm('¿Marcar que el cliente no asistió?');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="estado" value="NO_ASISTIO">
+                                <button class="btn btn-sm btn-outline-secondary">No asistió</button>
+                            </form>
+                            {% elif es_tecnico and c.mia and c.estado_raw == 'EN_ATENCION' %}
+                            <form method="POST" action="{{ url_for('worker.cita_cambiar_estado', cita_id=c.id) }}" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="estado" value="ATENDIDA">
+                                <button class="btn btn-sm btn-outline-success">Completar</button>
+                            </form>
+                            <form method="POST" action="{{ url_for('worker.cita_crear_reparacion', cita_id=c.id) }}" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button class="btn btn-sm btn-primary">Crear reparación</button>
+                            </form>
+                            {% elif es_tecnico and c.mia and c.estado_raw == 'ATENDIDA' %}
+                            <form method="POST" action="{{ url_for('worker.cita_crear_reparacion', cita_id=c.id) }}" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button class="btn btn-sm btn-outline-primary">Ver/Crear reparación</button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    <tr id="citas-vacio" class="d-none"><td colspan="7" class="text-center text-secondary py-4">No hay citas para este filtro.</td></tr>
+                </tbody>
+            </table>
+        </div>
+        {% if paginas and paginas > 1 %}
+        <div class="p-3 d-flex justify-content-between align-items-center">
+            <div class="text-muted small">Mostrando {{ citas|length }} de {{ total }} citas</div>
+            <nav>
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item {% if pagina <= 1 %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('worker.citas_listado', p=pagina-1, tipo=f_tipo if f_tipo!='todas' else None, asig=f_asig if f_asig!='todas' else None, fecha=f_fecha if f_fecha!='todas' else None, q=f_q or None) }}">Anterior</a>
+                    </li>
+                    {% for p in range(1, paginas + 1) %}
+                    <li class="page-item {% if p == pagina %}active{% endif %}"><a class="page-link" href="{{ url_for('worker.citas_listado', p=p, tipo=f_tipo if f_tipo!='todas' else None, asig=f_asig if f_asig!='todas' else None, fecha=f_fecha if f_fecha!='todas' else None, q=f_q or None) }}">{{ p }}</a></li>
+                    {% endfor %}
+                    <li class="page-item {% if pagina >= paginas %}disabled{% endif %}">
+                        <a class="page-link" href="{{ url_for('worker.citas_listado', p=pagina+1, tipo=f_tipo if f_tipo!='todas' else None, asig=f_asig if f_asig!='todas' else None, fecha=f_fecha if f_fecha!='todas' else None, q=f_q or None) }}">Siguiente</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+        {% elif total == 0 %}
+        <div class="p-4 text-center text-secondary">No hay citas para este filtro.</div>
+        {% endif %}
+        {% else %}
+        <div class="p-4 text-center text-secondary">Todavía no hay citas registradas.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

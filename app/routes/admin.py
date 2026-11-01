@@ -1,9 +1,10 @@
 """Panel de administración (datos reales vía API REST de Supabase)."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from flask import (
     Blueprint,
+    current_app,
     flash,
     jsonify,
     redirect,
@@ -706,19 +707,25 @@ def _listar_tecnicos():
         return []
 
 
+# Estados reales de `reservas.estado` (CHECK de la base de datos).
 ESTADO_CITA_LABEL = {
     "PENDIENTE": "Pendiente",
     "CONFIRMADA": "Confirmada",
+    "ASIGNADA": "Asignada",
     "EN_ATENCION": "En atención",
-    "COMPLETADA": "Completada",
+    "ATENDIDA": "Atendida",
     "CANCELADA": "Cancelada",
+    "NO_ASISTIO": "No asistió",
 }
+
+# Solo estas citas se pueden asignar o liberar desde el listado.
+ESTADOS_CITA_REASIGNABLES = ("PENDIENTE", "CONFIRMADA", "ASIGNADA")
 
 
 def _clase_estado_cita(estado: str) -> str:
-    if estado == "COMPLETADA":
+    if estado == "ATENDIDA":
         return "badge-ok"
-    if estado in ("CONFIRMADA", "EN_ATENCION"):
+    if estado in ("CONFIRMADA", "ASIGNADA", "EN_ATENCION"):
         return "badge-warn"
     if estado == "CANCELADA":
         return "badge-muted"
@@ -780,7 +787,10 @@ def citas_listado():
             "hora": r.get("hora_inicio"),
             "hora_fin": r.get("hora_fin"),
             "estado": ESTADO_CITA_LABEL.get(estado, estado),
+            "estado_raw": estado,
             "badge_class": _clase_estado_cita(estado),
+            "vencida": (r.get("fecha_reserva") or "")[:10] < date.today().isoformat()
+            and estado in ("PENDIENTE", "CONFIRMADA", "ASIGNADA", "EN_ATENCION"),
             "tipo_atencion": r.get("tipo_atencion"),
             "motivo": r.get("motivo"),
             "cliente_nombre": cliente.get("razon_social")
@@ -824,8 +834,21 @@ def citas_asignar_tecnico(reserva_id):
     del KPI-01 y del KPI-02. Liberar el técnico no borra la marca.
     """
     tecnico_id = request.form.get("tecnico_id", type=int)
+    destino = request.referrer
+    if not destino or not destino.startswith(request.host_url):
+        destino = url_for("admin.citas_listado")
     try:
         from app.supabase_client import get_admin_client
+
+        actual = (
+            get_reader().table("reservas").select("estado").eq("id", reserva_id).limit(1).execute()
+        ).data or []
+        if not actual:
+            flash("Cita no encontrada.", "warning")
+            return redirect(destino)
+        if actual[0].get("estado") not in ESTADOS_CITA_REASIGNABLES:
+            flash("Esa cita ya está en atención o cerrada: no se puede reasignar.", "warning")
+            return redirect(destino)
 
         get_admin_client().table("reservas").update(
             {"tecnico_id": tecnico_id or None, "estado": "CONFIRMADA" if tecnico_id else "PENDIENTE"}
@@ -836,11 +859,13 @@ def citas_asignar_tecnico(reserva_id):
         else:
             flash("Cita liberada (técnico sin asignar).", "info")
     except Exception as exc:  # noqa: BLE001
-        flash(f"No se pudo actualizar la cita: {exc}", "error")
+        texto = str(exc).lower()
+        if "23505" in texto or "duplicate key" in texto or "uq_reservas_tecnico_horario" in texto:
+            flash("Ese técnico ya tiene otra cita a la misma hora.", "error")
+        else:
+            current_app.logger.exception("No se pudo actualizar la cita %s", reserva_id)
+            flash("No se pudo actualizar la cita. Inténtalo nuevamente.", "error")
 
-    destino = request.referrer
-    if not destino or not destino.startswith(request.host_url):
-        destino = url_for("admin.citas_listado")
     return redirect(destino)
 
 

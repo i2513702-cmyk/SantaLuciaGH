@@ -22,6 +22,7 @@ log = logging.getLogger(__name__)
 BUCKET_PRODUCTOS = "productos"
 BUCKET_LOGOS = "logos"
 BUCKET_AVATARES = "avatares"
+BUCKET_EVIDENCIAS = "evidencias"   # fotos de las reparaciones (panel del técnico)
 PREFIJO_LOGO = "logo."
 PREFIJO_FONDO = "footer."
 # Foto de perfil: `usuario-<id>.<ext>` (nombre estable por usuario).

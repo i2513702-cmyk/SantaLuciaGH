@@ -87,7 +87,7 @@
                             <button type="submit" class="btn btn-sm btn-outline">Guardar</button>
                         </form>
                     </td>
-                    <td><span class="badge {{ c.badge_class }}">{{ c.estado }}</span></td>
+                    <td><span class="badge {{ c.badge_class }}">{{ c.estado }}</span>{% if c.vencida %} <span class="badge text-bg-danger" title="La fecha ya pasó y la cita sigue abierta">Vencida</span>{% endif %}</td>
                 </tr>
                 {% endfor %}
             </tbody>

@@ -5,10 +5,13 @@ logueado y permite gestionar su disponibilidad (agenda_tecnicos).
 """
 
 import logging
-from datetime import date, datetime, timedelta
+import time
+import uuid
+from datetime import date, datetime, timedelta, timezone
 
 from flask import (
     Blueprint,
+    Response,
     flash,
     g,
     jsonify,
@@ -20,9 +23,14 @@ from flask import (
 )
 
 from app.decorators import roles_required, tecnico_required
-from app.services.cita_service import SEPARADOR_DIRECCION, marcar_primera_atencion
+from app.exceptions import ValidationError
+from app.services import storage_service
+from app.services.cita_service import (
+    SEPARADOR_DIRECCION,
+    _cubre_franja,
+    marcar_primera_atencion,
+)
 from app.services.pdf_service import generar_orden_servicio_pdf
-from app.services.storage_service import asegurar_bucket, subir_imagen
 from app.supabase_client import error_postgrest, get_admin_client, get_reader
 
 log = logging.getLogger(__name__)
@@ -56,33 +64,51 @@ ESTADOS_EN_SERVICIO = (
 
 TRANSICIONES_REPARACION = {
     "RECIBIDO": {"DIAGNOSTICO", "NO_REPARABLE", "CANCELADO"},
-    "DIAGNOSTICO": {"ESPERANDO_APROBACION", "EN_REPARACION", "NO_REPARABLE", "CANCELADO"},
+    "DIAGNOSTICO": {"ESPERANDO_APROBACION", "EN_REPARACION", "ESPERANDO_REPUESTO", "NO_REPARABLE", "CANCELADO"},
     "ESPERANDO_APROBACION": {"APROBADO", "NO_REPARABLE", "CANCELADO"},
-    "APROBADO": {"EN_REPARACION", "NO_REPARABLE", "CANCELADO"},
+    "APROBADO": {"EN_REPARACION", "ESPERANDO_REPUESTO", "NO_REPARABLE", "CANCELADO"},
     "ESPERANDO_REPUESTO": {"EN_REPARACION", "NO_REPARABLE", "CANCELADO"},
-    "EN_REPARACION": {"REPARADO", "NO_REPARABLE", "CANCELADO"},
+    "EN_REPARACION": {"REPARADO", "ESPERANDO_REPUESTO", "NO_REPARABLE", "CANCELADO"},
     "REPARADO": {"LISTO_ENTREGA", "NO_REPARABLE", "CANCELADO"},
-    "LISTO_ENTREGA": set(),
+    "LISTO_ENTREGA": {"ENTREGADO"},
     "ENTREGADO": set(),
     "NO_REPARABLE": set(),
     "CANCELADO": set(),
 }
 
+# Estado del equipo (electrodomesticos.estado) según la reparación.
+ESTADO_EQUIPO = {
+    "EN_REPARACION": "EN_REPARACION",
+    "REPARADO": "REPARADO",
+    "ENTREGADO": "ENTREGADO",
+    "NO_REPARABLE": "NO_REPARABLE",
+}
+
+# Estados reales de `reservas.estado` (CHECK de la base de datos).
 TRANSICIONES_CITA = {
     "PENDIENTE": {"CONFIRMADA"},
-    "CONFIRMADA": {"EN_ATENCION"},
-    "EN_ATENCION": {"COMPLETADA"},
-    "COMPLETADA": set(),
+    "ASIGNADA": {"CONFIRMADA", "EN_ATENCION", "NO_ASISTIO"},
+    "CONFIRMADA": {"EN_ATENCION", "NO_ASISTIO"},
+    "EN_ATENCION": {"ATENDIDA"},
+    "ATENDIDA": set(),
     "CANCELADA": set(),
+    "NO_ASISTIO": set(),
 }
+
+ESTADOS_CITA_ABIERTOS = ("PENDIENTE", "CONFIRMADA", "ASIGNADA", "EN_ATENCION")
 
 ESTADO_CITA_LABEL = {
     "PENDIENTE": "Pendiente",
     "CONFIRMADA": "Confirmada",
+    "ASIGNADA": "Asignada",
     "EN_ATENCION": "En atención",
-    "COMPLETADA": "Completada",
+    "ATENDIDA": "Atendida",
     "CANCELADA": "Cancelada",
+    "NO_ASISTIO": "No asistió",
 }
+
+MAX_FOTOS_REPARACION = 12
+CACHE_TECNICO_SEG = 300
 
 
 def _clase_estado(estado: str) -> str:
@@ -94,11 +120,20 @@ def _clase_estado(estado: str) -> str:
 
 
 def _clase_estado_cita(estado: str) -> str:
-    if estado == "COMPLETADA":
+    if estado == "ATENDIDA":
         return "badge-ok"
-    if estado in ("CONFIRMADA", "EN_ATENCION"):
+    if estado in ("CONFIRMADA", "ASIGNADA", "EN_ATENCION"):
         return "badge-warn"
     return "badge-muted"
+
+
+def _hoy_lima() -> date:
+    """Fecha de hoy en Lima (la base guarda las citas en hora local)."""
+    return datetime.now(timezone(timedelta(hours=-5))).date()
+
+
+def _ahora_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 def _contar(tabla: str, **filtros):
@@ -117,12 +152,18 @@ def _contar(tabla: str, **filtros):
 
 
 def _tecnico_actual():
-    """Devuelve el tecnico del usuario logueado (via usuarios->empleados->tecnicos)."""
+    """Devuelve el técnico del usuario logueado (via usuarios->empleados->tecnicos).
+
+    Se guarda en la sesión solo CACHE_TECNICO_SEG segundos: así un cambio de
+    especialidad o de vínculo se refleja sin tener que volver a iniciar sesión.
+    """
     if getattr(g, "tecnico_actual_cache", None) is not None:
         return g.tecnico_actual_cache
-    if session.get("tecnico_cache"):
-        g.tecnico_actual_cache = session.get("tecnico_cache")
-        return g.tecnico_actual_cache
+    ahora = time.time()
+    cache = session.get("tecnico_cache")
+    if cache and ahora - session.get("tecnico_cache_ts", 0) < CACHE_TECNICO_SEG:
+        g.tecnico_actual_cache = cache
+        return cache
     usuario_id = session.get("usuario_id")
     if not usuario_id:
         return None
@@ -136,21 +177,25 @@ def _tecnico_actual():
             .execute()
         ).data or [{}]
         empleado_id = (emp[0] or {}).get("empleado_id")
-        if not empleado_id:
-            return None
-        tec = (
-            get_reader()
-            .table("tecnicos")
-            .select("id,empleado_id,especialidad,empleados(nombres,apellidos)")
-            .eq("empleado_id", empleado_id)
-            .limit(1)
-            .execute()
-        ).data or [None]
-        tecnico = tec[0]
+        tecnico = None
+        if empleado_id:
+            tec = (
+                get_reader()
+                .table("tecnicos")
+                .select("id,empleado_id,especialidad,empleados(nombres,apellidos)")
+                .eq("empleado_id", empleado_id)
+                .limit(1)
+                .execute()
+            ).data or [None]
+            tecnico = tec[0]
         if tecnico:
             session["tecnico_cache"] = tecnico
+            session["tecnico_cache_ts"] = ahora
             session["tecnico_id_cache"] = tecnico.get("id")
             g.tecnico_actual_cache = tecnico
+        else:
+            for clave in ("tecnico_cache", "tecnico_cache_ts", "tecnico_id_cache"):
+                session.pop(clave, None)
         return tecnico
     except Exception:  # noqa: BLE001
         log.exception("No se pudo obtener el técnico actual")
@@ -158,29 +203,26 @@ def _tecnico_actual():
 
 
 def _tecnico_id():
-    if getattr(g, "tecnico_id_cache", None):
-        return g.tecnico_id_cache
-    tid = session.get("tecnico_id_cache")
-    if tid:
-        g.tecnico_id_cache = tid
-        return tid
-    tecnico = _tecnico_actual()
-    tid = (tecnico or {}).get("id")
-    if tid:
-        g.tecnico_id_cache = tid
-        session["tecnico_id_cache"] = tid
-    return tid
+    return (_tecnico_actual() or {}).get("id")
+
+
+def _es_unico_duplicado(exc) -> bool:
+    """True si el error de Postgres es una violación de unicidad (23505)."""
+    texto = str(exc).lower()
+    return "23505" in texto or "duplicate key" in texto or "uq_reservas_tecnico_horario" in texto
 
 
 def _citas_tecnico(tecnico_id, incluir_libres=False):
     """Citas (reservas) del técnico; con `incluir_libres` suma las que el cliente
-    agendó y aún no tienen técnico (visitas a domicilio incluidas)."""
+    agendó, siguen PENDIENTES, no tienen técnico y aún no vencen (visitas a
+    domicilio incluidas) para que el técnico pueda tomarlas."""
     campos = (
         "id,fecha_reserva,hora_inicio,hora_fin,estado,tipo_atencion,motivo,"
         "observaciones,calle,distrito,tecnico_id,"
-        "clientes(nombres,apellidos,telefono,numero_documento,razon_social),"
+        "clientes(id,nombres,apellidos,telefono,numero_documento,razon_social),"
         "electrodomesticos(id,modelo,numero_serie,marcas(nombre),tipos_electrodomestico(nombre))"
     )
+    hoy = _hoy_lima().isoformat()
     filas = []
     try:
         if tecnico_id:
@@ -191,12 +233,12 @@ def _citas_tecnico(tecnico_id, incluir_libres=False):
                 .limit(80).execute()
             ).data or []
         if incluir_libres:
-            q = get_reader().table("reservas").select(campos).is_("tecnico_id", "null").neq("estado", "CANCELADA")
-            if tecnico_id:
-                # evitar duplicados si ya existe
-                pass
             filas += (
-                q.order("fecha_reserva", desc=True).order("hora_inicio", desc=True)
+                get_reader().table("reservas").select(campos)
+                .is_("tecnico_id", "null")
+                .eq("estado", "PENDIENTE")
+                .gte("fecha_reserva", hoy)
+                .order("fecha_reserva").order("hora_inicio")
                 .limit(80).execute()
             ).data or []
     except Exception:  # noqa: BLE001
@@ -220,21 +262,23 @@ def _citas_tecnico(tecnico_id, incluir_libres=False):
             distrito, _, direccion = calle.partition(SEPARADOR_DIRECCION)
         if not direccion and calle and distrito and calle == distrito:
             direccion = ""
+        fecha = (r.get("fecha_reserva") or "")[:10]
         citas.append({
             "id": r.get("id"),
-            "fecha": (r.get("fecha_reserva") or "")[:10],
+            "fecha": fecha,
             "hora": (r.get("hora_inicio") or "")[:5],
             "hora_fin": (r.get("hora_fin") or "")[:5],
             "estado": ESTADO_CITA_LABEL.get(estado, estado),
             "estado_raw": estado,
             "badge_class": _clase_estado_cita(estado),
+            "vencida": bool(fecha and fecha < hoy and estado in ESTADOS_CITA_ABIERTOS),
             "tipo_atencion": r.get("tipo_atencion"),
             "motivo": r.get("motivo"),
             "observaciones": r.get("observaciones"),
             "distrito": distrito,
             "direccion": direccion or calle,
             "calle": calle,
-            "mia": r.get("tecnico_id") == tecnico_id,
+            "mia": bool(tecnico_id) and r.get("tecnico_id") == tecnico_id,
             "tecnico_id": r.get("tecnico_id"),
             "cliente_id": cliente.get("id") if isinstance(cliente, dict) else None,
             "cliente_nombre": cliente.get("razon_social")
@@ -251,7 +295,6 @@ def _citas_tecnico(tecnico_id, incluir_libres=False):
             "numero_serie": equipo.get("numero_serie"),
         })
     if incluir_libres:
-        hoy = date.today().isoformat()
         prox = sorted((c for c in citas if c["fecha"] >= hoy), key=lambda c: (c["fecha"], c["hora"]))
         pasadas = sorted((c for c in citas if c["fecha"] < hoy), key=lambda c: (c["fecha"], c["hora"]), reverse=True)
         citas = prox + pasadas
@@ -328,24 +371,23 @@ def dashboard():
     citas_panel = _citas_tecnico(tecnico_id, incluir_libres=True) if tecnico_id else []
     n_mias = sum(1 for c in citas_panel if c["mia"])
 
-    hoy_iso = date.today().isoformat()
-    citas_asignadas_hoy_futuro = 0
-    if tecnico_id:
+    def _contar_cita_estado(estado):
+        if not tecnico_id:
+            return 0
         try:
             resp_c = (
                 get_reader()
                 .table("reservas")
                 .select("id", count="exact")
                 .eq("tecnico_id", tecnico_id)
-                .in_("estado", ["PENDIENTE", "CONFIRMADA", "EN_ATENCION"])
-                .gte("fecha_reserva", hoy_iso)
+                .eq("estado", estado)
                 .limit(1)
                 .execute()
             )
-            citas_asignadas_hoy_futuro = resp_c.count or 0
-        except Exception:  # noqa: BLE001
-            log.exception("No se pudo contar citas asignadas del técnico")
-            citas_asignadas_hoy_futuro = n_mias
+            return resp_c.count or 0
+        except Exception:
+            log.exception("No se pudo contar citas por estado %s", estado)
+            return 0
 
     def _contar_rep(estado):
         if not tecnico_id:
@@ -354,21 +396,201 @@ def dashboard():
         return c if c is not None else 0
 
     stats = [
-        {"label": "En reparación", "value": _contar_rep("EN_REPARACION"), "icon": "🔧", "filtro": "EN_REPARACION"},
-        {"label": "Listas para entrega", "value": _contar_rep("LISTO_ENTREGA"), "icon": "📦", "filtro": "LISTO_ENTREGA"},
-        {"label": "Entregadas", "value": _contar_rep("ENTREGADO"), "icon": "✅", "filtro": "ENTREGADO"},
-        {"label": "Citas asignadas", "value": citas_asignadas_hoy_futuro, "icon": "📅", "filtro": "CITAS"},
+        {"label": "En reparación", "value": _contar_cita_estado("EN_ATENCION"), "icon": "🔧", "filtro": "CITAS_EN_ATENCION"},
+        {"label": "Listas para entrega", "value": _contar_cita_estado("CONFIRMADA"), "icon": "📦", "filtro": "CITAS_CONFIRMADA"},
+        {"label": "Entregadas", "value": _contar_cita_estado("ATENDIDA"), "icon": "✅", "filtro": "CITAS_ATENDIDA"},
+        {"label": "Citas asignadas", "value": _contar_cita_estado("ASIGNADA"), "icon": "📅", "filtro": "CITAS_ASIGNADA"},
     ]
+
+    try:
+        pagina_c = int(request.args.get("citas_p") or 1)
+    except ValueError:
+        pagina_c = 1
+    pagina_c = max(1, pagina_c)
+    por_c = 10
+    total_c = len(citas_panel)
+    paginas_c = max(1, (total_c + por_c - 1) // por_c)
+    if pagina_c > paginas_c:
+        pagina_c = paginas_c
+    inicio_c = (pagina_c - 1) * por_c
+    citas_pagina = citas_panel[inicio_c:inicio_c + por_c] if total_c else []
+
+    disponibilidad = _disponibilidad_tecnico(tecnico_id) if tecnico_id else []
+    try:
+        pagina_d = int(request.args.get("disp_p") or 1)
+    except ValueError:
+        pagina_d = 1
+    pagina_d = max(1, pagina_d)
+    por_d = 10
+    total_d = len(disponibilidad)
+    paginas_d = max(1, (total_d + por_d - 1) // por_d)
+    if pagina_d > paginas_d:
+        pagina_d = paginas_d
+    inicio_d = (pagina_d - 1) * por_d
+    disponibilidad_pagina = disponibilidad[inicio_d:inicio_d + por_d] if total_d else []
+
     return render_template(
         "worker/dashboard.html",
         stats=stats,
         ordenes=ordenes,
         tecnico=tecnico,
-        citas=citas_panel,
+        citas=citas_pagina,
+        citas_todas=citas_panel,
+        citas_pagina=pagina_c,
+        citas_paginas=paginas_c,
+        citas_total=total_c,
         n_citas_libres=sum(1 for c in citas_panel if not c["mia"]),
-        disponibilidad=_disponibilidad_tecnico(tecnico_id) if tecnico_id else [],
+        disponibilidad=disponibilidad_pagina,
+        disponibilidad_todas=disponibilidad,
+        disp_pagina=pagina_d,
+        disp_paginas=paginas_d,
+        disp_total=total_d,
         es_tecnico=tecnico is not None,
     )
+
+
+@bp.route("/worker/reparaciones")
+@roles_required("worker")
+def reparaciones_listado():
+    tecnico = _tecnico_actual()
+    tecnico_id = _tecnico_id() or (tecnico or {}).get("id")
+    reparaciones = []
+    if tecnico_id:
+        try:
+            reparaciones = (
+                get_reader()
+                .table("reparaciones")
+                .select("*")
+                .eq("tecnico_id", tecnico_id)
+                .order("fecha_ingreso", desc=True)
+                .execute()
+            ).data or []
+        except Exception:
+            log.exception("No se pudieron cargar reparaciones")
+            reparaciones = []
+    ordenes = []
+    for r in reparaciones:
+        cliente = {}
+        equipo = {}
+        try:
+            if r.get("cliente_id"):
+                c = get_reader().table("clientes").select("*").eq("id", r["cliente_id"]).limit(1).execute().data or []
+                cliente = c[0] if c else {}
+            if r.get("electrodomestico_id"):
+                e = get_reader().table("electrodomesticos").select("*").eq("id", r["electrodomestico_id"]).limit(1).execute().data or []
+                equipo = e[0] if e else {}
+        except Exception:
+            pass
+        codigo = r.get("codigo") or f"OS-{r.get('id')}"
+        cliente_nom = cliente.get("razon_social") or " ".join(filter(None, [cliente.get("nombres"), cliente.get("apellidos")])) or "—"
+        equipo_nom = equipo.get("descripcion") or equipo.get("modelo") or r.get("problema") or "—"
+        estado = (r.get("estado") or "").upper()
+        badge = {"RECIBIDO": "text-bg-secondary", "EN_DIAGNOSTICO": "text-bg-info", "EN_REPARACION": "text-bg-warning", "ESPERA_REPUESTO": "text-bg-warning", "REPARADO": "text-bg-success", "LISTO_ENTREGA": "text-bg-primary", "ENTREGADO": "text-bg-success", "CANCELADO": "text-bg-danger", "ANULADO": "text-bg-danger"}.get(estado, "text-bg-secondary")
+        ingreso = (r.get("fecha_ingreso") or "")[:10]
+        ordenes.append({
+            "id": r.get("id"),
+            "codigo": codigo,
+            "problema": r.get("problema") or equipo_nom,
+            "tipo": r.get("tipo_atencion") or equipo_nom,
+            "ingreso": ingreso,
+            "estado": ESTADOS_LABEL.get(estado, estado),
+            "badge_class": badge,
+            "cliente": cliente_nom,
+        })
+    try:
+        pagina = int(request.args.get("p") or 1)
+    except ValueError:
+        pagina = 1
+    pagina = max(1, pagina)
+    por = 10
+    total = len(ordenes)
+    paginas = max(1, (total + por - 1) // por)
+    if pagina > paginas:
+        pagina = paginas
+    inicio = (pagina - 1) * por
+    ordenes_pag = ordenes[inicio:inicio + por] if total else []
+    return render_template("worker/reparaciones.html", ordenes=ordenes_pag, pagina=pagina, paginas=paginas, total=total, tecnico=tecnico, es_tecnico=tecnico is not None)
+
+
+@bp.route("/worker/citas")
+@roles_required("worker")
+def citas_listado():
+    tecnico = _tecnico_actual()
+    tecnico_id = _tecnico_id() or (tecnico or {}).get("id")
+    citas_panel = _citas_tecnico(tecnico_id, incluir_libres=True) if tecnico_id else []
+
+    tipo_f = (request.args.get("tipo") or "todas").strip().lower()
+    asig_f = (request.args.get("asig") or "todas").strip().lower()
+    fecha_f = (request.args.get("fecha") or "todas").strip().lower()
+    q_f = (request.args.get("q") or "").strip().lower()
+    hoy_iso = _hoy_lima().isoformat()
+
+    filtradas = []
+    for c in citas_panel:
+        tipo = (c.get("tipo_atencion") or "").lower()
+        asig = "mias" if c.get("mia") else "libres"
+        fecha_c = c.get("fecha") or ""
+        busq = f"{c.get('cliente_nombre') or ''} {c.get('equipo') or ''} {c.get('motivo') or ''} {c.get('observaciones') or ''}".lower()
+        ok = True
+        if tipo_f == "domicilio":
+            ok = tipo == "domicilio"
+        elif tipo_f == "taller":
+            ok = tipo != "domicilio"
+        if ok and asig_f == "mias":
+            ok = asig == "mias"
+        elif ok and asig_f == "libres":
+            ok = asig == "libres"
+        if ok and fecha_f == "hoy":
+            ok = fecha_c == hoy_iso
+        elif ok and fecha_f == "proximas":
+            ok = fecha_c >= hoy_iso
+        elif ok and fecha_f == "pasadas":
+            ok = fecha_c < hoy_iso
+        if ok and q_f:
+            ok = q_f in busq
+        if ok:
+            filtradas.append(c)
+
+    try:
+        pagina_c = int(request.args.get("p") or 1)
+    except ValueError:
+        pagina_c = 1
+    pagina_c = max(1, pagina_c)
+    por_c = 10
+    total_c = len(filtradas)
+    if total_c == 0:
+        paginas_c = 0
+        pagina_c = 1
+        citas_pagina = []
+    else:
+        paginas_c = max(1, (total_c + por_c - 1) // por_c)
+        if pagina_c > paginas_c:
+            pagina_c = paginas_c
+        inicio_c = (pagina_c - 1) * por_c
+        citas_pagina = filtradas[inicio_c:inicio_c + por_c]
+    n_citas_libres = sum(1 for c in citas_panel if not c["mia"])
+    return render_template("worker/citas.html", citas=citas_pagina, pagina=pagina_c, paginas=paginas_c, total=total_c, n_citas_libres=n_citas_libres, tecnico=tecnico, es_tecnico=tecnico is not None, f_tipo=tipo_f or "todas", f_asig=asig_f or "todas", f_fecha=fecha_f or "todas", f_q=request.args.get("q") or "")
+
+
+@bp.route("/worker/disponibilidad-modulo")
+@roles_required("worker")
+def disponibilidad_modulo():
+    tecnico = _tecnico_actual()
+    tecnico_id = _tecnico_id() or (tecnico or {}).get("id")
+    disponibilidad = _disponibilidad_tecnico(tecnico_id) if tecnico_id else []
+    try:
+        pagina_d = int(request.args.get("p") or 1)
+    except ValueError:
+        pagina_d = 1
+    pagina_d = max(1, pagina_d)
+    por_d = 10
+    total_d = len(disponibilidad)
+    paginas_d = max(1, (total_d + por_d - 1) // por_d)
+    if pagina_d > paginas_d:
+        pagina_d = paginas_d
+    inicio_d = (pagina_d - 1) * por_d
+    disponibilidad_pagina = disponibilidad[inicio_d:inicio_d + por_d] if total_d else []
+    return render_template("worker/disponibilidad_modulo.html", disponibilidad=disponibilidad_pagina, pagina=pagina_d, paginas=paginas_d, total=total_d, tecnico=tecnico, es_tecnico=tecnico is not None)
 
 
 RESUMEN_POR_PAGINA = 10
@@ -402,9 +624,27 @@ def _paginar(filas: list, q: str) -> tuple:
 def resumen_detalle(clave):
     """JSON paginado y filtrable del detalle de una tarjeta del 'Resumen'."""
     tecnico_id = _tecnico_id()
-    if clave == "CITAS":
+    if clave.startswith("CITAS"):
         tecnico = _tecnico_actual()
-        citas = _citas_tecnico(tecnico_id or (tecnico or {}).get("id")) if (tecnico_id or tecnico) else []
+        tid = tecnico_id or (tecnico or {}).get("id")
+        citas = _citas_tecnico(tid) if tid else []
+        estado_map = {
+            "CITAS": None,
+            "CITAS_EN_ATENCION": "EN_ATENCION",
+            "CITAS_CONFIRMADA": "CONFIRMADA",
+            "CITAS_ATENDIDA": "ATENDIDA",
+            "CITAS_ASIGNADA": "ASIGNADA",
+        }
+        filtro_est = estado_map.get(clave)
+        if filtro_est:
+            citas = [c for c in citas if (c.get("estado_raw") or "").upper() == filtro_est]
+        titulos = {
+            "CITAS": "Citas asignadas",
+            "CITAS_EN_ATENCION": "Citas en atención",
+            "CITAS_CONFIRMADA": "Citas confirmadas",
+            "CITAS_ATENDIDA": "Citas atendidas",
+            "CITAS_ASIGNADA": "Citas asignadas (ASIGNADA)",
+        }
         formateadas = [{
             "celdas": [c["fecha"], c["hora"] or "—", c["cliente_nombre"], c["equipo"] or "—"],
             "badge": {"texto": c["estado"], "clase": c["badge_class"]},
@@ -413,7 +653,7 @@ def resumen_detalle(clave):
         pagina, meta = _paginar(formateadas, request.args.get("q"))
         return jsonify({
             "ok": True,
-            "titulo": "Citas asignadas",
+            "titulo": titulos.get(clave, "Citas"),
             "encabezados": ["Fecha", "Hora", "Cliente", "Equipo", "Estado"],
             "filas": [{"celdas": f["celdas"], "badge": f["badge"]} for f in pagina],
             "placeholder": "Buscar por cliente...",
@@ -506,8 +746,6 @@ def agenda_agregar():
     disponible = request.form.get("disponible") != "false"
 
     try:
-        from datetime import date as date_cls
-
         if not fechas:
             raise ValueError("indicar fecha")
         if len(hora_inicio) != 5 or len(hora_fin) != 5:
@@ -516,13 +754,13 @@ def agenda_agregar():
         datetime.strptime(hora_fin, "%H:%M")
         if hora_inicio >= hora_fin:
             raise ValueError("rango hora")
-        hoy = date_cls.today()
+        hoy = _hoy_lima()
         for f in fechas:
             f2 = (f or "").strip()
             if not f2:
                 continue
             fecha_ok = datetime.strptime(f2, "%Y-%m-%d").date()
-            if fecha_ok < hoy:
+            if fecha_ok < hoy or fecha_ok.year < 2020:
                 raise ValueError("fecha pasada")
     except ValueError:
         flash("Datos inválidos. Revisa fecha y horas.", "error")
@@ -666,3 +904,507 @@ def agenda_toggle(franja_id):
         log.exception("No se pudo actualizar la franja")
         flash("No se pudo actualizar la franja.", "error")
     return redirect(url_for("worker.dashboard"))
+
+# ---------------------------------------------------------------------------
+# Citas: tomar una cita libre, avanzar su estado y abrir la reparación
+# ---------------------------------------------------------------------------
+
+def _volver_panel(hash_tab: str = ""):
+    return redirect(url_for("worker.dashboard") + hash_tab)
+
+
+def _cargar_cita(cita_id):
+    """Cita (reserva) por id; None si no existe o falló la lectura."""
+    try:
+        filas = (
+            get_reader()
+            .table("reservas")
+            .select("id,estado,tecnico_id,fecha_reserva,hora_inicio,electrodomestico_id,tipo_atencion,motivo,cliente_id")
+            .eq("id", cita_id)
+            .limit(1)
+            .execute()
+        ).data or []
+        return filas[0] if filas else None
+    except Exception:  # noqa: BLE001
+        log.exception("No se pudo leer la cita %s", cita_id)
+        return None
+
+
+@bp.post("/worker/citas/<int:cita_id>/tomar")
+@roles_required("worker")
+@tecnico_required
+def cita_tomar(cita_id):
+    """El técnico se asigna una cita PENDIENTE que nadie tiene aún."""
+    tecnico_id = _tecnico_id()
+    if not tecnico_id:
+        flash("Tu cuenta no está vinculada a un técnico.", "error")
+        return _volver_panel()
+    cita = _cargar_cita(cita_id)
+    if not cita:
+        flash("Cita no encontrada.", "warning")
+        return _volver_panel()
+    if cita.get("tecnico_id"):
+        flash("Esa cita ya tiene un técnico asignado.", "warning")
+        return _volver_panel()
+    if cita.get("estado") != "PENDIENTE":
+        flash("Solo se pueden tomar citas pendientes.", "warning")
+        return _volver_panel()
+    fecha = (cita.get("fecha_reserva") or "")[:10]
+    if fecha < _hoy_lima().isoformat():
+        flash("La cita ya venció; pídele al administrador que la reprograme o la cierre.", "warning")
+        return _volver_panel()
+
+    # Si el técnico marcó su agenda ese día, la hora de la cita debe caer en una franja disponible.
+    try:
+        franjas = (
+            get_reader()
+            .table("agenda_tecnicos")
+            .select("hora_inicio,hora_fin,disponible")
+            .eq("tecnico_id", tecnico_id)
+            .eq("fecha", fecha)
+            .execute()
+        ).data or []
+    except Exception:  # noqa: BLE001
+        franjas = []
+    hora = (cita.get("hora_inicio") or "")[:5]
+    if franjas and not any(f.get("disponible") and _cubre_franja(f, hora) for f in franjas):
+        flash("Esa hora está fuera de tu disponibilidad registrada para ese día.", "warning")
+        return _volver_panel()
+
+    try:
+        resp = (
+            get_admin_client()
+            .table("reservas")
+            .update({"tecnico_id": tecnico_id, "estado": "CONFIRMADA"})
+            .eq("id", cita_id)
+            .is_("tecnico_id", "null")
+            .eq("estado", "PENDIENTE")
+            .execute()
+        )
+    except Exception as exc:  # noqa: BLE001
+        if _es_unico_duplicado(exc):
+            flash("Ya tienes otra cita a esa misma hora.", "error")
+        else:
+            log.exception("No se pudo tomar la cita %s", cita_id)
+            flash("No se pudo tomar la cita. Inténtalo nuevamente.", "error")
+        return _volver_panel()
+    if not resp.data:
+        flash("Otro técnico tomó esa cita antes que tú.", "warning")
+        return _volver_panel()
+    marcar_primera_atencion(cita_id)
+    flash("Cita asignada a ti y confirmada.", "success")
+    return _volver_panel()
+
+
+@bp.post("/worker/citas/<int:cita_id>/estado")
+@roles_required("worker")
+@tecnico_required
+def cita_cambiar_estado(cita_id):
+    """Avanza el estado de una cita propia según TRANSICIONES_CITA."""
+    tecnico_id = _tecnico_id()
+    cita = _cargar_cita(cita_id)
+    if not cita or not tecnico_id or cita.get("tecnico_id") != tecnico_id:
+        flash("Cita no encontrada.", "warning")
+        return _volver_panel()
+    nuevo = (request.form.get("estado") or "").strip().upper()
+    actual = cita.get("estado") or "PENDIENTE"
+    if nuevo not in TRANSICIONES_CITA.get(actual, set()):
+        flash(
+            f"No se puede pasar la cita de {ESTADO_CITA_LABEL.get(actual, actual)} "
+            f"a {ESTADO_CITA_LABEL.get(nuevo, nuevo)}.",
+            "error",
+        )
+        return _volver_panel()
+    try:
+        resp = (
+            get_admin_client()
+            .table("reservas")
+            .update({"estado": nuevo})
+            .eq("id", cita_id)
+            .eq("tecnico_id", tecnico_id)
+            .eq("estado", actual)
+            .execute()
+        )
+    except Exception:  # noqa: BLE001
+        log.exception("No se pudo cambiar el estado de la cita %s", cita_id)
+        flash("No se pudo actualizar la cita. Inténtalo nuevamente.", "error")
+        return _volver_panel()
+    if not resp.data:
+        flash("La cita cambió mientras la editabas. Revisa su estado actual.", "warning")
+        return _volver_panel()
+    if nuevo == "EN_ATENCION":
+        marcar_primera_atencion(cita_id)
+    flash(f"Cita: {ESTADO_CITA_LABEL.get(nuevo, nuevo)}.", "success")
+    return _volver_panel()
+
+
+def _registrar_historial(reparacion_id, anterior, nuevo, comentario=None) -> None:
+    """Deja constancia del cambio de estado en `historial_reparacion` (no rompe el flujo)."""
+    try:
+        get_admin_client().table("historial_reparacion").insert({
+            "reparacion_id": reparacion_id,
+            "usuario_id": session.get("usuario_id"),
+            "estado_anterior": anterior,
+            "estado_nuevo": nuevo,
+            "comentario": comentario,
+        }).execute()
+    except Exception:  # noqa: BLE001
+        log.exception("No se pudo guardar el historial de la reparación %s", reparacion_id)
+
+
+@bp.post("/worker/citas/<int:cita_id>/reparacion")
+@roles_required("worker")
+@tecnico_required
+def cita_crear_reparacion(cita_id):
+    """Abre la orden de servicio (reparación) de una cita propia en atención."""
+    tecnico_id = _tecnico_id()
+    cita = _cargar_cita(cita_id)
+    if not cita or not tecnico_id or cita.get("tecnico_id") != tecnico_id:
+        flash("Cita no encontrada.", "warning")
+        return _volver_panel()
+    if cita.get("estado") not in ("EN_ATENCION", "ATENDIDA"):
+        flash("La reparación se crea cuando la cita está en atención.", "warning")
+        return _volver_panel()
+    if not cita.get("electrodomestico_id"):
+        flash("La cita no tiene un equipo registrado; no se puede crear la reparación.", "error")
+        return _volver_panel()
+
+    try:
+        existente = (
+            get_reader().table("reparaciones").select("id")
+            .eq("reserva_id", cita_id).limit(1).execute()
+        ).data or []
+    except Exception:  # noqa: BLE001
+        existente = []
+    if existente:
+        flash("Esa cita ya tiene una reparación creada.", "info")
+        return redirect(url_for("worker.reparacion_detalle", reparacion_id=existente[0]["id"]))
+
+    try:
+        resp = get_admin_client().table("reparaciones").insert({
+            "electrodomestico_id": cita["electrodomestico_id"],
+            "reserva_id": cita_id,
+            "usuario_registro_id": session.get("usuario_id"),
+            "tecnico_id": tecnico_id,
+            "tipo_atencion": cita.get("tipo_atencion") or "TALLER",
+            "estado": "RECIBIDO",
+            "problema": (cita.get("motivo") or "").strip() or "Por diagnosticar",
+        }).execute()
+        reparacion_id = (resp.data or [{}])[0].get("id")
+    except Exception as exc:  # noqa: BLE001
+        if _es_unico_duplicado(exc):
+            flash("Esa cita ya tiene una reparación creada.", "info")
+        else:
+            log.exception("No se pudo crear la reparación de la cita %s", cita_id)
+            flash("No se pudo crear la reparación. Inténtalo nuevamente.", "error")
+        return _volver_panel()
+    if not reparacion_id:
+        flash("No se pudo crear la reparación.", "error")
+        return _volver_panel()
+    _registrar_historial(reparacion_id, None, "RECIBIDO", f"Reparación creada desde la cita #{cita_id}")
+    flash(f"Reparación OS-{reparacion_id} creada.", "success")
+    return redirect(url_for("worker.reparacion_detalle", reparacion_id=reparacion_id))
+
+
+# ---------------------------------------------------------------------------
+# Reparaciones: detalle, estado, diagnóstico, fotos y PDF
+# ---------------------------------------------------------------------------
+
+def _cargar_reparacion(reparacion_id):
+    """Reparación si el usuario puede gestionarla (su técnico o un supervisor); si no, None."""
+    try:
+        filas = (
+            get_reader().table("reparaciones").select("*")
+            .eq("id", reparacion_id).limit(1).execute()
+        ).data or []
+    except Exception:  # noqa: BLE001
+        log.exception("No se pudo leer la reparación %s", reparacion_id)
+        return None
+    if not filas:
+        return None
+    rep = filas[0]
+    if session.get("rol") == "SUPERVISOR":
+        return rep
+    tecnico_id = _tecnico_id()
+    if tecnico_id and rep.get("tecnico_id") == tecnico_id:
+        return rep
+    return None
+
+
+def _volver_reparacion(reparacion_id):
+    return redirect(url_for("worker.reparacion_detalle", reparacion_id=reparacion_id))
+
+
+def _datos_equipo_cliente(electrodomestico_id) -> tuple:
+    """(equipo, cliente) de una reparación; dicts vacíos si no se pueden leer."""
+    if not electrodomestico_id:
+        return {}, {}
+    try:
+        filas = (
+            get_reader()
+            .table("electrodomesticos")
+            .select(
+                "id,modelo,numero_serie,marcas(nombre),tipos_electrodomestico(nombre),"
+                "clientes(nombres,apellidos,razon_social,telefono,numero_documento)"
+            )
+            .eq("id", electrodomestico_id)
+            .limit(1)
+            .execute()
+        ).data or []
+    except Exception:  # noqa: BLE001
+        log.exception("No se pudo leer el equipo %s", electrodomestico_id)
+        return {}, {}
+    if not filas:
+        return {}, {}
+    e = filas[0]
+    cliente = e.get("clientes") or {}
+    equipo = {
+        "modelo": e.get("modelo"),
+        "numero_serie": e.get("numero_serie"),
+        "descripcion": " ".join(filter(None, [
+            (e.get("tipos_electrodomestico") or {}).get("nombre"),
+            (e.get("marcas") or {}).get("nombre"),
+            e.get("modelo"),
+        ])),
+    }
+    return equipo, cliente
+
+
+@bp.get("/worker/reparaciones/<int:reparacion_id>")
+@roles_required("worker")
+def reparacion_detalle(reparacion_id):
+    rep = _cargar_reparacion(reparacion_id)
+    if not rep:
+        flash("Reparación no encontrada.", "warning")
+        return _volver_panel()
+    equipo, cliente = _datos_equipo_cliente(rep.get("electrodomestico_id"))
+
+    fotos, historial = [], []
+    try:
+        filas = (
+            get_reader().table("evidencias_reparacion")
+            .select("id,url_archivo,descripcion")
+            .eq("reparacion_id", reparacion_id).eq("tipo", "FOTO")
+            .order("fecha_creacion", desc=True).execute()
+        ).data or []
+        fotos = [{"url": f["url_archivo"], "descripcion": f.get("descripcion")} for f in filas if f.get("url_archivo")]
+    except Exception:  # noqa: BLE001
+        log.exception("No se pudieron cargar las fotos de la reparación %s", reparacion_id)
+    try:
+        historial = (
+            get_reader().table("historial_reparacion")
+            .select("estado_anterior,estado_nuevo,comentario,fecha")
+            .eq("reparacion_id", reparacion_id)
+            .order("fecha", desc=True).limit(30).execute()
+        ).data or []
+    except Exception:  # noqa: BLE001
+        log.exception("No se pudo cargar el historial de la reparación %s", reparacion_id)
+
+    permitidas = TRANSICIONES_REPARACION.get(rep.get("estado") or "", set())
+    return render_template(
+        "worker/reparacion_detalle.html",
+        reparacion=rep,
+        cliente=cliente,
+        equipo=equipo,
+        estados_labels=ESTADOS_LABEL,
+        transiciones=[e for e in ESTADOS_LABEL if e in permitidas],
+        fotos=fotos,
+        historial=historial,
+        max_fotos=MAX_FOTOS_REPARACION,
+    )
+
+
+@bp.post("/worker/reparaciones/<int:reparacion_id>/estado")
+@roles_required("worker")
+def reparacion_cambiar_estado(reparacion_id):
+    rep = _cargar_reparacion(reparacion_id)
+    if not rep:
+        flash("Reparación no encontrada.", "warning")
+        return _volver_panel()
+    nuevo = (request.form.get("estado") or "").strip().upper()
+    comentario = (request.form.get("comentario") or "").strip()[:300] or None
+    actual = rep.get("estado") or "RECIBIDO"
+    if nuevo not in TRANSICIONES_REPARACION.get(actual, set()):
+        flash(
+            f"No se puede pasar de {ESTADOS_LABEL.get(actual, actual)} a {ESTADOS_LABEL.get(nuevo, nuevo)}.",
+            "error",
+        )
+        return _volver_reparacion(reparacion_id)
+
+    cambios = {"estado": nuevo}
+    ahora = _ahora_iso()
+    if nuevo == "EN_REPARACION" and not rep.get("fecha_inicio"):
+        cambios["fecha_inicio"] = ahora
+    if nuevo == "REPARADO":
+        cambios["fecha_fin"] = ahora
+    if nuevo == "ENTREGADO":
+        cambios["fecha_entrega"] = ahora
+
+    try:
+        resp = (
+            get_admin_client().table("reparaciones").update(cambios)
+            .eq("id", reparacion_id).eq("estado", actual).execute()
+        )
+    except Exception:  # noqa: BLE001
+        log.exception("No se pudo cambiar el estado de la reparación %s", reparacion_id)
+        flash("No se pudo actualizar el estado. Inténtalo nuevamente.", "error")
+        return _volver_reparacion(reparacion_id)
+    if not resp.data:
+        flash("La reparación cambió mientras la editabas. Revisa su estado actual.", "warning")
+        return _volver_reparacion(reparacion_id)
+
+    _registrar_historial(reparacion_id, actual, nuevo, comentario)
+    equipo_estado = ESTADO_EQUIPO.get(nuevo)
+    if equipo_estado and rep.get("electrodomestico_id"):
+        try:
+            get_admin_client().table("electrodomesticos").update(
+                {"estado": equipo_estado}
+            ).eq("id", rep["electrodomestico_id"]).execute()
+        except Exception:  # noqa: BLE001
+            log.exception("No se pudo sincronizar el estado del equipo %s", rep["electrodomestico_id"])
+    flash(f"Estado actualizado: {ESTADOS_LABEL.get(nuevo, nuevo)}.", "success")
+    return _volver_reparacion(reparacion_id)
+
+
+@bp.post("/worker/reparaciones/<int:reparacion_id>/diagnostico")
+@roles_required("worker")
+def reparacion_guardar_diagnostico(reparacion_id):
+    rep = _cargar_reparacion(reparacion_id)
+    if not rep:
+        flash("Reparación no encontrada.", "warning")
+        return _volver_panel()
+    diagnostico = (request.form.get("diagnostico") or "").strip()
+    notas = (request.form.get("notas_tecnico") or "").strip()
+    if len(diagnostico) > 2000 or len(notas) > 2000:
+        flash("El diagnóstico y las notas admiten hasta 2000 caracteres cada uno.", "error")
+        return _volver_reparacion(reparacion_id)
+    costo_txt = (request.form.get("costo_estimado") or "").strip().replace(",", ".")
+    costo = None
+    if costo_txt:
+        try:
+            costo = round(float(costo_txt), 2)
+        except ValueError:
+            costo = -1
+        if costo < 0 or costo > 1_000_000:
+            flash("El costo estimado debe ser un monto válido (0 o mayor).", "error")
+            return _volver_reparacion(reparacion_id)
+    try:
+        get_admin_client().table("reparaciones").update({
+            "diagnostico": diagnostico or None,
+            "notas_tecnico": notas or None,
+            "costo_estimado": costo,
+        }).eq("id", reparacion_id).execute()
+    except Exception:  # noqa: BLE001
+        log.exception("No se pudo guardar el diagnóstico de la reparación %s", reparacion_id)
+        flash("No se pudo guardar. Inténtalo nuevamente.", "error")
+        return _volver_reparacion(reparacion_id)
+    flash("Diagnóstico y notas guardados.", "success")
+    return _volver_reparacion(reparacion_id)
+
+
+@bp.post("/worker/reparaciones/<int:reparacion_id>/foto")
+@roles_required("worker")
+def reparacion_subir_foto(reparacion_id):
+    rep = _cargar_reparacion(reparacion_id)
+    if not rep:
+        flash("Reparación no encontrada.", "warning")
+        return _volver_panel()
+    try:
+        total = (
+            get_reader().table("evidencias_reparacion").select("id", count="exact")
+            .eq("reparacion_id", reparacion_id).limit(1).execute()
+        ).count or 0
+    except Exception:  # noqa: BLE001
+        total = 0
+    if total >= MAX_FOTOS_REPARACION:
+        flash(f"Una reparación admite hasta {MAX_FOTOS_REPARACION} fotos.", "error")
+        return _volver_reparacion(reparacion_id)
+    try:
+        url, _ruta = storage_service.subir_imagen(
+            storage_service.BUCKET_EVIDENCIAS,
+            f"reparacion-{reparacion_id}/{uuid.uuid4().hex[:12]}",
+            request.files.get("foto"),
+        )
+    except ValidationError as exc:
+        flash(exc.message, "error")
+        return _volver_reparacion(reparacion_id)
+    except Exception:  # noqa: BLE001
+        log.exception("No se pudo subir la foto de la reparación %s", reparacion_id)
+        flash("No se pudo subir la foto. Inténtalo nuevamente.", "error")
+        return _volver_reparacion(reparacion_id)
+    try:
+        get_admin_client().table("evidencias_reparacion").insert({
+            "reparacion_id": reparacion_id,
+            "usuario_id": session.get("usuario_id"),
+            "tipo": "FOTO",
+            "url_archivo": url,
+        }).execute()
+    except Exception:  # noqa: BLE001
+        log.exception("No se pudo registrar la evidencia de la reparación %s", reparacion_id)
+        flash("La foto se subió, pero no se pudo registrar. Inténtalo nuevamente.", "error")
+        return _volver_reparacion(reparacion_id)
+    flash("Foto agregada.", "success")
+    return _volver_reparacion(reparacion_id)
+
+
+@bp.get("/worker/reparaciones/<int:reparacion_id>/pdf")
+@roles_required("worker")
+def reparacion_pdf(reparacion_id):
+    rep = _cargar_reparacion(reparacion_id)
+    if not rep:
+        flash("Reparación no encontrada.", "warning")
+        return _volver_panel()
+    equipo, cliente = _datos_equipo_cliente(rep.get("electrodomestico_id"))
+
+    direccion = ""
+    if rep.get("reserva_id") and rep.get("tipo_atencion") == "DOMICILIO":
+        try:
+            r = (
+                get_reader().table("reservas").select("calle,distrito")
+                .eq("id", rep["reserva_id"]).limit(1).execute()
+            ).data or [{}]
+            partes = [(r[0].get("distrito") or "").strip(), (r[0].get("calle") or "").strip()]
+            direccion = " - ".join(dict.fromkeys(p for p in partes if p))
+        except Exception:  # noqa: BLE001
+            log.exception("No se pudo leer la dirección de la reparación %s", reparacion_id)
+
+    tecnico_nombre = ""
+    if rep.get("tecnico_id"):
+        try:
+            t = (
+                get_reader().table("tecnicos").select("empleados(nombres,apellidos)")
+                .eq("id", rep["tecnico_id"]).limit(1).execute()
+            ).data or [{}]
+            emp = t[0].get("empleados") or {}
+            tecnico_nombre = " ".join(filter(None, [emp.get("nombres"), emp.get("apellidos")]))
+        except Exception:  # noqa: BLE001
+            log.exception("No se pudo leer el técnico de la reparación %s", reparacion_id)
+
+    try:
+        pdf = generar_orden_servicio_pdf({
+            "codigo": f"OS-{rep['id']}",
+            "fecha_ingreso": rep.get("fecha_ingreso"),
+            "estado": ESTADOS_LABEL.get(rep.get("estado") or "", rep.get("estado")),
+            "tipo_atencion": rep.get("tipo_atencion"),
+            "cliente_nombre": cliente.get("razon_social")
+            or " ".join(filter(None, [cliente.get("nombres"), cliente.get("apellidos")])),
+            "cliente_telefono": cliente.get("telefono"),
+            "cliente_documento": cliente.get("numero_documento"),
+            "direccion": direccion,
+            "equipo": equipo.get("descripcion"),
+            "numero_serie": equipo.get("numero_serie"),
+            "problema": rep.get("problema"),
+            "diagnostico": rep.get("diagnostico"),
+            "notas": rep.get("notas_tecnico"),
+            "costo_estimado": rep.get("costo_estimado"),
+            "tecnico_nombre": tecnico_nombre,
+        })
+    except Exception:  # noqa: BLE001
+        log.exception("No se pudo generar el PDF de la reparación %s", reparacion_id)
+        flash("No se pudo generar el PDF.", "error")
+        return _volver_reparacion(reparacion_id)
+    return Response(
+        pdf,
+        mimetype="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="OS-{reparacion_id}.pdf"'},
+    )
