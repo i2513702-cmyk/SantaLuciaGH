@@ -165,7 +165,7 @@
     </section>
 
     <div class="cita-actions">
-        <button type="submit" class="btn btn-primary btn-lg">Confirmar mi cita</button>
+        <button type="submit" class="btn btn-primary btn-lg" id="btn-confirmar-cita">Confirmar mi cita</button>
         <p style="color: var(--muted); font-size: 0.82rem; margin: 0;">* Campos obligatorios. Te contactaremos para confirmar.</p>
     </div>
 </form>
@@ -257,6 +257,16 @@
         actualizarDomicilio();
         var fechaInput = document.getElementById('fecha_reserva');
         if (fechaInput) fechaInput.addEventListener('change', function () { cargarDisponibles(aplicarDisponibles); });
+
+        var formCita = document.querySelector('.cita-form');
+        var btnConfirmar = document.getElementById('btn-confirmar-cita');
+        if (formCita && btnConfirmar) {
+            formCita.addEventListener('submit', function () {
+                if (btnConfirmar.disabled) return;
+                btnConfirmar.disabled = true;
+                btnConfirmar.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Confirmando...';
+            });
+        }
     });
 </script>
 {% endblock %}
