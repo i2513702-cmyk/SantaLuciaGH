@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Mis pedidos - {{ app_name }}{% endblock %}
+{% block content %}
+<section class="panel-head">
+    <div><h1>Mis pedidos</h1><p>Consulta el estado de tus pedidos.</p></div>
+</section>
+{% if pedidos %}
+<div class="table-wrap">
+    <table class="table">
+        <thead><tr><th>N?mero</th><th>Fecha</th><th>Monto</th><th>M?todo</th><th>Estado</th><th></th></tr></thead>
+        <tbody>
+            {% for p in pedidos %}
+            <tr>
+                <td><strong>{{ p.codigo_pedido or p.id }}</strong></td>
+                <td>{{ (p.fecha_venta or '')[:10] }}</td>
+                <td>S/ {{ "%.2f"|format(p.total or 0) }}</td>
+                <td>{{ p.metodo_nombre }}</td>
+                <td><span class="badge {{ p.estado_badge }}">{{ p.estado_label }}</span></td>
+                <td><a class="btn btn-sm btn-outline" href="{{ url_for('pedidos.detalle', venta_id=p.id) }}">Ver</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state"><p class="text-secondary">A?n no tienes pedidos registrados.</p></div>
+{% endif %}
+{% endblock %}

@@ -8,7 +8,9 @@ El personal interno no compra: estas rutas se cierran para su rol con un 403
 (vía `app.decorators.bloquear_compras_sin_rol`, registrado en la app).
 """
 
+import os
 import uuid
+from werkzeug.utils import secure_filename
 from datetime import datetime, timezone
 
 from flask import (
@@ -89,9 +91,43 @@ def procesar():
 
     metodo_pago_id = request.form.get("metodo_pago_id", type=int)
 
+    # Codigo del metodo seleccionado
+    metodo = None
+    try:
+        from app.supabase_client import get_reader
+        filas = get_reader().table("metodos_pago").select("codigo,nombre").eq("id", metodo_pago_id).limit(1).execute().data or []
+        metodo = filas[0] if filas else None
+    except Exception:  # noqa: BLE001
+        metodo = None
+    codigo_metodo = (metodo or {}).get("codigo", "")
+
+    # Exigir telefono para pedidos en efectivo.
+    if codigo_metodo == "EFECTIVO":
+        telefono = (request.form.get("telefono") or "").strip()
+        if not telefono:
+            flash("El telefono es obligatorio para pedidos en efectivo.", "error")
+            return redirect(url_for("checkout.checkout"))
+
     tipo = (request.form.get("tipo_comprobante", "BOLETA") or "BOLETA").upper()
     if tipo not in ("BOLETA", "FACTURA"):
         tipo = "BOLETA"
+
+    # Validacion de comprobante: factura requiere RUC (11 digitos).
+    if tipo == "FACTURA":
+        tipo_doc_id = int(request.form.get("tipo_documento_id") or 0)
+        numero_documento = (request.form.get("numero_documento") or "").strip()
+        # Buscar codigo del tipo de documento
+        codigo_doc = ""
+        try:
+            from app.supabase_client import get_reader
+            filas = get_reader().table("tipos_documento").select("id,codigo").eq("id", tipo_doc_id).limit(1).execute().data or []
+            if filas:
+                codigo_doc = (filas[0].get("codigo") or "").upper()
+        except Exception:  # noqa: BLE001
+            pass
+        if codigo_doc != "RUC" or len(numero_documento) != 11 or not numero_documento.isdigit():
+            flash("Para factura necesitas un RUC de 11 digitos.", "error")
+            return redirect(url_for("checkout.checkout"))
 
     usar_cliente = request.form.get("usar_cliente") == "1"
     cliente_nombre = "Cliente anónimo (mostrador)"
@@ -111,6 +147,81 @@ def procesar():
             usuario_id=session.get("usuario_id"),
             tipo_comprobante=tipo,
         )
+    except (AppError, ValidationError) as exc:
+        flash(exc.message if isinstance(exc, AppError) else str(exc), "error")
+        return redirect(url_for("checkout.checkout"))
+    except Exception:  # noqa: BLE001
+        flash("No se pudo registrar el pago. Intentalo de nuevo.", "error")
+        return redirect(url_for("checkout.checkout"))
+
+    venta_id = resul["venta_id"]
+    numero_operacion = (request.form.get("numero_operacion") or "").strip()
+    archivo = request.files.get("comprobante")
+    ruta_comprobante = None
+    if archivo and archivo.filename:
+        ext = os.path.splitext(archivo.filename)[1].lower()
+        if ext not in (".jpg", ".jpeg", ".png", ".webp", ".pdf"):
+            flash("Formato de comprobante no permitido.", "error")
+            return redirect(url_for("checkout.checkout"))
+        archivo.seek(0, os.SEEK_END)
+        size = archivo.tell()
+        archivo.seek(0)
+        if size > 5 * 1024 * 1024:
+            flash("El comprobante no puede superar 5 MB.", "error")
+            return redirect(url_for("checkout.checkout"))
+        carpeta = os.path.join("app", "static", "uploads", "comprobantes")
+        os.makedirs(carpeta, exist_ok=True)
+        nombre = f"{uuid.uuid4().hex}{ext}"
+        archivo.save(os.path.join(carpeta, nombre))
+        ruta_comprobante = f"uploads/comprobantes/{nombre}"
+
+    # EFECTIVO: reservar stock (no descontar) y fecha limite de pago.
+    if codigo_metodo == "EFECTIVO":
+        try:
+            from datetime import datetime, timedelta, timezone
+            from app.supabase_client import get_admin_client, get_reader
+            from app.config import Config
+            horas = getattr(Config, "PAGO_EFECTIVO_VENCIMIENTO_HORAS", 48)
+            limite = (datetime.now(timezone.utc) + timedelta(hours=horas)).isoformat()
+            # Restaurar stock descontado por pagar() y reservarlo.
+            for i in items:
+                pid = i.get("producto_id")
+                cantidad = float(i.get("cantidad") or 0)
+                if not pid or cantidad <= 0:
+                    continue
+                filas = get_reader().table("inventario").select("id,stock_actual,stock_reservado").eq("producto_id", pid).execute().data or []
+                if filas:
+                    f = filas[0]
+                    actual = float(f.get("stock_actual") or 0) + cantidad
+                    reservado = float(f.get("stock_reservado") or 0) + cantidad
+                    get_admin_client().table("inventario").update({
+                        "stock_actual": actual,
+                        "stock_reservado": reservado,
+                    }).eq("id", f["id"]).execute()
+            get_admin_client().table("ventas").update({
+                "fecha_limite_pago": limite,
+            }).eq("id", venta_id).execute()
+        except Exception:  # noqa: BLE001
+            pass
+
+    # Actualizar estado del pago segun metodo
+    try:
+        from app.supabase_client import get_admin_client
+        estado_pago = "PENDIENTE"
+        if codigo_metodo in ("YAPE", "TRANSFERENCIA", "DEPOSITO"):
+            estado_pago = "PENDIENTE_VERIFICACION"
+        obs = []
+        if ruta_comprobante:
+            obs.append(f"comprobante={ruta_comprobante}")
+        if numero_operacion:
+            obs.append(f"operacion={numero_operacion}")
+        get_admin_client().table("pagos").update({
+            "estado": estado_pago,
+            "observaciones": "; ".join(obs) if obs else None,
+        }).eq("venta_id", venta_id).execute()
+    except Exception:  # noqa: BLE001
+        pass
+
     except (AppError, ValidationError) as exc:
         flash(exc.message if isinstance(exc, AppError) else str(exc), "error")
         return redirect(url_for("checkout.checkout"))
@@ -149,11 +260,16 @@ def procesar():
         "igv": igv,
         "total": total,
         "lineas": items,
+        "es_efectivo": codigo_metodo == "EFECTIVO",
     }
+    if codigo_metodo == "EFECTIVO":
+        resumen["fecha_limite_pago"] = limite if "limite" in locals() else None
+        resumen["direccion_tienda"] = current_app.config.get("CONTACTO_DIRECCION", "")
+        resumen["horario_tienda"] = "Lun a Sab 9:00 - 19:00"
     session["pago_simulado"] = resumen
 
     flash(
-        f"Pago simulado exitoso. Pedido {codigo_pedido} registrado en tu historial.",
+        f"Pedido {codigo_pedido} registrado. Tu pago sera verificado por el equipo.",
         "success",
     )
     return render_template("confirmacion.html", resumen=resumen)

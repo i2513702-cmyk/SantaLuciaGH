@@ -56,6 +56,15 @@ class Config:
     DEFAULT_PRODUCT_IMAGE = "img/producto-default.svg"
     FOOTER_BG_PATH = "img/fondo-footer.svg"
 
+    # Datos de pago manual (transferencia/deposito/Yape).
+    PAGO_RUC = os.getenv("PAGO_RUC", "20605305998")
+    PAGO_BANCO = os.getenv("PAGO_BANCO", "BCP")
+    PAGO_CUENTA = os.getenv("PAGO_CUENTA", "35595697902083")
+    PAGO_CCI = os.getenv("PAGO_CCI", "00235519569790208363")
+    PAGO_TITULAR = os.getenv("PAGO_TITULAR", "Santa Lucia Servicio Tecnico")
+    PAGO_YAPE_NUMERO = os.getenv("PAGO_YAPE_NUMERO", "")
+    PAGO_YAPE_QR = os.getenv("PAGO_YAPE_QR", "images/pagos/yape-qr.jpeg")
+
     # Contacto y redes (se pueden cambiar desde el .env sin tocar el código).
     # WHATSAPP_NUMERO va en formato internacional sin signos: 51964618892.
     WHATSAPP_NUMERO = os.getenv("WHATSAPP_NUMERO", "51964618892")
@@ -64,6 +73,9 @@ class Config:
     )
     CONTACTO_TELEFONO = os.getenv("CONTACTO_TELEFONO", "+51 964 618 892")
     CONTACTO_CORREO = os.getenv("CONTACTO_CORREO", "contacto@santalucia.pe")
+    # Vigencia (horas) de un pedido en efectivo sin pagar.
+    PAGO_EFECTIVO_VENCIMIENTO_HORAS = int(os.getenv("PAGO_EFECTIVO_VENCIMIENTO_HORAS", "48"))
+
     CONTACTO_DIRECCION = os.getenv(
         "CONTACTO_DIRECCION", "Av. 28 de Julio 723 - Chilca - Huancayo"
     )

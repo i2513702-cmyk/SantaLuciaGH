@@ -119,6 +119,13 @@
                                     </li>
                                     {% if rol == 'CLIENTE' %}
                                     <li>
+                                        <a class="dropdown-item" href="{{ url_for('pedidos.mis_pedidos') }}">
+                                            {{ icono('mis-pedidos', 'receipt', 16) }}<span>Mis pedidos</span>
+                                        </a>
+                                    </li>
+                                    {% endif %}
+                                    {% if rol == 'CLIENTE' %}
+                                    <li>
                                         <a class="dropdown-item" href="{{ url_for('citas.mis_citas') }}">
                                             {{ icono('mis-citas', 'calendar2-check', 16) }}<span>Mis citas</span>
                                         </a>
