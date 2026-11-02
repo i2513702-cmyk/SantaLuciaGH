@@ -9,7 +9,7 @@ from datetime import date as date_cls
 from datetime import datetime, timedelta, timezone
 
 from app.config import Config
-from app.timezone import ahora_lima, hoy_lima
+from app.services import agenda_service
 from app.supabase_client import get_admin_client, get_reader
 
 log = logging.getLogger(__name__)
@@ -32,7 +32,8 @@ class CitaError(Exception):
 
 
 def _fecha_hoy():
-    return hoy_lima()
+    """Fecha de hoy en Lima (el servidor corre en UTC: `date.today()` adelanta el día de noche)."""
+    return agenda_service.hoy_lima()
 
 
 def _ahora() -> str:
@@ -84,6 +85,9 @@ def validar(datos: dict) -> None:
     if hora not in HORARIOS:
         raise CitaError("Selecciona un horario disponible.")
 
+    if fecha_ok == _fecha_hoy() and hora <= agenda_service.ahora_lima().strftime("%H:%M"):
+        raise CitaError("La hora seleccionada ya pasó. Elige una hora posterior a la actual.")
+
     if hora not in horarios_disponibles(fecha):
         raise CitaError(
             "En esa fecha y hora no hay un técnico disponible. "
@@ -118,12 +122,30 @@ def validar(datos: dict) -> None:
         raise CitaError("Las observaciones deben tener máximo 100 caracteres.")
 
 
-def horarios_disponibles(fecha: str) -> list:
-    """Horas de HORARIOS con al menos un tecnico libre en la fecha indicada.
+ESTADOS_SIN_CUPO = ("CANCELADA", "NO_ASISTIO")
 
-    Resta las citas ya ocupadas (estado distinto de CANCELADA) por tecnico.
+
+def _total_tecnicos() -> int:
+    """Cantidad de técnicos registrados (cupo cuando el día no tiene agenda cargada)."""
+    try:
+        resp = get_reader().table("tecnicos").select("id", count="exact").limit(1).execute()
+        return max(int(resp.count or 0), 1)
+    except Exception:  # noqa: BLE001
+        return 1
+
+
+def horarios_disponibles(fecha: str) -> list:
+    """Horas de HORARIOS con cupo libre en la fecha indicada.
+
+    El cupo de cada hora es la cantidad de técnicos que la cubren con una franja
+    disponible de `agenda_tecnicos`; a eso se le restan las citas ya agendadas
+    en esa hora (las canceladas o con inasistencia no ocupan cupo).
+    Solo cuentan las sesiones vigentes (estado ACTIVA, disponibles y sin terminar).
+    Si la fecha no tiene ninguna franja cargada (lun-sáb) se asume el horario
+    base 09:00-18:00 con un cupo igual a la cantidad de técnicos. Para hoy solo
+    se ofrecen las horas que aún no pasaron (hora de Lima).
     """
-    lima = ahora_lima()
+    lima = agenda_service.ahora_lima()
     try:
         dia = date_cls.fromisoformat(fecha)
     except (TypeError, ValueError):
@@ -132,73 +154,50 @@ def horarios_disponibles(fecha: str) -> list:
         return []
 
     try:
+        lector = get_reader()
         franjas = (
-            get_reader()
-            .table("agenda_tecnicos")
-            .select("tecnico_id,hora_inicio,hora_fin,disponible")
+            lector.table("agenda_tecnicos")
+            .select("tecnico_id,fecha,hora_inicio,hora_fin,disponible,estado")
             .eq("fecha", fecha)
             .execute()
             .data
             or []
         )
-    except Exception:  # noqa: BLE001
-        franjas = []
-
-    tecnicos_activos = []
-    try:
-        tecnicos_activos = (
-            get_reader()
-            .table("tecnicos")
-            .select("id")
-            .eq("activo", True)
-            .execute()
-            .data
-            or []
-        )
-    except Exception:  # noqa: BLE001
-        tecnicos_activos = []
-
-    if not franjas and dia.weekday() != 6:
-        franjas = [
-            {"tecnico_id": t.get("id"), "hora_inicio": HORARIOS[0], "hora_fin": "18:00", "disponible": True}
-            for t in tecnicos_activos
-        ]
-
-    franjas = [f for f in franjas if f.get("disponible")]
-
-    ocupados = set()
-    try:
         reservas = (
-            get_reader()
-            .table("reservas")
-            .select("tecnico_id,hora_inicio")
+            lector.table("reservas")
+            .select("hora_inicio,estado")
             .eq("fecha_reserva", fecha)
-            .neq("estado", "CANCELADA")
             .execute()
             .data
             or []
         )
-        for r in reservas:
-            tid = r.get("tecnico_id")
-            hora = (r.get("hora_inicio") or "")[:5]
-            if tid is not None and hora:
-                ocupados.add((tid, hora))
     except Exception:  # noqa: BLE001
-        pass
+        return []
 
-    disponibles = []
-    for h in HORARIOS:
-        libre = False
-        for f in franjas:
-            tid = f.get("tecnico_id")
-            if tid is None:
-                continue
-            if _cubre_franja(f, h) and (tid, h) not in ocupados:
-                libre = True
-                break
-        if libre:
-            disponibles.append(h)
+    ocupadas: dict = {}
+    for r in reservas:
+        if (r.get("estado") or "") in ESTADOS_SIN_CUPO:
+            continue
+        hora = (r.get("hora_inicio") or "")[:5]
+        ocupadas[hora] = ocupadas.get(hora, 0) + 1
 
+    if franjas:
+        # Solo sesiones vigentes: activas, marcadas como disponibles y que aún no terminaron
+        # (se valida con la hora actual aunque el job de cierre todavía no haya corrido).
+        franjas = [f for f in franjas if agenda_service.franja_vigente(f, lima)]
+
+        def cupo(hora: str) -> int:
+            return len({f.get("tecnico_id") for f in franjas if _cubre_franja(f, hora)})
+    elif dia.weekday() != 6:
+        base = {"hora_inicio": HORARIOS[0], "hora_fin": "18:00"}
+        total = _total_tecnicos()
+
+        def cupo(hora: str) -> int:
+            return total if _cubre_franja(base, hora) else 0
+    else:
+        return []
+
+    disponibles = [h for h in HORARIOS if cupo(h) - ocupadas.get(h, 0) > 0]
     if dia == lima.date():
         disponibles = [h for h in disponibles if h > lima.strftime("%H:%M")]
     return disponibles
@@ -1023,6 +1022,22 @@ def agendar(datos: dict) -> dict:
         raise CitaError(
             "No se pudo guardar la cita en este momento. Verifica la conexión y vuelve a intentar."
         ) from exc
+
+
+def nombre_equipo(equipo: dict) -> str:
+    """Tipo + marca + modelo de un electrodoméstico.
+
+    Si el cliente eligió "OTRO" y escribió su propio tipo o marca (columnas
+    `tipo_otro` / `marca_otro`), se muestra lo que escribió en vez de "OTRO".
+    """
+    equipo = equipo or {}
+    tipo = ((equipo.get("tipos_electrodomestico") or {}).get("nombre") or "").strip()
+    marca = ((equipo.get("marcas") or {}).get("nombre") or "").strip()
+    if tipo.upper() == "OTRO" and (equipo.get("tipo_otro") or "").strip():
+        tipo = equipo["tipo_otro"].strip()
+    if marca.upper() == "OTRO" and (equipo.get("marca_otro") or "").strip():
+        marca = equipo["marca_otro"].strip()
+    return " ".join(filter(None, [tipo, marca, (equipo.get("modelo") or "").strip()]))
 
 
 def marcar_primera_atencion(reserva_id) -> bool:
