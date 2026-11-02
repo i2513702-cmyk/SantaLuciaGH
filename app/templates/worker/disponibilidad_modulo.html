@@ -6,7 +6,7 @@
 <section class="panel-head">
     <div>
         <h1>Mi disponibilidad</h1>
-        <p>Gestiona las franjas en las que puedes atender.</p>
+        <p>Registra las franjas en las que puedes atender hoy.</p>
     </div>
     <div class="panel-actions">
         <a class="btn btn-outline" href="{{ url_for('worker.dashboard') }}">Volver al panel</a>
@@ -19,7 +19,7 @@
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div>
                 <label class="form-label">Fecha</label>
-                <input type="date" name="fechas" class="form-control" min="{{ hoy }}" required>
+                <input type="date" name="fechas" class="form-control" min="{{ hoy }}" max="{{ hoy }}" value="{{ hoy }}" required>
             </div>
             <div>
                 <label class="form-label">Desde</label>
@@ -37,7 +37,7 @@
             <button type="submit" class="btn btn-primary mb-2">Agregar</button>
             <div class="w-100 alert alert-danger py-2 mb-0 d-none js-error" role="alert"></div>
         </form>
-        <p class="text-muted small mb-0 mt-2">No se pueden registrar sesiones en fechas u horas que ya pasaron (hora de Lima). Las sesiones que terminan pasan solas a «Vencida» y se conservan como historial.</p>
+        <p class="text-muted small mb-0 mt-2">Solo puedes registrar disponibilidad para el día de hoy: no se permiten fechas anteriores ni posteriores, ni horas que ya pasaron (hora de Lima). Las sesiones que terminan pasan solas a «Vencida» y se conservan como historial.</p>
     </div>
 </div>
 
@@ -84,7 +84,7 @@
                             <div class="collapse mt-2" id="editar-{{ franja.id }}">
                                 <form method="POST" action="{{ url_for('worker.agenda_editar', franja_id=franja.id) }}" class="d-flex flex-wrap gap-2 align-items-end justify-content-end js-form-sesion" novalidate>
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                    <input type="date" name="fecha" class="form-control form-control-sm w-auto" min="{{ hoy }}" value="{{ franja.fecha }}" required>
+                                    <input type="date" name="fecha" class="form-control form-control-sm w-auto" min="{{ hoy }}" max="{{ hoy }}" value="{{ franja.fecha }}" required>
                                     <input type="time" name="hora_inicio" class="form-control form-control-sm w-auto" value="{{ franja.hora_inicio }}" required>
                                     <input type="time" name="hora_fin" class="form-control form-control-sm w-auto" value="{{ franja.hora_fin }}" required>
                                     <button type="submit" class="btn btn-sm btn-primary">Guardar</button>
@@ -143,6 +143,7 @@
         if (!f.value) return 'Indica la fecha de la sesión.';
         if (f.value.length !== 10 || +f.value.slice(0, 4) < 2020) return 'La fecha no es válida; revisa el año.';
         if (f.value < ahora.fecha) return 'No puedes registrar disponibilidad en una fecha anterior a hoy (' + dmy(f.value) + ').';
+        if (f.value > ahora.fecha) return 'Solo puedes registrar disponibilidad para hoy (' + dmy(ahora.fecha) + '); no se permiten fechas posteriores (' + dmy(f.value) + ').';
         if (!hi.value || !hf.value) return 'Indica la hora de inicio y la hora de fin.';
         if (hf.value <= hi.value) return 'La hora de fin debe ser posterior a la hora de inicio.';
         if (f.value === ahora.fecha && hi.value < ahora.hora)
@@ -165,7 +166,7 @@
         });
         // `min` del selector de fecha según el día de Lima (por si la página quedó abierta varios días)
         var fecha = form.querySelector('[name="fechas"], [name="fecha"]');
-        if (fecha) fecha.min = ahoraLima().fecha;
+        if (fecha) { fecha.min = ahoraLima().fecha; fecha.max = ahoraLima().fecha; }
     });
 })();
 </script>
