@@ -160,56 +160,160 @@ def rechazar_pago(venta_id):
     return redirect(url_for("ventas.detalle", venta_id=venta_id))
 
 
+# --------------------------------------------------------------------------
+# Reservas de stock (pagos en efectivo pendientes de cobro)
+#
+# Al pagar en EFECTIVO el checkout NO descuenta stock: lo deja en `stock_actual`
+# y suma la cantidad a `stock_reservado`. Al resolver la reserva:
+#   - Confirmar pago -> stock_actual -= cant  y  stock_reservado -= cant
+#   - Cancelar       -> stock_reservado -= cant  (el stock fisico no se toco)
+# --------------------------------------------------------------------------
+ESTADOS_VENTA_CERRADA = ("CANCELADA", "RECHAZADO", "PAGO_RECHAZADO")
+
+
+def _ahora():
+    from datetime import datetime, timezone
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _destino_seguro(por_defecto):
+    """Redirige a `next` solo si es una ruta interna (evita open redirect)."""
+    nxt = (request.form.get("next") or "").strip()
+    if nxt.startswith("/") and not nxt.startswith("//"):
+        return nxt
+    return por_defecto
+
+
+def _ids_metodo_efectivo():
+    filas = get_reader().table("metodos_pago").select("id").eq("codigo", "EFECTIVO").execute().data or []
+    return [f["id"] for f in filas]
+
+
+def _pagos_efectivo_pendientes(venta_id):
+    """Pagos en efectivo sin cobrar de la venta: son los que mantienen stock reservado."""
+    ids = _ids_metodo_efectivo()
+    if not ids:
+        return []
+    return (
+        get_reader().table("pagos").select("id").eq("venta_id", venta_id)
+        .eq("estado", "PENDIENTE").in_("metodo_pago_id", ids).execute().data or []
+    )
+
+
+def _resolver_stock(venta_id, cobrado):
+    """Libera la reserva de cada linea de la venta; si `cobrado`, tambien descuenta el stock."""
+    from app.supabase_client import get_admin_client
+    items = get_reader().table("detalle_venta").select("producto_id,cantidad").eq("venta_id", venta_id).execute().data or []
+    for it in items:
+        pid = it.get("producto_id")
+        cant = float(it.get("cantidad") or 0)
+        if not pid or cant <= 0:
+            continue
+        filas = get_reader().table("inventario").select("id,stock_actual,stock_reservado").eq("producto_id", pid).execute().data or []
+        if not filas:
+            continue
+        f = filas[0]
+        cambios = {
+            "stock_reservado": max(float(f.get("stock_reservado") or 0) - cant, 0),
+            "fecha_actualizacion": _ahora(),
+        }
+        if cobrado:
+            cambios["stock_actual"] = max(float(f.get("stock_actual") or 0) - cant, 0)
+        get_admin_client().table("inventario").update(cambios).eq("id", f["id"]).execute()
+
+
+@bp.get("/ventas/reservas")
+@ventas_required
+def reservas():
+    """Reservas pendientes (efectivo sin cobrar), opcionalmente de un solo producto."""
+    producto_id = request.args.get("producto_id", type=int)
+    filas, producto, error = [], None, None
+    try:
+        rd = get_reader()
+        if producto_id:
+            r = rd.table("productos").select("id,codigo,nombre").eq("id", producto_id).limit(1).execute().data
+            producto = r[0] if r else None
+        ids_metodo = _ids_metodo_efectivo()
+        pagos = []
+        if ids_metodo:
+            pagos = (
+                rd.table("pagos").select("id,venta_id,monto,fecha_creacion")
+                .eq("estado", "PENDIENTE").in_("metodo_pago_id", ids_metodo).execute().data or []
+            )
+        venta_ids = sorted({p["venta_id"] for p in pagos if p.get("venta_id")})
+        ventas = {}
+        if venta_ids:
+            for v in rd.table("ventas").select("id,codigo_pedido,fecha_venta,estado,total,cliente_id,usuario_id,fecha_limite_pago").in_("id", venta_ids).execute().data or []:
+                if v.get("estado") not in ESTADOS_VENTA_CERRADA:
+                    ventas[v["id"]] = v
+        lineas = {}
+        if ventas:
+            for d in rd.table("detalle_venta").select("venta_id,producto_id,cantidad").in_("venta_id", list(ventas)).execute().data or []:
+                lineas.setdefault(d["venta_id"], []).append(d)
+        prods = _nombres("productos", "codigo,nombre", [d["producto_id"] for ls in lineas.values() for d in ls])
+        clientes = _nombres("clientes", "nombres,apellidos,razon_social", [v.get("cliente_id") for v in ventas.values()])
+        usuarios = _nombres("usuarios", "nombre_usuario", [v.get("usuario_id") for v in ventas.values()])
+        for vid, v in sorted(ventas.items(), key=lambda kv: kv[1].get("fecha_venta") or "", reverse=True):
+            ls = lineas.get(vid, [])
+            if producto_id and not any(d["producto_id"] == producto_id for d in ls):
+                continue
+            filas.append({
+                "venta": v,
+                "cliente": _cliente(clientes.get(v.get("cliente_id"))) if v.get("cliente_id") else (
+                    (usuarios.get(v.get("usuario_id")) or {}).get("nombre_usuario") or "Cliente web"),
+                "items": [{
+                    "nombre": (prods.get(d["producto_id"]) or {}).get("nombre") or f"Producto #{d['producto_id']}",
+                    "cantidad": d.get("cantidad"),
+                    "resaltar": d["producto_id"] == producto_id,
+                } for d in ls],
+            })
+    except Exception as exc:  # noqa: BLE001
+        error = f"No se pudieron cargar las reservas: {exc}"
+    return render_template("ventas/reservas.html", filas=filas, producto=producto,
+                           producto_id=producto_id, error=error)
+
+
 @bp.post("/ventas/<int:venta_id>/marcar-pagado")
 @ventas_required
 def marcar_pagado(venta_id):
-    from app.supabase_client import get_admin_client, get_reader
+    """Confirma el cobro en efectivo: descuenta el stock y libera la reserva."""
+    from app.supabase_client import get_admin_client
+    destino = _destino_seguro(url_for("ventas.detalle", venta_id=venta_id))
     try:
-        items = get_reader().table("detalle_venta").select("producto_id,cantidad").eq("venta_id", venta_id).execute().data or []
-        for it in items:
-            pid = it.get("producto_id")
-            cant = float(it.get("cantidad") or 0)
-            if not pid or cant <= 0:
-                continue
-            filas = get_reader().table("inventario").select("id,stock_actual,stock_reservado").eq("producto_id", pid).execute().data or []
-            if filas:
-                f = filas[0]
-                actual = float(f.get("stock_actual") or 0)
-                reservado = float(f.get("stock_reservado") or 0)
-                get_admin_client().table("inventario").update({
-                    "stock_actual": max(actual - cant, 0),
-                    "stock_reservado": max(reservado - cant, 0),
-                }).eq("id", f["id"]).execute()
-        get_admin_client().table("ventas").update({"estado": "PAGADA"}).eq("id", venta_id).execute()
-        get_admin_client().table("pagos").update({"estado": "CONFIRMADO"}).eq("venta_id", venta_id).execute()
-        flash("Pedido marcado como pagado.", "success")
+        pendientes = _pagos_efectivo_pendientes(venta_id)
+        if not pendientes:
+            flash("Esta venta no tiene un pago en efectivo pendiente (ya fue confirmada o cancelada).", "warning")
+            return redirect(destino)
+        # Primero se marca el pago: actua de candado para que un doble clic no descuente dos veces.
+        for pg in pendientes:
+            get_admin_client().table("pagos").update(
+                {"estado": "CONFIRMADO", "fecha_pago": _ahora()}).eq("id", pg["id"]).execute()
+        _resolver_stock(venta_id, cobrado=True)
+        get_admin_client().table("ventas").update({"estado": "PAGO_CONFIRMADO"}).eq("id", venta_id).execute()
+        flash("Pago confirmado: stock descontado y reserva liberada.", "success")
     except Exception as exc:  # noqa: BLE001
-        flash("No se pudo marcar como pagado.", "error")
-    return redirect(url_for("ventas.detalle", venta_id=venta_id))
+        flash("No se pudo confirmar el pago. Revisa el stock del producto.", "error")
+    return redirect(destino)
 
 
 @bp.post("/ventas/<int:venta_id>/cancelar")
 @ventas_required
 def cancelar_pedido(venta_id):
-    from app.supabase_client import get_admin_client, get_reader
+    """Cancela la reserva en efectivo: libera el stock reservado sin tocar el stock fisico."""
+    from app.supabase_client import get_admin_client
     motivo = (request.form.get("motivo") or "").strip()
+    destino = _destino_seguro(url_for("ventas.detalle", venta_id=venta_id))
     try:
-        items = get_reader().table("detalle_venta").select("producto_id,cantidad").eq("venta_id", venta_id).execute().data or []
-        for it in items:
-            pid = it.get("producto_id")
-            cant = float(it.get("cantidad") or 0)
-            if not pid or cant <= 0:
-                continue
-            filas = get_reader().table("inventario").select("id,stock_reservado").eq("producto_id", pid).execute().data or []
-            if filas:
-                f = filas[0]
-                reservado = float(f.get("stock_reservado") or 0)
-                get_admin_client().table("inventario").update({
-                    "stock_reservado": max(reservado - cant, 0),
-                }).eq("id", f["id"]).execute()
+        pendientes = _pagos_efectivo_pendientes(venta_id)
+        if not pendientes:
+            flash("Esta venta no tiene un pago en efectivo pendiente (ya fue confirmada o cancelada).", "warning")
+            return redirect(destino)
+        for pg in pendientes:
+            get_admin_client().table("pagos").update(
+                {"estado": "RECHAZADO", "observaciones": motivo or "Reserva cancelada"}).eq("id", pg["id"]).execute()
+        _resolver_stock(venta_id, cobrado=False)
         get_admin_client().table("ventas").update({"estado": "CANCELADA"}).eq("id", venta_id).execute()
-        get_admin_client().table("pagos").update({"estado": "RECHAZADO", "observaciones": motivo or "Cancelado"}).eq("venta_id", venta_id).execute()
-        flash("Pedido cancelado.", "warning")
+        flash("Reserva cancelada: el stock reservado quedó disponible.", "warning")
     except Exception as exc:  # noqa: BLE001
-        flash("No se pudo cancelar el pedido.", "error")
-    return redirect(url_for("ventas.detalle", venta_id=venta_id))
+        flash("No se pudo cancelar la reserva.", "error")
+    return redirect(destino)

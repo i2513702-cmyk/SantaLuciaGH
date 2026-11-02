@@ -8,6 +8,7 @@
         <h1 class="h3 fw-bold mb-0">{{ icono('nav-ventas', 'receipt', 28) }} Ventas y pedidos</h1>
         <small class="text-secondary">{{ resumen.pedidos }} pedido(s) con los filtros actuales</small>
     </div>
+    <a class="btn btn-outline-primary" href="{{ url_for('ventas.reservas') }}"><i class="bi bi-hourglass-split"></i> Reservas pendientes</a>
 </div>
 
 {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}

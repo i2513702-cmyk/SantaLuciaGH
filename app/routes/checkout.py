@@ -1,4 +1,4 @@
-"""Checkout simulado (el pago se registra en la base de datos como demo).
+"""Checkout: registra el pedido, su comprobante y el pago pendiente de verificación.
 
 El usuario debe iniciar sesión para pagar: la venta, su detalle, el comprobante
 y el pago se guardan en Supabase asociados al usuario (historial de compras), y
@@ -11,10 +11,11 @@ El personal interno no compra: estas rutas se cierran para su rol con un 403
 import os
 import uuid
 from werkzeug.utils import secure_filename
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from flask import (
     Blueprint,
+    current_app,
     flash,
     redirect,
     render_template,
@@ -120,7 +121,7 @@ def procesar():
         codigo_doc = ""
         try:
             from app.supabase_client import get_reader
-            filas = get_reader().table("tipos_documento").select("id,codigo").eq("id", tipo_doc_id).limit(1).execute().data or []
+            filas = get_reader().table("tipo_documento").select("id,codigo").eq("id", tipo_doc_id).limit(1).execute().data or []
             if filas:
                 codigo_doc = (filas[0].get("codigo") or "").upper()
         except Exception:  # noqa: BLE001
@@ -186,7 +187,6 @@ def procesar():
     # EFECTIVO: reservar stock (no descontar) y fecha limite de pago.
     if codigo_metodo == "EFECTIVO":
         try:
-            from datetime import datetime, timedelta, timezone
             from app.supabase_client import get_admin_client, get_reader
             from app.config import Config
             horas = getattr(Config, "PAGO_EFECTIVO_VENCIMIENTO_HORAS", 48)
@@ -207,6 +207,7 @@ def procesar():
                         "stock_reservado": reservado,
                     }).eq("id", f["id"]).execute()
             get_admin_client().table("ventas").update({
+                "estado": "PENDIENTE_PAGO",
                 "fecha_limite_pago": limite,
             }).eq("id", venta_id).execute()
         except Exception:  # noqa: BLE001
@@ -262,8 +263,8 @@ def procesar():
         "cliente_documento": cliente_documento,
         "cliente_tipo_documento_id": str(tipo_doc_id),
         "metodo_pago": resul["metodo_pago"],
-        "transaction_id": f"SIM-{resul['venta_id']}",
-        "estado_pago": "PAGO_CONFIRMADO",
+        "transaction_id": codigo_pedido,
+        "estado_pago": "PENDIENTE_PAGO",
         "subtotal": subtotal,
         "igv": igv,
         "total": total,
@@ -274,7 +275,7 @@ def procesar():
         resumen["fecha_limite_pago"] = limite if "limite" in locals() else None
         resumen["direccion_tienda"] = current_app.config.get("CONTACTO_DIRECCION", "")
         resumen["horario_tienda"] = "Lun a Sab 9:00 - 19:00"
-    session["pago_simulado"] = resumen
+    session["ultimo_pedido"] = resumen
 
     flash(
         f"Pedido {codigo_pedido} registrado. Tu pago sera verificado por el equipo.",
@@ -285,7 +286,7 @@ def procesar():
 
 @bp.get("/checkout/pdf")
 def pdf():
-    resumen = session.get("pago_simulado")
+    resumen = session.get("ultimo_pedido")
     if not resumen:
         flash("No hay un comprobante reciente para descargar.", "error")
         return redirect(url_for("main.tienda"))

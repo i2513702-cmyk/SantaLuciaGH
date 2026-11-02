@@ -49,8 +49,12 @@
     }
 
     function rellenar(cliente) {
-        Object.keys(campos).forEach(function (clave) {
-            if (campos[clave] && cliente[clave]) campos[clave].value = cliente[clave];
+        // Nombres y apellidos siempre se reemplazan (evita restos de otra busqueda).
+        ['nombres', 'apellidos'].forEach(function (c) {
+            if (campos[c]) campos[c].value = cliente[c] || '';
+        });
+        ['telefono', 'correo'].forEach(function (c) {
+            if (campos[c] && cliente[c]) campos[c].value = cliente[c];
         });
     }
 
@@ -92,9 +96,13 @@
                 if (cliente && cliente.numero_documento !== numero) return;
 
                 var datos = respuesta.datos;
-                if (respuesta.status === 200 && datos.encontrado && cliente) {
+                if (respuesta.status === 200 && cliente) {
                     rellenar(cliente);
-                    avisar('Cliente encontrado: datos completados automáticamente.', 'ok');
+                    if (datos.encontrado) {
+                        avisar('Cliente encontrado: datos completados automáticamente.', 'ok');
+                    } else {
+                        avisar('Datos obtenidos de RENIEC/SUNAT. Revísalos y completa teléfono y correo.', 'ok');
+                    }
                 } else if (respuesta.status === 404) {
                     limpiarCampos();
                     avisar('Cliente no registrado. Completa los datos manualmente.', 'nuevo');
