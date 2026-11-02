@@ -14,6 +14,16 @@ def create_app() -> Flask:
     app = Flask(__name__)
     app.config.from_object(config_map.get(env, config_map["development"]))
 
+    # En produccion, SECRET_KEY es obligatoria y no puede ser el valor por defecto.
+    if env == "production":
+        secret = (app.config.get("SECRET_KEY") or "").strip()
+        if not secret or secret == "clave-insegura-para-desarrollo":
+            raise RuntimeError(
+                "SECRET_KEY no esta configurada o usa el valor por defecto. "
+                "Definela en el entorno antes de arrancar en produccion."
+            )
+        app.logger.warning("Arrancando en modo PRODUCCION (FLASK_ENV=production).")
+
     if app.config.get("TRUST_PROXY"):
         from werkzeug.middleware.proxy_fix import ProxyFix
 

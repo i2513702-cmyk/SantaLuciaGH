@@ -630,6 +630,23 @@ def pagar(
     if not items:
         raise ValidationError("El carrito está vacío. Agrega productos para continuar.")
 
+    # Validar disponibilidad de stock antes de registrar la venta.
+    try:
+        from app.services import inventario_service
+        ids = [i.get("producto_id") for i in items if i.get("producto_id") is not None]
+        stock_map = inventario_service.stock_por_producto(ids).get("stock", {})
+        for i in items:
+            pid = i.get("producto_id")
+            disponible = float(stock_map.get(pid, 0) or 0)
+            if disponible < float(i.get("cantidad") or 0):
+                raise ValidationError(
+                    "Stock insuficiente para %s (disponible: %s)." % (i.get("nombre"), int(disponible) if disponible == int(disponible) else disponible)
+                )
+    except ValidationError:
+        raise
+    except Exception:  # noqa: BLE001
+        pass
+
     subtotal = round(sum(i["subtotal_num"] for i in items), 2)
     igv = round(subtotal * IGV_TASA, 2)
     total = round(subtotal + igv, 2)
@@ -673,6 +690,34 @@ def pagar(
         raise ValidationError(
             f"No se pudo registrar el detalle: {error_postgrest(exc)}"
         ) from exc
+
+
+    # Descontar stock del inventario (RPC atomica con respaldo en Python).
+    for i in items:
+        pid = i.get("producto_id")
+        cantidad = float(i.get("cantidad") or 0)
+        if not pid or cantidad <= 0:
+            continue
+        try:
+            get_admin_client().rpc("ajustar_stock", {
+                "p_producto_id": pid,
+                "p_delta": -cantidad,
+            }).execute()
+        except Exception as exc:  # noqa: BLE001
+            mensaje = str(exc)
+            if "PGRST202" in mensaje or "could not find the function" in mensaje.lower():
+                try:
+                    filas = get_reader().table("inventario").select("id,stock_actual").eq("producto_id", pid).execute().data or []
+                    if filas:
+                        actual = float(filas[0].get("stock_actual") or 0)
+                        nuevo = actual - cantidad
+                        if nuevo < 0:
+                            nuevo = 0
+                        get_admin_client().table("inventario").update({"stock_actual": nuevo}).eq("id", filas[0]["id"]).execute()
+                except Exception:  # noqa: BLE001
+                    pass
+            else:
+                pass
 
     numero = _correlativo_comprobante(tipo, serie)
     try:

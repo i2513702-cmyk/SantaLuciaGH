@@ -208,7 +208,7 @@ def recuperar_clave():
             error = "La confirmación no coincide con la nueva contraseña."
         else:
             try:
-                rest_auth_service.recuperar_clave(identificador, documento, nueva)
+                rest_auth_service.recuperar_clave(identificador, documento, nueva, ip=request.remote_addr or "desconocida")
                 flash(
                     "Contraseña restablecida correctamente. Ya puedes iniciar sesión.",
                     "success",

@@ -280,18 +280,9 @@ def reporte_inventario(desde: date | None = None, hasta: date | None = None) -> 
     )
     # Orden por producto_id: es la unica columna de `inventario` que el resto
     # del proyecto da por segura (no se asume que exista `id`).
-    inventario = _leer(
-        "inventario", "producto_id,stock_actual", orden=(("producto_id", False),)
-    )
-    stock: dict = {}
-    for f in inventario:  # varias filas por producto -> se suman
-        pid = f.get("producto_id")
-        if pid is None:
-            continue
-        try:
-            stock[pid] = stock.get(pid, 0.0) + float(f.get("stock_actual") or 0)
-        except (TypeError, ValueError):
-            stock.setdefault(pid, 0.0)
+    from app.services import inventario_service
+    ids_rep = [p.get("id") for p in productos if p.get("id") is not None]
+    stock = inventario_service.stock_por_producto(ids_rep).get("stock", {})
 
     orden_estado = {"Sin stock": 0, "Stock bajo": 1, "Disponible": 2}
     items = []

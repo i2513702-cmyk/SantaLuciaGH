@@ -154,3 +154,82 @@
     }
   });
 })();
+/* Filtros del panel del tecnico (citas). */
+(function () {
+  'use strict';
+  var root = document.getElementById('citas-filtros');
+  if (!root) return;
+  var table = document.getElementById('tabla-citas');
+  if (!table) return;
+  var tbody = table.querySelector('tbody');
+  if (!tbody) return;
+  var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+  var search = document.getElementById('citas-buscar');
+
+  function hoy() {
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  function apply(filtro) {
+    var q = search ? (search.value || '').toLowerCase().trim() : '';
+    rows.forEach(function (row) {
+      var tipo = (row.getAttribute('data-tipo') || '').toLowerCase();
+      var asig = (row.getAttribute('data-asig') || '').toLowerCase();
+      var fecha = row.getAttribute('data-fecha') || '';
+      var busq = (row.getAttribute('data-busq') || '').toLowerCase();
+      var show = true;
+      if (filtro === 'domicilio') show = tipo === 'domicilio';
+      else if (filtro === 'taller') show = tipo === 'taller';
+      else if (filtro === 'mias') show = asig === 'mias';
+      else if (filtro === 'libres') show = asig === 'libres';
+      else if (filtro === 'hoy') show = fecha === hoy();
+      else if (filtro === 'proximas') show = fecha > hoy();
+      if (q && busq.indexOf(q) === -1) show = false;
+      row.style.display = show ? '' : 'none';
+    });
+  }
+
+  root.addEventListener('click', function (e) {
+    var btn = e.target && e.target.closest ? e.target.closest('button[data-filtro]') : null;
+    if (!btn) return;
+    root.querySelectorAll('button[data-filtro]').forEach(function (b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    apply(btn.getAttribute('data-filtro'));
+  });
+
+  if (search) {
+    search.addEventListener('input', function () {
+      var active = root.querySelector('button[data-filtro].active');
+      apply(active ? active.getAttribute('data-filtro') : 'todas');
+    });
+  }
+})();
+/* Stepper de stock en /admin/productos. */
+(function () {
+  'use strict';
+  document.querySelectorAll('[data-stock-stepper]').forEach(function (form) {
+    var input = form.querySelector('.stock-step-input');
+    var apply = form.querySelector('.stock-apply-btn');
+    if (!input || !apply) return;
+
+    function sync() {
+      var v = parseInt(input.value || '0', 10);
+      if (isNaN(v)) v = 0;
+      apply.disabled = (v === 0);
+    }
+
+    form.querySelectorAll('.stock-step-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var step = parseInt(btn.getAttribute('data-step') || '0', 10);
+        var v = parseInt(input.value || '0', 10);
+        if (isNaN(v)) v = 0;
+        input.value = v + step;
+        sync();
+      });
+    });
+
+    input.addEventListener('input', sync);
+    sync();
+  });
+})();

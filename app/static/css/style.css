@@ -3792,3 +3792,106 @@ h1, h2, h3, .brand-name, .kpi-value, .stat-value {
     gap: 10px;
   }
 }
+
+/* Columna Stock en /admin/productos */
+.stock-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  min-width: 220px;
+}
+
+.stock-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: .85rem;
+  color: #fff;
+}
+
+.stock-badge--ok { background: #16a34a; }
+.stock-badge--warn { background: #d97706; }
+.stock-badge--danger { background: #dc2626; }
+
+.stock-stepper {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid #CFE3F5;
+  border-radius: 8px;
+  overflow: hidden;
+  height: 32px;
+}
+
+.stock-step-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: #f1f5f9;
+  color: #0B2A4A;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s ease;
+}
+
+.stock-step-btn:hover {
+  background: #e2e8f0;
+}
+
+.stock-step-input {
+  width: 56px;
+  height: 32px;
+  border: none;
+  border-left: 1px solid #CFE3F5;
+  border-right: 1px solid #CFE3F5;
+  text-align: center;
+  font-size: .9rem;
+  -moz-appearance: textfield;
+}
+
+.stock-step-input::-webkit-outer-spin-button,
+.stock-step-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.stock-apply-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: #0B5A8C;
+  color: #fff;
+  cursor: pointer;
+  transition: background .15s ease, opacity .15s ease;
+}
+
+.stock-apply-btn:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
+.stock-apply-btn:not(:disabled):hover {
+  background: #F26B1D;
+}
+
+/* Tabla productos */
+.table.align-middle th,
+.table.align-middle td {
+  vertical-align: middle;
+}
+
+.table thead th {
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .stock-cell {
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+}

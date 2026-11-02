@@ -9,7 +9,7 @@ from datetime import date as date_cls
 from datetime import datetime, timedelta, timezone
 
 from app.config import Config
-from app.services import agenda_service
+from app.timezone import ahora_lima, hoy_lima
 from app.supabase_client import get_admin_client, get_reader
 
 log = logging.getLogger(__name__)
@@ -32,8 +32,7 @@ class CitaError(Exception):
 
 
 def _fecha_hoy():
-    """Fecha de hoy en Lima (el servidor corre en UTC: `date.today()` adelanta el día de noche)."""
-    return agenda_service.hoy_lima()
+    return hoy_lima()
 
 
 def _ahora() -> str:
@@ -85,9 +84,6 @@ def validar(datos: dict) -> None:
     if hora not in HORARIOS:
         raise CitaError("Selecciona un horario disponible.")
 
-    if fecha_ok == _fecha_hoy() and hora <= agenda_service.ahora_lima().strftime("%H:%M"):
-        raise CitaError("La hora seleccionada ya pasó. Elige una hora posterior a la actual.")
-
     if hora not in horarios_disponibles(fecha):
         raise CitaError(
             "En esa fecha y hora no hay un técnico disponible. "
@@ -122,85 +118,90 @@ def validar(datos: dict) -> None:
         raise CitaError("Las observaciones deben tener máximo 100 caracteres.")
 
 
-ESTADOS_SIN_CUPO = ("CANCELADA", "NO_ASISTIO")
-
-
-def _total_tecnicos() -> int:
-    """Cantidad de técnicos registrados (cupo cuando el día no tiene agenda cargada)."""
-    try:
-        resp = get_reader().table("tecnicos").select("id", count="exact").limit(1).execute()
-        return max(int(resp.count or 0), 1)
-    except Exception:  # noqa: BLE001
-        return 1
-
-
 def horarios_disponibles(fecha: str) -> list:
-    """Horas de HORARIOS con cupo libre en la fecha indicada.
+    """Horas de HORARIOS con al menos un tecnico libre en la fecha indicada.
 
-    El cupo de cada hora es la cantidad de técnicos que la cubren con una franja
-    disponible de `agenda_tecnicos`; a eso se le restan las citas ya agendadas
-    en esa hora (las canceladas o con inasistencia no ocupan cupo).
-    Solo cuentan las sesiones vigentes (estado ACTIVA, disponibles y sin terminar).
-    Si la fecha no tiene ninguna franja cargada (lun-sáb) se asume el horario
-    base 09:00-18:00 con un cupo igual a la cantidad de técnicos. Para hoy solo
-    se ofrecen las horas que aún no pasaron (hora de Lima).
+    Resta las citas ya ocupadas (estado distinto de CANCELADA) por tecnico.
     """
-    lima = agenda_service.ahora_lima()
+    lima = ahora_lima()
     try:
         dia = date_cls.fromisoformat(fecha)
     except (TypeError, ValueError):
         return []
     if dia < lima.date():
         return []
+
     try:
-        lector = get_reader()
         franjas = (
-            lector.table("agenda_tecnicos")
-            .select("tecnico_id,fecha,hora_inicio,hora_fin,disponible,estado")
+            get_reader()
+            .table("agenda_tecnicos")
+            .select("tecnico_id,hora_inicio,hora_fin,disponible")
             .eq("fecha", fecha)
             .execute()
             .data
             or []
         )
-        reservas = (
-            lector.table("reservas")
-            .select("hora_inicio,estado")
-            .eq("fecha_reserva", fecha)
+    except Exception:  # noqa: BLE001
+        franjas = []
+
+    tecnicos_activos = []
+    try:
+        tecnicos_activos = (
+            get_reader()
+            .table("tecnicos")
+            .select("id")
+            .eq("activo", True)
             .execute()
             .data
             or []
         )
     except Exception:  # noqa: BLE001
-        return []
+        tecnicos_activos = []
 
-    ocupadas: dict = {}
-    for r in reservas:
-        if (r.get("estado") or "") in ESTADOS_SIN_CUPO:
-            continue
-        hora = (r.get("hora_inicio") or "")[:5]
-        ocupadas[hora] = ocupadas.get(hora, 0) + 1
+    if not franjas and dia.weekday() != 6:
+        franjas = [
+            {"tecnico_id": t.get("id"), "hora_inicio": HORARIOS[0], "hora_fin": "18:00", "disponible": True}
+            for t in tecnicos_activos
+        ]
 
-    if franjas:
-        # Solo sesiones vigentes: activas, marcadas como disponibles y que aún no terminaron
-        # (se valida con la hora actual aunque el job de cierre todavía no haya corrido).
-        franjas = [f for f in franjas if agenda_service.franja_vigente(f, lima)]
+    franjas = [f for f in franjas if f.get("disponible")]
 
-        def cupo(hora: str) -> int:
-            return len({f.get("tecnico_id") for f in franjas if _cubre_franja(f, hora)})
-    elif dia.weekday() != 6:
-        base = {"hora_inicio": HORARIOS[0], "hora_fin": "18:00"}
-        total = _total_tecnicos()
+    ocupados = set()
+    try:
+        reservas = (
+            get_reader()
+            .table("reservas")
+            .select("tecnico_id,hora_inicio")
+            .eq("fecha_reserva", fecha)
+            .neq("estado", "CANCELADA")
+            .execute()
+            .data
+            or []
+        )
+        for r in reservas:
+            tid = r.get("tecnico_id")
+            hora = (r.get("hora_inicio") or "")[:5]
+            if tid is not None and hora:
+                ocupados.add((tid, hora))
+    except Exception:  # noqa: BLE001
+        pass
 
-        def cupo(hora: str) -> int:
-            return total if _cubre_franja(base, hora) else 0
-    else:
-        return []
+    disponibles = []
+    for h in HORARIOS:
+        libre = False
+        for f in franjas:
+            tid = f.get("tecnico_id")
+            if tid is None:
+                continue
+            if _cubre_franja(f, h) and (tid, h) not in ocupados:
+                libre = True
+                break
+        if libre:
+            disponibles.append(h)
 
-    disponibles = [h for h in HORARIOS if cupo(h) - ocupadas.get(h, 0) > 0]
     if dia == lima.date():
         disponibles = [h for h in disponibles if h > lima.strftime("%H:%M")]
     return disponibles
-
 
 def _cubre_franja(franja: dict, hora: str) -> bool:
     inicio = (franja.get("hora_inicio") or "")[:5]
@@ -285,12 +286,6 @@ ESTADO_CITA_UI = {
         "icono": "tools",
         "mensaje": "El técnico ya está trabajando en la atención de tu cita.",
     },
-    "COMPLETADA": {
-        "label": "Completada",
-        "badge": "text-bg-success",
-        "icono": "check-circle",
-        "mensaje": "La atención de tu cita finalizó correctamente.",
-    },
     "ATENDIDA": {
         "label": "Atendida",
         "badge": "text-bg-success",
@@ -306,20 +301,21 @@ ESTADO_CITA_UI = {
 }
 
 ESTADOS_CITA_ACTIVOS = ("PENDIENTE", "CONFIRMADA", "EN_ATENCION")
-ESTADOS_CITA_FINALES = ("COMPLETADA", "ATENDIDA")
+ESTADOS_CITA_FINALES = ("ATENDIDA",)
 
 _ORDEN_ESTADO_CITA = {
     "PENDIENTE": 0,
     "CONFIRMADA": 1,
     "EN_ATENCION": 2,
-    "COMPLETADA": 3,
     "ATENDIDA": 3,
 }
 
 _ALIAS_ESTADO_CITA = {
+    "ASIGNADA": "CONFIRMADA",
     "ATENDIDO": "ATENDIDA",
     "EN_PROCESO": "EN_ATENCION",
-    "FINALIZADA": "COMPLETADA",
+    "FINALIZADA": "ATENDIDA",
+    "COMPLETADA": "ATENDIDA",
 }
 
 ESTADO_REPARACION_UI = {
@@ -412,27 +408,22 @@ def _equipo_cita(reserva: dict) -> tuple:
 def _pasos_cita(reserva: dict, estado: str, reparacion: dict | None) -> list:
     """Arma la línea de tiempo visible para el cliente."""
     reparacion = reparacion or {}
-    indice = _ORDEN_ESTADO_CITA.get(estado, 0)
+    indice = {"PENDIENTE": -1, "CONFIRMADA": 0, "EN_ATENCION": 1, "ATENDIDA": 2}.get(estado, -1)
     cancelada = estado == "CANCELADA"
     definiciones = [
         (
-            "Solicitud recibida",
-            "Registramos tu cita en el sistema.",
-            _fecha_corta(reserva.get("fecha_creacion")),
-        ),
-        (
             "Cita confirmada",
-            "Asignamos un técnico y confirmamos tu cita.",
+            "Asignamos un tecnico y confirmamos tu cita.",
             _fecha_corta(reserva.get("fecha_primera_atencion")),
         ),
         (
-            "En atención",
-            "El técnico está revisando tu equipo.",
+            "En atencion",
+            "El tecnico esta revisando tu equipo.",
             _fecha_corta(reparacion.get("fecha_ingreso")),
         ),
         (
-            "Atención completada",
-            "La cita terminó correctamente.",
+            "Atencion completada",
+            "La cita termino correctamente.",
             _fecha_corta(
                 reparacion.get("fecha_entrega") or reserva.get("fecha_actualizacion")
             ),
@@ -609,6 +600,150 @@ def listar_citas_cliente(cliente_id) -> dict:
             "canceladas": sum(1 for c in citas if c["estado_raw"] == "CANCELADA"),
         },
     }
+
+
+# --- Transiciones de estado de citas -------------------------------------
+
+TRANSICIONES_CITA = {
+    "PENDIENTE": {"CONFIRMADA", "CANCELADA"},
+    "CONFIRMADA": {"EN_ATENCION", "CANCELADA"},
+    "EN_ATENCION": {"ATENDIDA"},
+    "ATENDIDA": set(),
+    "CANCELADA": set(),
+}
+
+
+def cambiar_estado(reserva_id, nuevo_estado, actor_rol, actor_tecnico_id=None, actor_cliente_id=None, comentario=None):
+    """Cambia el estado de una cita validando transicion y permisos.
+
+    Lanza CitaError con mensaje en espanol si la transicion no es valida.
+    """
+    nuevo = (str(nuevo_estado or "")).strip().upper()
+    if nuevo not in TRANSICIONES_CITA:
+        raise CitaError("Estado de cita no valido.")
+
+    if not reserva_id:
+        raise CitaError("Cita no valida.")
+
+    try:
+        cita = (
+            get_reader()
+            .table("reservas")
+            .select("id,estado,tecnico_id")
+            .eq("id", reserva_id)
+            .limit(1)
+            .execute()
+            .data
+            or [None]
+        )[0]
+    except Exception as exc:  # noqa: BLE001
+        log.exception("No se pudo leer la cita %s", reserva_id)
+        raise CitaError("No se pudo leer la cita.") from exc
+
+    if not cita:
+        raise CitaError("La cita no existe.")
+
+    estado_actual_raw = (str(cita.get("estado") or "PENDIENTE")).strip().upper()
+    estado_actual = _normalizar_estado_cita(estado_actual_raw)
+    tecnico_cita = cita.get("tecnico_id")
+
+    if nuevo not in TRANSICIONES_CITA.get(estado_actual, set()):
+        raise CitaError("No se puede pasar de %s a %s." % (estado_actual, nuevo))
+
+    rol = (actor_rol or "").strip().upper()
+    if rol == "TECNICO":
+        if tecnico_cita is None or int(tecnico_cita) != int(actor_tecnico_id or -1):
+            raise CitaError("No puedes modificar una cita que no te pertenece.")
+        if not ({estado_actual, nuevo} <= {"CONFIRMADA", "EN_ATENCION", "ATENDIDA"}):
+            raise CitaError("El tecnico solo puede atender o finalizar sus citas.")
+        if nuevo == "ATENDIDA" and not (comentario or "").strip():
+            raise CitaError("La nota de finalizacion es obligatoria.")
+    elif rol == "ADMINISTRADOR":
+        if nuevo == "CANCELADA" and estado_actual not in ("PENDIENTE", "CONFIRMADA"):
+            raise CitaError("Solo se pueden cancelar citas pendientes o confirmadas.")
+        if nuevo == "CANCELADA" and not (comentario or "").strip():
+            raise CitaError("El motivo de cancelacion es obligatorio.")
+        if nuevo == "CONFIRMADA" and estado_actual != "PENDIENTE":
+            raise CitaError("Solo se pueden confirmar citas pendientes.")
+    elif rol == "CLIENTE":
+        if nuevo != "CANCELADA":
+            raise CitaError("El cliente solo puede cancelar la cita.")
+        if estado_actual not in ("PENDIENTE", "CONFIRMADA"):
+            raise CitaError("Solo se pueden cancelar citas pendientes o confirmadas.")
+        if tecnico_cita is not None and False:
+            pass
+        # verificar pertenencia
+        try:
+            fila = (
+                get_reader()
+                .table("reservas")
+                .select("cliente_id")
+                .eq("id", reserva_id)
+                .limit(1)
+                .execute()
+                .data
+                or [None]
+            )[0]
+        except Exception as exc:  # noqa: BLE001
+            raise CitaError("No se pudo leer la cita.") from exc
+        if not fila or (actor_cliente_id is not None and fila.get("cliente_id") != actor_cliente_id):
+            raise CitaError("No puedes cancelar una cita que no te pertenece.")
+        if not (comentario or "").strip():
+            raise CitaError("El motivo de cancelacion es obligatorio.")
+    else:
+        raise CitaError("No tienes permiso para cambiar el estado de la cita.")
+
+    ahora = _ahora()
+    payload = {"estado": nuevo, "fecha_actualizacion": ahora}
+    if nuevo == "CANCELADA":
+        payload["motivo_cancelacion"] = (comentario or "").strip()
+    if nuevo == "ATENDIDA":
+        payload["notas_tecnico"] = (comentario or "").strip()
+
+    def _ejecutar(pl):
+        return (
+            get_admin_client()
+            .table("reservas")
+            .update(pl)
+            .eq("id", reserva_id)
+            .eq("estado", estado_actual_raw)
+            .execute()
+        )
+
+    try:
+        try:
+            resp = _ejecutar(payload)
+        except Exception as exc:  # noqa: BLE001
+            # Si la migracion 07 no se aplico, reintenta sin columnas opcionales.
+            mensaje = str(exc)
+            if "PGRST204" in mensaje or "could not find" in mensaje.lower():
+                payload.pop("motivo_cancelacion", None)
+                payload.pop("notas_tecnico", None)
+                resp = _ejecutar(payload)
+            else:
+                raise
+    except Exception as exc:  # noqa: BLE001
+        log.exception("No se pudo actualizar el estado de la cita %s", reserva_id)
+        raise CitaError("No se pudo actualizar la cita.") from exc
+
+    if not (resp.data or []):
+        raise CitaError("La cita ya cambio de estado, recarga la pagina.")
+
+    try:
+        get_admin_client().table("reserva_historial").insert({
+            "reserva_id": reserva_id,
+            "estado_anterior": estado_actual,
+            "estado_nuevo": nuevo,
+            "rol": rol,
+            "comentario": (comentario or "").strip() or None,
+        }).execute()
+    except Exception:  # noqa: BLE001
+        log.exception("No se pudo registrar el historial de la cita %s", reserva_id)
+
+    if nuevo == "CONFIRMADA":
+        marcar_primera_atencion(reserva_id)
+
+    return True
 
 
 def seed_demo() -> dict:
@@ -888,22 +1023,6 @@ def agendar(datos: dict) -> dict:
         raise CitaError(
             "No se pudo guardar la cita en este momento. Verifica la conexión y vuelve a intentar."
         ) from exc
-
-
-def nombre_equipo(equipo: dict) -> str:
-    """Tipo + marca + modelo de un electrodoméstico.
-
-    Si el cliente eligió "OTRO" y escribió su propio tipo o marca (columnas
-    `tipo_otro` / `marca_otro`), se muestra lo que escribió en vez de "OTRO".
-    """
-    equipo = equipo or {}
-    tipo = ((equipo.get("tipos_electrodomestico") or {}).get("nombre") or "").strip()
-    marca = ((equipo.get("marcas") or {}).get("nombre") or "").strip()
-    if tipo.upper() == "OTRO" and (equipo.get("tipo_otro") or "").strip():
-        tipo = equipo["tipo_otro"].strip()
-    if marca.upper() == "OTRO" and (equipo.get("marca_otro") or "").strip():
-        marca = equipo["marca_otro"].strip()
-    return " ".join(filter(None, [tipo, marca, (equipo.get("modelo") or "").strip()]))
 
 
 def marcar_primera_atencion(reserva_id) -> bool:

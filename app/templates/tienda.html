@@ -14,9 +14,9 @@
 
 {% if categorias %}
     <nav class="cat-index mb-3" aria-label="Índice de categorías">
-        <a class="cat-chip {% if not cat_id %}active{% endif %}" href="{{ url_todo }}">Todas</a>
+        <a class="cat-chip {% if not cat_id %}active{% endif %}" href="{{ url_todo }}" aria-pressed="{{ 'true' if not cat_id else 'false' }}">Todas</a>
         {% for c in categorias %}
-            <a class="cat-chip {% if c.activa %}active{% endif %}" href="{{ c.url }}">
+            <a class="cat-chip {% if c.activa %}active{% endif %}" href="{{ c.url }}" aria-pressed="{{ 'true' if c.activa else 'false' }}">
                 {{ c.nombre }}
                 {% if c.count %}<span class="cat-count">{{ c.count }}</span>{% endif %}
             </a>

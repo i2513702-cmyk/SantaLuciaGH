@@ -195,6 +195,8 @@ def tienda():
     q_display = request.args.get("q", "").strip()
     q = q_display.lower()
     cat_id = request.args.get("cat", "").strip()
+    if cat_id.lower() in ("", "todas", "all", "todo"):
+        cat_id = ""
     marca_id = request.args.get("marca", "").strip()
     solo_ofertas = request.args.get("oferta") == "on"
 
@@ -241,7 +243,11 @@ def tienda():
                 args[k] = v
         if solo_ofertas:
             args["oferta"] = "on"
-        args.update({k: v for k, v in cambios.items() if v})
+        for k, v in cambios.items():
+            if v in (None, ""):
+                args.pop(k, None)
+            else:
+                args[k] = v
         return url_for("main.tienda", **args)
 
     categorias_ui = []
@@ -261,7 +267,7 @@ def tienda():
 
     tracking_service.registrar_visita("/tienda")
 
-    return render_template(
+    respuesta = render_template(
         "tienda.html",
         productos=resultados,
         categorias=categorias_ui,
@@ -275,6 +281,10 @@ def tienda():
         n_resultados=len(resultados),
         filtros_activos=filtros_activos,
     )
+    from flask import make_response
+    resp = make_response(respuesta)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
 
 
 @bp.route("/producto/<int:producto_id>")

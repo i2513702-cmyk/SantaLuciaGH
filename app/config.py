@@ -4,6 +4,7 @@ Los valores sensibles se leen desde el archivo .env (ver .env.example).
 """
 
 import os
+from datetime import timedelta
 
 from dotenv import load_dotenv
 
@@ -131,6 +132,8 @@ class DevelopmentConfig(Config):
 
 class ProductionConfig(Config):
     DEBUG = False
+    SESSION_COOKIE_SECURE = True
+    PERMANENT_SESSION_LIFETIME = timedelta(hours=8)
 
 
 config_map = {
