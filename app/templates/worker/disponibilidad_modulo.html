@@ -15,11 +15,11 @@
 
 <div class="card mb-3" style="max-width: 720px;">
     <div class="card-body">
-        <form method="POST" action="{{ url_for('worker.agenda_agregar') }}" class="d-flex flex-wrap gap-2 align-items-end">
+        <form method="POST" action="{{ url_for('worker.agenda_agregar') }}" class="d-flex flex-wrap gap-2 align-items-end js-form-sesion" novalidate>
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div>
-                <label class="form-label">Fecha(s)</label>
-                <input type="date" name="fechas" class="form-control" required>
+                <label class="form-label">Fecha</label>
+                <input type="date" name="fechas" class="form-control" min="{{ hoy }}" required>
             </div>
             <div>
                 <label class="form-label">Desde</label>
@@ -30,11 +30,14 @@
                 <input type="time" name="hora_fin" value="18:00" class="form-control" required>
             </div>
             <div class="form-check mb-2">
+                <input type="hidden" name="disponible" value="false">
                 <input class="form-check-input" type="checkbox" name="disponible" value="true" id="disp-activa" checked>
                 <label class="form-check-label" for="disp-activa">Activa</label>
             </div>
             <button type="submit" class="btn btn-primary mb-2">Agregar</button>
+            <div class="w-100 alert alert-danger py-2 mb-0 d-none js-error" role="alert"></div>
         </form>
+        <p class="text-muted small mb-0 mt-2">No se pueden registrar sesiones en fechas u horas que ya pasaron (hora de Lima). Las sesiones que terminan pasan solas a «Vencida» y se conservan como historial.</p>
     </div>
 </div>
 
@@ -54,20 +57,41 @@
                 </thead>
                 <tbody>
                     {% for franja in disponibilidad %}
-                    <tr>
+                    <tr class="{% if franja.vencida %}text-muted{% endif %}">
                         <td>{{ franja.fecha }}</td>
                         <td>{{ franja.hora_inicio }}</td>
                         <td>{{ franja.hora_fin }}</td>
-                        <td>{% if franja.disponible %}<span class="badge text-bg-success">Activa</span>{% else %}<span class="badge text-bg-secondary">Inactiva</span>{% endif %}</td>
-                        <td class="text-end d-flex gap-1 justify-content-end">
-                            <form method="POST" action="{{ url_for('worker.agenda_toggle', franja_id=franja.id) }}">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                <button type="submit" class="btn btn-sm btn-outline">{% if franja.disponible %}Desactivar{% else %}Activar{% endif %}</button>
-                            </form>
-                            <form method="POST" action="{{ url_for('worker.agenda_quitar', franja_id=franja.id) }}" onsubmit="return confirm('¿Eliminar esta franja de disponibilidad?');">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                <button type="submit" class="btn btn-sm btn-outline-danger">Quitar</button>
-                            </form>
+                        <td>
+                            {% if franja.estado == 'VENCIDA' %}<span class="badge text-bg-dark">Vencida</span>
+                            {% elif franja.estado == 'INACTIVA' %}<span class="badge text-bg-secondary">Inactiva</span>
+                            {% else %}<span class="badge text-bg-success">Activa</span>{% endif %}
+                        </td>
+                        <td class="text-end">
+                            {% if franja.vencida %}
+                            <span class="small">Historial</span>
+                            {% else %}
+                            <div class="d-flex gap-1 justify-content-end flex-wrap">
+                                <form method="POST" action="{{ url_for('worker.agenda_toggle', franja_id=franja.id) }}">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <button type="submit" class="btn btn-sm btn-outline">{% if franja.disponible %}Desactivar{% else %}Activar{% endif %}</button>
+                                </form>
+                                <button type="button" class="btn btn-sm btn-outline-primary" data-bs-toggle="collapse" data-bs-target="#editar-{{ franja.id }}" aria-expanded="false">Editar</button>
+                                <form method="POST" action="{{ url_for('worker.agenda_quitar', franja_id=franja.id) }}" onsubmit="return confirm('¿Eliminar esta sesión de disponibilidad?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Quitar</button>
+                                </form>
+                            </div>
+                            <div class="collapse mt-2" id="editar-{{ franja.id }}">
+                                <form method="POST" action="{{ url_for('worker.agenda_editar', franja_id=franja.id) }}" class="d-flex flex-wrap gap-2 align-items-end justify-content-end js-form-sesion" novalidate>
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="date" name="fecha" class="form-control form-control-sm w-auto" min="{{ hoy }}" value="{{ franja.fecha }}" required>
+                                    <input type="time" name="hora_inicio" class="form-control form-control-sm w-auto" value="{{ franja.hora_inicio }}" required>
+                                    <input type="time" name="hora_fin" class="form-control form-control-sm w-auto" value="{{ franja.hora_fin }}" required>
+                                    <button type="submit" class="btn btn-sm btn-primary">Guardar</button>
+                                    <div class="w-100 alert alert-danger py-1 px-2 mb-0 small text-start d-none js-error" role="alert"></div>
+                                </form>
+                            </div>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -97,4 +121,52 @@
         {% endif %}
     </div>
 </div>
+
+<script>
+(function () {
+    // Hora de Lima calculada en el navegador (no depende de la zona del equipo del usuario).
+    function ahoraLima() {
+        var p = {};
+        new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'America/Lima', year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+        }).formatToParts(new Date()).forEach(function (x) { p[x.type] = x.value; });
+        return { fecha: p.year + '-' + p.month + '-' + p.day, hora: p.hour + ':' + p.minute };
+    }
+    function dmy(iso) { var a = iso.split('-'); return a[2] + '/' + a[1] + '/' + a[0]; }
+
+    function errorDe(form) {
+        var f = form.querySelector('[name="fechas"], [name="fecha"]');
+        var hi = form.querySelector('[name="hora_inicio"]');
+        var hf = form.querySelector('[name="hora_fin"]');
+        var ahora = ahoraLima();
+        if (!f.value) return 'Indica la fecha de la sesión.';
+        if (f.value.length !== 10 || +f.value.slice(0, 4) < 2020) return 'La fecha no es válida; revisa el año.';
+        if (f.value < ahora.fecha) return 'No puedes registrar disponibilidad en una fecha anterior a hoy (' + dmy(f.value) + ').';
+        if (!hi.value || !hf.value) return 'Indica la hora de inicio y la hora de fin.';
+        if (hf.value <= hi.value) return 'La hora de fin debe ser posterior a la hora de inicio.';
+        if (f.value === ahora.fecha && hi.value < ahora.hora)
+            return 'La hora de inicio (' + hi.value + ') ya pasó; ahora son las ' + ahora.hora + '. Elige una hora posterior.';
+        return '';
+    }
+
+    document.querySelectorAll('.js-form-sesion').forEach(function (form) {
+        var caja = form.querySelector('.js-error');
+        function mostrar(msg) {
+            caja.textContent = msg;
+            caja.classList.toggle('d-none', !msg);
+        }
+        form.addEventListener('submit', function (ev) {
+            var msg = errorDe(form);
+            if (msg) { ev.preventDefault(); mostrar(msg); }
+        });
+        form.querySelectorAll('input').forEach(function (i) {
+            i.addEventListener('input', function () { if (!caja.classList.contains('d-none')) mostrar(errorDe(form)); });
+        });
+        // `min` del selector de fecha según el día de Lima (por si la página quedó abierta varios días)
+        var fecha = form.querySelector('[name="fechas"], [name="fecha"]');
+        if (fecha) fecha.min = ahoraLima().fecha;
+    });
+})();
+</script>
 {% endblock %}

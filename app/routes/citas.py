@@ -14,6 +14,7 @@ from flask import (
 )
 
 from app.decorators import login_required
+from app.services import agenda_service
 from app.services.cita_service import (
     CitaError,
     DISTRITOS_DOMICILIO,
@@ -65,9 +66,9 @@ def _ctx_agendar(**extra):
         **_referencias(),
         "tipo_atenciones": {"TALLER": "En taller (tú llevas el equipo)", "DOMICILIO": "A domicilio"},
         "distritos": DISTRITOS_DOMICILIO,
-        "today": date.today().isoformat(),
+        "today": agenda_service.hoy_lima().isoformat(),
         "cliente": datos_usuario(session.get("usuario_id")),
-        "disponibles": horarios_disponibles(date.today().isoformat()),
+        "disponibles": horarios_disponibles(agenda_service.hoy_lima().isoformat()),
     }
     ctx.update(extra)
     return ctx
@@ -150,7 +151,7 @@ def confirmar(reserva_id):
             .select(
                 "id,cliente_id,electrodomestico_id,tipo_atencion,fecha_reserva,"
                 "hora_inicio,hora_fin,estado,motivo,observaciones,calle,"
-                "electrodomesticos(modelo,numero_serie,marcas(nombre),tipos_electrodomestico(nombre))"
+                "electrodomesticos(modelo,numero_serie,tipo_otro,marca_otro,marcas(nombre),tipos_electrodomestico(nombre))"
             )
             .eq("id", reserva_id)
             .limit(1)
