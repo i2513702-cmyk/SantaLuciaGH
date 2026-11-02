@@ -207,6 +207,7 @@ def procesar():
                         "stock_reservado": reservado,
                     }).eq("id", f["id"]).execute()
             get_admin_client().table("ventas").update({
+                "estado": "PENDIENTE_PAGO",
                 "fecha_limite_pago": limite,
             }).eq("id", venta_id).execute()
         except Exception:  # noqa: BLE001

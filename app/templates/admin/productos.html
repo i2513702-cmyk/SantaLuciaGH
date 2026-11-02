@@ -70,7 +70,7 @@
                                     {{ st|int if st == st|int else st }}
                                 </span>
                                 {% if p.stock_reservado and p.stock_reservado > 0 %}
-                                    <small class="text-muted" title="Reservado">{{ p.stock_reservado|int }} reserv.</small>
+                                    <a class="small text-decoration-none" href="{{ url_for('ventas.reservas', producto_id=p.id) }}" title="Ver y gestionar las reservas de este producto">{{ p.stock_reservado|int }} reserv.</a>
                                 {% endif %}
                                 <form method="POST" action="{{ url_for('admin.producto_ajustar_stock', producto_id=p.id) }}" class="stock-stepper" data-stock-stepper>
                                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">

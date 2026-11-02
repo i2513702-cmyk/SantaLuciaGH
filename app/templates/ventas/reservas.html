@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% from "partials/estado_badge.html" import estado_badge %}
+{% block title %}Reservas pendientes — {{ app_name }}{% endblock %}
+
+{% block content %}
+<a class="small text-decoration-none" href="{{ url_for('ventas.listado') }}"><i class="bi bi-arrow-left"></i> Volver a ventas</a>
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 my-3">
+    <div>
+        <h1 class="h3 fw-bold mb-0"><i class="bi bi-hourglass-split"></i> Reservas pendientes</h1>
+        <small class="text-secondary">
+            {% if producto %}Producto: <strong>{{ producto.codigo }} · {{ producto.nombre }}</strong> —
+            <a href="{{ url_for('ventas.reservas') }}">ver todas</a>
+            {% elif producto_id %}Producto #{{ producto_id }} no encontrado — <a href="{{ url_for('ventas.reservas') }}">ver todas</a>
+            {% else %}Ventas en efectivo que aún no se cobran y mantienen stock reservado{% endif %}
+        </small>
+    </div>
+</div>
+
+{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+
+<div class="alert alert-light border small">
+    <strong>Confirmar pago:</strong> descuenta la cantidad del stock y libera la reserva.
+    <strong>Cancelar:</strong> libera la reserva y el stock vuelve a quedar disponible.
+</div>
+
+<div class="card no-hover"><div class="card-body p-0">
+    <div class="table-responsive"><table class="table align-middle mb-0">
+        <thead><tr><th>Pedido</th><th>Cliente</th><th>Productos</th><th class="text-end">Total</th><th>Vence</th><th style="min-width:300px;">Acción</th></tr></thead>
+        <tbody>
+        {% for f in filas %}{% set v = f.venta %}
+            <tr>
+                <td>
+                    <a class="fw-semibold text-decoration-none" href="{{ url_for('ventas.detalle', venta_id=v.id) }}">{{ v.codigo_pedido or ('#' ~ v.id) }}</a>
+                    <div class="small text-secondary">{{ (v.fecha_venta or '')[:16].replace('T', ' ') }}</div>
+                    <div>{{ estado_badge(v.estado) }}</div>
+                </td>
+                <td>{{ f.cliente }}</td>
+                <td>{% for i in f['items'] %}
+                    <div class="{{ 'fw-bold' if i.resaltar }}">{{ i.cantidad|int if i.cantidad == i.cantidad|int else i.cantidad }} × {{ i.nombre }}</div>
+                {% endfor %}</td>
+                <td class="text-end">S/ {{ "%.2f"|format(v.total or 0) }}</td>
+                <td class="small">{{ (v.fecha_limite_pago or '—')[:16].replace('T', ' ') }}</td>
+                <td>
+                    <div class="d-flex flex-wrap gap-2">
+                        <form method="POST" action="{{ url_for('ventas.marcar_pagado', venta_id=v.id) }}"
+                              onsubmit="return confirm('¿Confirmar el pago? Se descontará el stock.');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+                            <button class="btn btn-sm btn-success" type="submit"><i class="bi bi-check-lg"></i> Confirmar pago</button>
+                        </form>
+                        <form method="POST" action="{{ url_for('ventas.cancelar_pedido', venta_id=v.id) }}" class="d-flex gap-1"
+                              onsubmit="return confirm('¿Cancelar la reserva? El stock volverá a estar disponible.');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}">
+                            <input type="text" name="motivo" class="form-control form-control-sm" placeholder="Motivo (opcional)" style="max-width:150px;">
+                            <button class="btn btn-sm btn-outline-danger" type="submit"><i class="bi bi-x-lg"></i> Cancelar</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+        {% else %}
+            <tr><td colspan="6" class="text-center text-secondary py-5">No hay reservas pendientes.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table></div>
+</div></div>
+{% endblock %}
