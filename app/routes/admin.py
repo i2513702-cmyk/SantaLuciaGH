@@ -182,7 +182,10 @@ def _metricas_dashboard():
             clientes_map[v["cliente_id"]] = c
 
     inventario = _leer("inventario", "producto_id,stock_actual,stock_reservado")
-    stock_map = {inv["producto_id"]: inv for inv in inventario}
+    from app.services import inventario_service
+    ids_dash = [p.get("id") for p in productos if p.get("id") is not None]
+    stock_datos = inventario_service.stock_por_producto(ids_dash)
+    stock_map = {pid: {"stock_actual": stock_datos["stock"].get(pid, 0), "stock_reservado": stock_datos["reservado"].get(pid, 0)} for pid in ids_dash}
     clientes_n = _contar("clientes") or 0
 
     # --- Totales generales ---
@@ -709,19 +712,21 @@ def _listar_tecnicos():
 ESTADO_CITA_LABEL = {
     "PENDIENTE": "Pendiente",
     "CONFIRMADA": "Confirmada",
+    "ASIGNADA": "Confirmada",
     "EN_ATENCION": "En atención",
-    "COMPLETADA": "Completada",
+    "ATENDIDA": "Atendida",
     "CANCELADA": "Cancelada",
 }
 
 
 def _clase_estado_cita(estado: str) -> str:
-    if estado == "COMPLETADA":
+    if estado == "ATENDIDA":
         return "badge-ok"
-    if estado in ("CONFIRMADA", "EN_ATENCION"):
+    if estado in ("CONFIRMADA", "ASIGNADA", "EN_ATENCION"):
         return "badge-warn"
     if estado == "CANCELADA":
         return "badge-muted"
+    return "badge-muted"
     return "badge-muted"
 
 
@@ -825,24 +830,92 @@ def citas_asignar_tecnico(reserva_id):
     """
     tecnico_id = request.form.get("tecnico_id", type=int)
     try:
-        from app.supabase_client import get_admin_client
-
-        get_admin_client().table("reservas").update(
-            {"tecnico_id": tecnico_id or None, "estado": "CONFIRMADA" if tecnico_id else "PENDIENTE"}
-        ).eq("id", reserva_id).execute()
         if tecnico_id:
+            cita_service.cambiar_estado(reserva_id, "CONFIRMADA", "ADMINISTRADOR", comentario="Asignacion de tecnico")
+            from app.supabase_client import get_admin_client
+            get_admin_client().table("reservas").update({"tecnico_id": tecnico_id}).eq("id", reserva_id).execute()
             cita_service.marcar_primera_atencion(reserva_id)
-            flash("Técnico asignado a la cita.", "success")
+            flash("Tecnico asignado a la cita.", "success")
         else:
-            flash("Cita liberada (técnico sin asignar).", "info")
+            cita_service.cambiar_estado(reserva_id, "PENDIENTE", "ADMINISTRADOR", comentario="Liberacion de tecnico")
+            from app.supabase_client import get_admin_client
+            get_admin_client().table("reservas").update({"tecnico_id": None}).eq("id", reserva_id).execute()
+            flash("Cita liberada (tecnico sin asignar).", "info")
+    except cita_service.CitaError as exc:
+        flash(str(exc), "error")
     except Exception as exc:  # noqa: BLE001
-        flash(f"No se pudo actualizar la cita: {exc}", "error")
+        log.exception("No se pudo actualizar la cita: %s", exc)
+        flash("No se pudo actualizar la cita. Intentalo de nuevo.", "error")
+
 
     destino = request.referrer
     if not destino or not destino.startswith(request.host_url):
         destino = url_for("admin.citas_listado")
     return redirect(destino)
 
+
+
+@bp.post("/admin/productos/<int:producto_id>/stock")
+@roles_required("admin")
+def producto_ajustar_stock(producto_id):
+    """Ajusta el stock actual de un producto (+/-)."""
+    from app.supabase_client import get_admin_client, get_reader
+
+    try:
+        delta = float(request.form.get("delta", "0"))
+    except (TypeError, ValueError):
+        delta = 0.0
+
+    # Validar cantidad entera y mayor que 0 en valor absoluto.
+    if delta == 0 or delta != int(delta):
+        flash("La cantidad debe ser un numero entero mayor que 0.", "error")
+        return redirect(request.referrer or url_for("admin.productos"))
+
+    try:
+        from app.supabase_client import get_admin_client, get_reader
+        try:
+            resp = get_admin_client().rpc("ajustar_stock", {
+                "p_producto_id": producto_id,
+                "p_delta": delta,
+            }).execute()
+            nuevo = resp.data
+        except Exception as exc:  # noqa: BLE001
+            # Si la funcion SQL aun no existe, hacer el ajuste en Python.
+            mensaje = str(exc)
+            if "PGRST202" in mensaje or "could not find the function" in mensaje.lower():
+                filas = (
+                    get_reader()
+                    .table("inventario")
+                    .select("id,stock_actual")
+                    .eq("producto_id", producto_id)
+                    .execute()
+                    .data
+                    or []
+                )
+                if filas:
+                    actual = float(filas[0].get("stock_actual") or 0)
+                    nuevo = actual + delta
+                    if nuevo < 0:
+                        raise ValueError("Stock insuficiente")
+                    get_admin_client().table("inventario").update(
+                        {"stock_actual": nuevo}
+                    ).eq("id", filas[0]["id"]).execute()
+                else:
+                    nuevo = max(delta, 0)
+                    get_admin_client().table("inventario").insert(
+                        {"producto_id": producto_id, "stock_actual": nuevo, "stock_reservado": 0}
+                    ).execute()
+            else:
+                raise
+        flash(f"Stock actualizado. Stock actual: {int(nuevo) if float(nuevo).is_integer() else nuevo}.", "success")
+    except Exception as exc:  # noqa: BLE001
+        from app.errores import mensaje_amigable
+        flash(mensaje_amigable(exc), "error")
+
+    destino = request.referrer
+    if not destino or not destino.startswith(request.host_url):
+        destino = url_for("admin.productos")
+    return redirect(destino)
 
 
 def _form_ctx(producto=None, valores=None):
@@ -892,6 +965,23 @@ def productos():
     except ValidationError as exc:
         flash(str(exc), "error")
         resultado = {"productos": [], "total": 0, "paginas": 1, "pagina": 1}
+
+    # Adjuntar stock actual a cada producto (suma todas las filas de inventario).
+    try:
+        from app.services import inventario_service
+        ids = [p.get("id") for p in resultado.get("productos", []) if p.get("id") is not None]
+        datos = inventario_service.stock_por_producto(ids)
+        smap = datos.get("stock", {})
+        rmap = datos.get("reservado", {})
+        for prod in resultado.get("productos", []):
+            pid = prod.get("id")
+            prod["stock_actual"] = smap.get(pid, 0)
+            prod["stock_reservado"] = rmap.get(pid, 0)
+    except Exception:  # noqa: BLE001
+        for prod in resultado.get("productos", []):
+            prod.setdefault("stock_actual", 0)
+            prod.setdefault("stock_reservado", 0)
+
     return render_template(
         "admin/productos.html",
         productos=resultado["productos"],

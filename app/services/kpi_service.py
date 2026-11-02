@@ -324,25 +324,15 @@ def _catalogo() -> list[dict]:
         get_reader().table("productos").select("id,nombre,activo"),
         "productos",
     )
-    filas_inv = _consulta(
-        get_reader().table("inventario").select("producto_id,stock_actual"),
-        "inventario",
-    )
-    stock: dict = {}
-    for f in filas_inv:
-        pid = f.get("producto_id")
-        if pid is None:
-            continue
-        try:
-            stock[pid] = stock.get(pid, 0) + float(f.get("stock_actual") or 0)
-        except (TypeError, ValueError):
-            stock[pid] = stock.get(pid, 0)
+    from app.services import inventario_service
+    ids = [p.get("id") for p in productos if p.get("id") is not None]
+    stock = inventario_service.stock_por_producto(ids).get("stock", {})
     activos = [p for p in productos if p.get("activo")]
     return [
         {
             "id": p.get("id"),
             "nombre": p.get("nombre") or "(sin nombre)",
-            "stock": float(stock.get(p.get("id"), 0) or 0),
+            "stock": float((stock or {}).get(p.get("id"), 0) or 0),
         }
         for p in activos
     ]

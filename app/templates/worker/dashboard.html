@@ -114,7 +114,7 @@
                                 <td><span class="badge {{ orden.badge_class }}">{{ orden.estado }}</span></td>
                                 <td class="text-end">
                                     {% if es_tecnico and orden.id %}
-                                    <a class="btn btn-sm btn-outline" href="{{ url_for('worker.reparacion_detalle', reparacion_id=orden.id) }}">Ver/Atender</a>
+                                    <a class="btn btn-sm btn-outline" href="#">Ver/Atender</a>
                                     {% endif %}
                                 </td>
                             </tr>
@@ -184,16 +184,17 @@
                                 <td><span class="badge {{ c.badge_class }}">{{ c.estado }}</span></td>
                                 <td>{% if c.mia %}<span class="badge text-bg-success">Mía</span>{% else %}<span class="badge text-bg-warning">Sin asignar</span>{% endif %}</td>
                                 <td class="text-end">
-                                    {% if es_tecnico and c.mia and c.estado_raw == 'CONFIRMADA' %}
+                                    {% if es_tecnico and c.mia and c.estado_raw in ('CONFIRMADA', 'ASIGNADA') %}
                                     <form method="POST" action="{{ url_for('worker.cita_cambiar_estado', cita_id=c.id) }}" class="d-inline">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                                         <input type="hidden" name="estado" value="EN_ATENCION">
                                         <button class="btn btn-sm btn-outline-primary">Atender</button>
                                     </form>
                                     {% elif es_tecnico and c.mia and c.estado_raw == 'EN_ATENCION' %}
-                                    <form method="POST" action="{{ url_for('worker.cita_cambiar_estado', cita_id=c.id) }}" class="d-inline">
+                                    <form method="POST" action="{{ url_for('worker.cita_cambiar_estado', cita_id=c.id) }}" class="d-inline d-flex gap-2 align-items-center">
                                         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                        <input type="hidden" name="estado" value="COMPLETADA">
+                                        <input type="hidden" name="estado" value="ATENDIDA">
+                                        <input type="text" name="nota" class="form-control form-control-sm" placeholder="Nota de finalizacion" required style="max-width: 220px;">
                                         <button class="btn btn-sm btn-outline-success">Completar</button>
                                     </form>
                                     <form method="POST" action="{{ url_for('worker.cita_crear_reparacion', cita_id=c.id) }}" class="d-inline">

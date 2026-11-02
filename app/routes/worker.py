@@ -20,7 +20,7 @@ from flask import (
 )
 
 from app.decorators import roles_required, tecnico_required
-from app.services.cita_service import SEPARADOR_DIRECCION, marcar_primera_atencion
+from app.services.cita_service import CitaError, SEPARADOR_DIRECCION, cambiar_estado, marcar_primera_atencion
 from app.services.pdf_service import generar_orden_servicio_pdf
 from app.services.storage_service import asegurar_bucket, subir_imagen
 from app.supabase_client import error_postgrest, get_admin_client, get_reader
@@ -68,19 +68,13 @@ TRANSICIONES_REPARACION = {
     "CANCELADO": set(),
 }
 
-TRANSICIONES_CITA = {
-    "PENDIENTE": {"CONFIRMADA"},
-    "CONFIRMADA": {"EN_ATENCION"},
-    "EN_ATENCION": {"COMPLETADA"},
-    "COMPLETADA": set(),
-    "CANCELADA": set(),
-}
 
 ESTADO_CITA_LABEL = {
     "PENDIENTE": "Pendiente",
     "CONFIRMADA": "Confirmada",
+    "ASIGNADA": "Confirmada",
     "EN_ATENCION": "En atención",
-    "COMPLETADA": "Completada",
+    "ATENDIDA": "Atendida",
     "CANCELADA": "Cancelada",
 }
 
@@ -94,12 +88,13 @@ def _clase_estado(estado: str) -> str:
 
 
 def _clase_estado_cita(estado: str) -> str:
-    if estado == "COMPLETADA":
+    if estado == "ATENDIDA":
         return "badge-ok"
-    if estado in ("CONFIRMADA", "EN_ATENCION"):
+    if estado in ("CONFIRMADA", "ASIGNADA", "EN_ATENCION"):
         return "badge-warn"
+    if estado == "CANCELADA":
+        return "badge-muted"
     return "badge-muted"
-
 
 def _contar(tabla: str, **filtros):
     try:
@@ -354,6 +349,7 @@ def dashboard():
         return c if c is not None else 0
 
     stats = [
+        {"label": "Recibidas", "value": _contar_rep("RECIBIDO"), "icon": "📥", "filtro": "RECIBIDO"},
         {"label": "En reparación", "value": _contar_rep("EN_REPARACION"), "icon": "🔧", "filtro": "EN_REPARACION"},
         {"label": "Listas para entrega", "value": _contar_rep("LISTO_ENTREGA"), "icon": "📦", "filtro": "LISTO_ENTREGA"},
         {"label": "Entregadas", "value": _contar_rep("ENTREGADO"), "icon": "✅", "filtro": "ENTREGADO"},
@@ -421,6 +417,7 @@ def resumen_detalle(clave):
         })
 
     estados = {
+        "RECIBIDO": "Recibidas",
         "EN_REPARACION": "En reparación",
         "LISTO_ENTREGA": "Listas para entrega",
         "ENTREGADO": "Entregadas",
@@ -666,3 +663,93 @@ def agenda_toggle(franja_id):
         log.exception("No se pudo actualizar la franja")
         flash("No se pudo actualizar la franja.", "error")
     return redirect(url_for("worker.dashboard"))
+@bp.post("/worker/citas/<int:cita_id>/estado")
+@roles_required("worker")
+@tecnico_required
+def cita_cambiar_estado(cita_id):
+    """Cambia el estado de una cita asignada al tecnico."""
+    estado = (request.form.get("estado") or "").strip().upper()
+    if estado == "COMPLETADA":
+        estado = "ATENDIDA"
+    if estado not in ("EN_ATENCION", "ATENDIDA"):
+        flash("Estado de cita no valido.", "error")
+        return redirect(request.referrer or url_for("worker.dashboard"))
+
+    tecnico_id = _tecnico_id()
+    nota = request.form.get("nota") or request.form.get("comentario")
+    try:
+        cambiar_estado(cita_id, estado, "TECNICO", actor_tecnico_id=tecnico_id, comentario=nota)
+        flash("Estado de la cita actualizado.", "success")
+    except CitaError as exc:
+        flash(str(exc), "error")
+    except Exception as exc:  # noqa: BLE001
+        log.exception("No se pudo actualizar la cita: %s", exc)
+        flash("No se pudo actualizar la cita. Intentalo de nuevo.", "error")
+
+    return redirect(request.referrer or url_for("worker.dashboard"))
+
+
+
+@bp.post("/worker/citas/<int:cita_id>/reparacion")
+@roles_required("worker")
+@tecnico_required
+def cita_crear_reparacion(cita_id):
+    """Crea la orden de reparación asociada a una cita del técnico."""
+    from datetime import datetime, timezone
+
+    from app.supabase_client import get_admin_client, get_reader
+
+    tecnico_id = _tecnico_id()
+    if not tecnico_id:
+        flash("Tu cuenta no esta vinculada a un tecnico.", "error")
+        return redirect(url_for("worker.dashboard"))
+    try:
+        existente = (
+            get_reader()
+            .table("reparaciones")
+            .select("id")
+            .eq("reserva_id", cita_id)
+            .limit(1)
+            .execute()
+            .data
+            or []
+        )
+        if existente:
+            flash("Ya existe una orden de reparaci\u00f3n para esta cita.", "info")
+            return redirect(request.referrer or url_for("worker.dashboard"))
+
+        reserva = (
+            get_reader()
+            .table("reservas")
+            .select("id,cliente_id,electrodomestico_id,tipo_atencion,motivo")
+            .eq("id", cita_id)
+            .limit(1)
+            .execute()
+            .data
+            or [None]
+        )[0]
+        if not reserva:
+            raise ValueError("Cita no encontrada")
+
+        ahora = datetime.now(timezone.utc).isoformat()
+        payload = {
+            "reserva_id": cita_id,
+            "electrodomestico_id": reserva.get("electrodomestico_id"),
+            "usuario_registro_id": session.get("usuario_id"),
+            "tecnico_id": tecnico_id or reserva.get("tecnico_id"),
+            "tipo_atencion": reserva.get("tipo_atencion") or "TALLER",
+            "estado": "RECIBIDO",
+            "problema": reserva.get("motivo") or "Reparación",
+            "fecha_ingreso": ahora,
+            "fecha_actualizacion": ahora,
+        }
+        get_admin_client().table("reparaciones").insert(payload).execute()
+        get_admin_client().table("reservas").update({"estado": "EN_ATENCION"}).eq("id", cita_id).execute()
+        marcar_primera_atencion(cita_id)
+        flash("Orden de reparación creada.", "success")
+        return redirect(url_for("worker.dashboard") + "#pane-reparaciones")
+    except Exception as exc:  # noqa: BLE001
+        from app.errores import mensaje_amigable
+        flash(mensaje_amigable(exc), "error")
+    return redirect(request.referrer or url_for("worker.dashboard"))
+

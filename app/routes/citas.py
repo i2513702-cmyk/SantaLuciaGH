@@ -21,6 +21,7 @@ from app.services.cita_service import (
     agendar,
     datos_usuario,
     horarios_disponibles,
+    cambiar_estado,
     listar_citas_cliente,
 )
 from app.supabase_client import get_reader
@@ -165,6 +166,29 @@ def mis_citas():
         cliente_vinculado=bool(cliente_id),
         **datos,
     )
+
+
+@bp.post("/citas/<int:reserva_id>/cancelar")
+@login_required
+def cancelar_cita(reserva_id):
+    """Cancela una cita del cliente autenticado."""
+    from app.services import rest_auth_service
+
+    perfil = rest_auth_service.obtener_perfil(session.get("usuario_id")) or {}
+    cliente_id = perfil.get("cliente_id")
+    if not cliente_id:
+        flash("Tu cuenta no esta vinculada a un cliente.", "error")
+        return redirect(url_for("citas.mis_citas"))
+
+    motivo = (request.form.get("motivo") or "").strip()
+    try:
+        cambiar_estado(reserva_id, "CANCELADA", "CLIENTE", actor_cliente_id=cliente_id, comentario=motivo)
+        flash("Cita cancelada.", "success")
+    except CitaError as exc:
+        flash(str(exc), "error")
+    except Exception:  # noqa: BLE001
+        flash("No se pudo cancelar la cita. Intentalo de nuevo.", "error")
+    return redirect(url_for("citas.mis_citas"))
 
 
 @bp.get("/citas/confirmacion/<int:reserva_id>")

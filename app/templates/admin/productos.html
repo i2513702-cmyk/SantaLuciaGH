@@ -36,6 +36,7 @@
                         <th>Tipo</th>
                         <th>Precio venta</th>
                         <th>Promo</th>
+                        <th>Stock</th>
                         <th>Estado</th>
                         <th class="text-end">Acciones</th>
                     </tr>
@@ -63,6 +64,26 @@
                             {% endif %}
                         </td>
                         <td>
+                            <div class="stock-cell">
+                                {% set st = p.stock_actual or 0 %}
+                                <span class="stock-badge {% if st <= 0 %}stock-badge--danger{% elif st <= 5 %}stock-badge--warn{% else %}stock-badge--ok{% endif %}" title="{% if st <= 0 %}Sin stock{% elif st <= 5 %}Stock bajo{% else %}Stock disponible{% endif %}">
+                                    {{ st|int if st == st|int else st }}
+                                </span>
+                                {% if p.stock_reservado and p.stock_reservado > 0 %}
+                                    <small class="text-muted" title="Reservado">{{ p.stock_reservado|int }} reserv.</small>
+                                {% endif %}
+                                <form method="POST" action="{{ url_for('admin.producto_ajustar_stock', producto_id=p.id) }}" class="stock-stepper" data-stock-stepper>
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <button type="button" class="stock-step-btn" data-step="-1" aria-label="Disminuir cantidad de {{ p.codigo }}" title="Disminuir">&minus;</button>
+                                    <input type="number" name="delta" value="0" step="1" class="stock-step-input" aria-label="Cantidad a ajustar para {{ p.codigo }}">
+                                    <button type="button" class="stock-step-btn" data-step="1" aria-label="Aumentar cantidad de {{ p.codigo }}" title="Aumentar">+</button>
+                                    <button type="submit" class="stock-apply-btn" disabled title="Sumar/restar al stock" aria-label="Aplicar ajuste de stock de {{ p.codigo }}">
+                                        <i class="bi bi-check-lg"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                        <td>
                             {% if p.activo %}
                                 <span class="badge text-bg-success">Activo</span>
                             {% else %}
@@ -70,13 +91,18 @@
                             {% endif %}
                         </td>
                         <td class="text-end">
-                            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin.producto_editar', producto_id=p.id) }}">Editar</a>
-                            <form method="POST" action="{{ url_for('admin.producto_eliminar', producto_id=p.id) }}"
-                                  class="d-inline"
-                                  onsubmit="return confirm('¿Eliminar el producto «{{ p.nombre }}»? Esta acción no se puede deshacer.');">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                <button type="submit" class="btn btn-sm btn-outline-danger">Eliminar</button>
-                            </form>
+                            <div class="d-flex gap-2 justify-content-end">
+                                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin.producto_editar', producto_id=p.id) }}" title="Editar" aria-label="Editar {{ p.codigo }}">
+                                    <i class="bi bi-pencil"></i>
+                                </a>
+                                <form method="POST" action="{{ url_for('admin.producto_eliminar', producto_id=p.id) }}" class="d-inline"
+                                      onsubmit="return confirm('Eliminar el producto {{ p.nombre }}? Esta accion no se puede deshacer.');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar" aria-label="Eliminar {{ p.codigo }}">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}

@@ -616,7 +616,7 @@ def _documento_de_usuario(usuario: dict) -> str:
     return (resp.data[0].get("numero_documento") if resp.data else "") or ""
 
 
-def recuperar_clave(identificador: str, numero_documento: str, clave_nueva: str) -> None:
+def recuperar_clave(identificador: str, numero_documento: str, clave_nueva: str, ip: str | None = None) -> None:
     """Restablece la contraseña validando la identidad con el documento.
 
     Se usa desde el login (sin sesión): el usuario indica su nombre de usuario
@@ -637,9 +637,48 @@ def recuperar_clave(identificador: str, numero_documento: str, clave_nueva: str)
         "Los datos no coinciden con ninguna cuenta. Revisa tu usuario y documento."
     )
 
+    ip = (ip or "desconocida").strip() or "desconocida"
+    from app.services import cuenta_guard, login_guard
+
+    bloqueo_ip = login_guard.estado(ip)
+    msg_ip = login_guard.mensaje_bloqueo(bloqueo_ip)
+    if msg_ip:
+        raise ValidationError(msg_ip)
+
     usuario = _buscar_usuario(identificador)
+
+    if usuario and usuario.get("activo") is not False:
+        try:
+            espera = cuenta_guard.segundos_de_espera(usuario)
+        except Exception:  # noqa: BLE001
+            espera = 0
+        if espera and espera > 0:
+            raise ValidationError(cuenta_guard.mensaje_bloqueo(espera))
+
     if not usuario or usuario.get("activo") is False:
+        login_guard.registrar_fallo(ip, identificador)
+        login_guard.registrar_evento("RECUPERAR_CLAVE_FALLO", ip=ip, usuario=identificador, detalle="usuario no encontrado o inactivo")
+        if usuario:
+            try:
+                cuenta_guard.registrar_fallo(usuario, ip)
+            except Exception:  # noqa: BLE001
+                pass
         raise error_identidad
+
+    documento_registrado = _documento_de_usuario(usuario)
+    if (
+        not documento_registrado
+        or _normalizar_documento(documento_registrado)
+        != _normalizar_documento(numero_documento)
+    ):
+        login_guard.registrar_fallo(ip, identificador)
+        login_guard.registrar_evento("RECUPERAR_CLAVE_FALLO", ip=ip, usuario=identificador, detalle="documento no coincide")
+        try:
+            cuenta_guard.registrar_fallo(usuario, ip)
+        except Exception:  # noqa: BLE001
+            pass
+        raise error_identidad
+
 
     documento_registrado = _documento_de_usuario(usuario)
     if (
@@ -653,7 +692,15 @@ def recuperar_clave(identificador: str, numero_documento: str, clave_nueva: str)
         _tabla_escritura().update({"password": hash_password(clave_nueva)}).eq(
             "id", usuario["id"]
         ).execute()
+        login_guard.registrar_exito(ip)
+        cuenta_guard.registrar_exito(usuario)
+        login_guard.registrar_evento("RECUPERAR_CLAVE_OK", ip=ip, usuario=identificador, detalle="clave restablecida")
     except Exception as exc:  # noqa: BLE001
+        login_guard.registrar_fallo(ip, identificador)
+        try:
+            cuenta_guard.registrar_fallo(usuario, ip)
+        except Exception:  # noqa: BLE001
+            pass
         raise ValidationError(error_postgrest(exc)) from exc
 
 
