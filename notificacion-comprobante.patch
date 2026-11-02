@@ -1,0 +1,398 @@
+diff --git a/.env.example b/.env.example
+index bbeea9c..591bdc2 100644
+--- a/.env.example
++++ b/.env.example
+@@ -56,3 +56,10 @@ PAGO_CCI=00235519569790208363
+ PAGO_TITULAR=Santa Lucia Servicio Tecnico
+ PAGO_YAPE_NUMERO=
+ PAGO_YAPE_QR=images/pagos/yape-qr.jpeg
++
++MAIL_SERVER=
++MAIL_PORT=587
++MAIL_USERNAME=
++MAIL_PASSWORD=
++MAIL_DEFAULT_SENDER=
++MAIL_USE_TLS=1
+diff --git a/app/routes/checkout.py b/app/routes/checkout.py
+index c8b72a0..0c609a5 100644
+--- a/app/routes/checkout.py
++++ b/app/routes/checkout.py
+@@ -26,7 +26,7 @@ from flask import (
+ 
+ from app.decorators import login_required
+ from app.exceptions import AppError, ValidationError
+-from app.services import carrito_service, rest_auth_service
++from app.services import carrito_service, notificacion_service, rest_auth_service
+ 
+ bp = Blueprint("checkout", __name__)
+ 
+@@ -143,8 +143,10 @@ def procesar():
+ 
+     # Vincula la venta con el cliente del usuario (alimenta "Top clientes").
+     cliente_id = None
++    usuario_db = {}
+     try:
+-        cliente_id = rest_auth_service.obtener_usuario(session["usuario_id"]).get("cliente_id")
++        usuario_db = rest_auth_service.obtener_usuario(session["usuario_id"]) or {}
++        cliente_id = usuario_db.get("cliente_id")
+     except Exception:  # noqa: BLE001  (si falla, la venta se registra igual sin cliente)
+         pass
+ 
+@@ -275,6 +277,19 @@ def procesar():
+         resumen["fecha_limite_pago"] = limite if "limite" in locals() else None
+         resumen["direccion_tienda"] = current_app.config.get("CONTACTO_DIRECCION", "")
+         resumen["horario_tienda"] = "Lun a Sab 9:00 - 19:00"
++
++    # Comprobante por correo: el escrito en el formulario manda; si no se
++    # escribió ninguno se usa el correo registrado del cliente.
++    correo_envio = (request.form.get("correo") or "").strip() or notificacion_service.correo_registrado(usuario_db)
++    try:
++        envio = notificacion_service.enviar_comprobante(resumen, correo_envio)
++    except Exception:  # noqa: BLE001  (el comprobante nunca debe romper la compra)
++        current_app.logger.exception("No se pudo programar el envio del comprobante")
++        envio = {"destino": None, "invalido": False, "sin_canal": False}
++    resumen["notificado_a"] = envio["destino"]
++    if envio["invalido"]:
++        flash("El correo ingresado no es válido: no se envió el comprobante por correo.", "warning")
++
+     session["ultimo_pedido"] = resumen
+ 
+     flash(
+diff --git a/app/services/notificacion_service.py b/app/services/notificacion_service.py
+new file mode 100644
+index 0000000..103f11f
+--- /dev/null
++++ b/app/services/notificacion_service.py
+@@ -0,0 +1,195 @@
++"""Envío del comprobante (PDF) al correo del cliente.
++
++- SMTP estándar (`smtplib`), con el PDF adjunto.
++- Cada intento queda en `notificaciones` (`estado_envio` = enviado / fallido),
++  que es la tabla que mide el KPI-06.
++
++El envío corre en un hilo para no demorar el checkout, y nunca lo rompe: si
++falla, la compra sigue y el fallo queda registrado.
++
++Variables de entorno (ver .env.example):
++  MAIL_SERVER, MAIL_PORT, MAIL_USERNAME, MAIL_PASSWORD, MAIL_DEFAULT_SENDER,
++  MAIL_USE_TLS
++"""
++
++from __future__ import annotations
++
++import logging
++import os
++import re
++import smtplib
++import ssl
++import threading
++from datetime import datetime, timezone
++from email.message import EmailMessage
++from html import escape
++
++log = logging.getLogger(__name__)
++
++TIPO_NOTIFICACION = "COMPROBANTE"
++CANAL_CORREO = "CORREO"
++_RE_CORREO = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
++
++
++class EnvioError(Exception):
++    """Fallo del envío. `codigo` queda en notificaciones.codigo_error."""
++
++    def __init__(self, codigo: str, mensaje: str = ""):
++        super().__init__(mensaje or codigo)
++        self.codigo = codigo
++
++
++def _cfg(nombre: str, defecto: str = "") -> str:
++    return (os.getenv(nombre) or defecto).strip()
++
++
++def normalizar_correo(valor) -> str | None:
++    correo = (valor or "").strip().lower()
++    return correo if _RE_CORREO.match(correo) else None
++
++
++def enmascarar_correo(correo: str) -> str:
++    usuario, _, dominio = correo.partition("@")
++    return f"{usuario[:1]}***@{dominio}"
++
++
++def correo_registrado(usuario: dict) -> str:
++    """Correo guardado del cliente vinculado o, si no hay, de la cuenta."""
++    cliente = (usuario or {}).get("clientes") or {}
++    if isinstance(cliente, list):
++        cliente = cliente[0] if cliente else {}
++    return cliente.get("correo") or (usuario or {}).get("correo") or ""
++
++
++def correo_configurado() -> bool:
++    return bool(_cfg("MAIL_SERVER") and _cfg("MAIL_USERNAME") and _cfg("MAIL_PASSWORD"))
++
++
++def _nombre_pdf(resumen: dict) -> str:
++    return f"{resumen.get('tipo_comprobante', 'COMPROBANTE')}_{resumen.get('serie', '')}.pdf"
++
++
++def _soles(valor) -> str:
++    try:
++        return f"S/ {float(valor):.2f}"
++    except (TypeError, ValueError):
++        return "S/ 0.00"
++
++
++def construir_correo(resumen: dict, pdf: bytes, destinatario: str, remitente: str) -> EmailMessage:
++    tipo = resumen.get("tipo_comprobante", "Comprobante")
++    pedido = resumen.get("codigo_pedido", "")
++    total = _soles(resumen.get("total"))
++    cliente = resumen.get("cliente_nombre", "")
++
++    msg = EmailMessage()
++    msg["Subject"] = f"Tu {tipo.lower()} {resumen.get('serie', '')} - pedido {pedido}".strip()
++    msg["From"] = remitente
++    msg["To"] = destinatario
++    msg.set_content(
++        f"Hola {cliente},\n\n"
++        f"Gracias por tu compra en Santa Lucia. Adjuntamos tu {tipo.lower()} del pedido {pedido} "
++        f"por un total de {total}.\n\n"
++        "Si tienes dudas, responde a este correo."
++    )
++    msg.add_alternative(
++        "<p>Hola <strong>{c}</strong>,</p>"
++        "<p>Gracias por tu compra en <strong>Santa Lucía</strong>. Adjuntamos tu {t} "
++        "del pedido <strong>{p}</strong> por un total de <strong>{m}</strong>.</p>"
++        "<p>Si tienes dudas, responde a este correo.</p>".format(
++            c=escape(cliente), t=escape(tipo.lower()), p=escape(pedido), m=escape(total)
++        ),
++        subtype="html",
++    )
++    msg.add_attachment(pdf, maintype="application", subtype="pdf", filename=_nombre_pdf(resumen))
++    return msg
++
++
++def _enviar_correo(resumen: dict, pdf: bytes, destinatario: str) -> None:
++    host = _cfg("MAIL_SERVER")
++    puerto = int(_cfg("MAIL_PORT", "587") or 587)
++    usuario = _cfg("MAIL_USERNAME")
++    clave = _cfg("MAIL_PASSWORD")
++    remitente = _cfg("MAIL_DEFAULT_SENDER") or usuario
++    usar_tls = _cfg("MAIL_USE_TLS", "1").lower() not in ("0", "false", "no")
++
++    msg = construir_correo(resumen, pdf, destinatario, remitente)
++    contexto = ssl.create_default_context()
++    try:
++        if puerto == 465:
++            with smtplib.SMTP_SSL(host, puerto, timeout=20, context=contexto) as server:
++                server.login(usuario, clave)
++                server.send_message(msg)
++        else:
++            with smtplib.SMTP(host, puerto, timeout=20) as server:
++                if usar_tls:
++                    server.starttls(context=contexto)
++                server.login(usuario, clave)
++                server.send_message(msg)
++    except smtplib.SMTPAuthenticationError as exc:
++        raise EnvioError("SMTP_AUTH", str(exc)) from exc
++    except smtplib.SMTPRecipientsRefused as exc:
++        raise EnvioError("SMTP_DESTINATARIO", str(exc)) from exc
++    except (smtplib.SMTPException, OSError) as exc:
++        raise EnvioError("SMTP_ERROR", str(exc)) from exc
++
++
++def _registrar(venta_id, destinatario: str, estado: str, codigo_error: str | None = None) -> None:
++    try:
++        from app.supabase_client import get_admin_client
++
++        get_admin_client().table("notificaciones").insert(
++            {
++                "venta_id": venta_id,
++                "canal": CANAL_CORREO,
++                "destinatario": destinatario,
++                "tipo": TIPO_NOTIFICACION,
++                "estado_envio": estado,
++                "codigo_error": codigo_error[:60] if codigo_error else None,
++                "fecha_creacion": datetime.now(timezone.utc).isoformat(timespec="seconds"),
++            }
++        ).execute()
++    except Exception:  # noqa: BLE001
++        log.warning("No se pudo registrar la notificacion (venta %s)", venta_id, exc_info=True)
++
++
++def _trabajo(resumen: dict, pdf: bytes, destinatario: str) -> None:
++    venta_id = resumen.get("venta_id")
++    try:
++        _enviar_correo(resumen, pdf, destinatario)
++    except EnvioError as exc:
++        log.warning("Comprobante por correo fallo (%s): %s", exc.codigo, exc)
++        _registrar(venta_id, destinatario, "fallido", exc.codigo)
++    except Exception as exc:  # noqa: BLE001
++        log.exception("Comprobante por correo fallo")
++        _registrar(venta_id, destinatario, "fallido", type(exc).__name__.upper())
++    else:
++        _registrar(venta_id, destinatario, "enviado")
++
++
++def enviar_comprobante(resumen: dict, correo=None, en_segundo_plano: bool = True) -> dict:
++    """Valida el correo y manda el comprobante.
++
++    Devuelve:
++      destino   -> correo enmascarado (a***@x.com) si se va a intentar el envío, si no None
++      invalido  -> True si se escribió un correo con formato inválido
++      sin_canal -> True si el correo es válido pero el SMTP no está configurado
++    """
++    correo_ok = normalizar_correo(correo)
++    invalido = bool((correo or "").strip()) and not correo_ok
++    resultado = {"destino": None, "invalido": invalido, "sin_canal": False}
++    if not correo_ok:
++        return resultado
++    if not correo_configurado():
++        resultado["sin_canal"] = True
++        return resultado
++
++    from app.services.pdf_service import generar_comprobante_pdf
++
++    pdf = generar_comprobante_pdf(resumen)
++    resultado["destino"] = enmascarar_correo(correo_ok)
++    if en_segundo_plano:
++        threading.Thread(target=_trabajo, args=(resumen, pdf, correo_ok), daemon=True).start()
++    else:
++        _trabajo(resumen, pdf, correo_ok)
++    return resultado
+diff --git a/app/templates/confirmacion.html b/app/templates/confirmacion.html
+index aa768ae..01dd8a1 100644
+--- a/app/templates/confirmacion.html
++++ b/app/templates/confirmacion.html
+@@ -67,6 +67,12 @@
+         </div>
+         {% endif %}
+ 
++        {% if resumen.notificado_a %}
++        <div class="alert alert-info mt-3 mb-0">
++            <strong>Te estamos enviando tu comprobante</strong> por correo a {{ resumen.notificado_a }}.
++        </div>
++        {% endif %}
++
+         <div class="d-flex gap-2 mt-4">
+             <a class="btn btn-primary" href="{{ url_for('checkout.pdf') }}"> Descargar PDF</a>
+             <a class="btn btn-outline-primary" href="{{ url_for('main.tienda') }}">Seguir comprando</a>
+diff --git a/sql/13_notificaciones_comprobantes.sql b/sql/13_notificaciones_comprobantes.sql
+new file mode 100644
+index 0000000..d33370f
+--- /dev/null
++++ b/sql/13_notificaciones_comprobantes.sql
+@@ -0,0 +1,16 @@
++CREATE TABLE IF NOT EXISTS public.notificaciones (
++    id bigint GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
++    fecha_creacion timestamptz NOT NULL DEFAULT now()
++);
++
++ALTER TABLE public.notificaciones
++    ADD COLUMN IF NOT EXISTS venta_id bigint REFERENCES public.ventas(id) ON DELETE SET NULL,
++    ADD COLUMN IF NOT EXISTS canal text,
++    ADD COLUMN IF NOT EXISTS destinatario text,
++    ADD COLUMN IF NOT EXISTS tipo text,
++    ADD COLUMN IF NOT EXISTS estado_envio text,
++    ADD COLUMN IF NOT EXISTS codigo_error text;
++
++CREATE INDEX IF NOT EXISTS idx_notificaciones_venta ON public.notificaciones (venta_id);
++
++ALTER TABLE public.notificaciones ENABLE ROW LEVEL SECURITY;
+diff --git a/tests/test_notificacion_service.py b/tests/test_notificacion_service.py
+new file mode 100644
+index 0000000..49eb15e
+--- /dev/null
++++ b/tests/test_notificacion_service.py
+@@ -0,0 +1,92 @@
++import pytest
++
++from app.services import notificacion_service as ns
++
++RESUMEN = {
++    "venta_id": 7,
++    "codigo_pedido": "PED-0007",
++    "tipo_comprobante": "BOLETA",
++    "serie": "B001-7",
++    "cliente_nombre": "Ana <Perez>",
++    "total": 118.0,
++}
++
++
++@pytest.mark.parametrize(
++    "entrada,esperado",
++    [(" Ana@Mail.com ", "ana@mail.com"), ("sin-arroba", None), ("a@b", None), ("", None), (None, None)],
++)
++def test_normalizar_correo(entrada, esperado):
++    assert ns.normalizar_correo(entrada) == esperado
++
++
++def test_correo_registrado_prefiere_cliente():
++    u = {"correo": "cuenta@x.com", "clientes": {"correo": "cli@x.com"}}
++    assert ns.correo_registrado(u) == "cli@x.com"
++    assert ns.correo_registrado({"correo": "cuenta@x.com"}) == "cuenta@x.com"
++    assert ns.correo_registrado({"clientes": [{"correo": "l@x.com"}]}) == "l@x.com"
++    assert ns.correo_registrado({}) == ""
++
++
++def test_construir_correo_adjunta_pdf_y_escapa_html():
++    msg = ns.construir_correo(RESUMEN, b"%PDF-1.4 x", "ana@x.com", "tienda@x.com")
++    adjuntos = list(msg.iter_attachments())
++    assert len(adjuntos) == 1
++    assert adjuntos[0].get_filename() == "BOLETA_B001-7.pdf"
++    assert adjuntos[0].get_content() == b"%PDF-1.4 x"
++    html = msg.get_body(("html",)).get_content()
++    assert "Ana &lt;Perez&gt;" in html and "S/ 118.00" in html
++    assert "PED-0007" in msg["Subject"]
++
++
++@pytest.fixture
++def espias(monkeypatch):
++    registros, enviados = [], []
++    monkeypatch.setattr(ns, "_registrar", lambda *a, **k: registros.append(a))
++    monkeypatch.setattr(ns, "_enviar_correo", lambda r, pdf, d: enviados.append(d))
++    monkeypatch.setattr("app.services.pdf_service.generar_comprobante_pdf", lambda r: b"%PDF")
++    return registros, enviados
++
++
++def test_envia_y_registra(monkeypatch, espias):
++    registros, enviados = espias
++    monkeypatch.setattr(ns, "correo_configurado", lambda: True)
++    r = ns.enviar_comprobante(RESUMEN, " Ana@X.com ", en_segundo_plano=False)
++    assert enviados == ["ana@x.com"]
++    assert registros == [(7, "ana@x.com", "enviado")]
++    assert r == {"destino": "a***@x.com", "invalido": False, "sin_canal": False}
++
++
++def test_correo_invalido_no_envia(monkeypatch, espias):
++    registros, enviados = espias
++    monkeypatch.setattr(ns, "correo_configurado", lambda: True)
++    r = ns.enviar_comprobante(RESUMEN, "no-es-correo", en_segundo_plano=False)
++    assert enviados == [] and registros == []
++    assert r["invalido"] is True and r["destino"] is None
++
++
++def test_sin_correo_no_hace_nada(monkeypatch, espias):
++    registros, enviados = espias
++    monkeypatch.setattr(ns, "correo_configurado", lambda: True)
++    r = ns.enviar_comprobante(RESUMEN, "", en_segundo_plano=False)
++    assert enviados == [] and registros == [] and r["invalido"] is False
++
++
++def test_smtp_sin_configurar_no_registra_fallo(monkeypatch, espias):
++    registros, enviados = espias
++    monkeypatch.setattr(ns, "correo_configurado", lambda: False)
++    r = ns.enviar_comprobante(RESUMEN, "ana@x.com", en_segundo_plano=False)
++    assert enviados == [] and registros == []
++    assert r["sin_canal"] is True and r["destino"] is None
++
++
++def test_fallo_smtp_queda_registrado(monkeypatch, espias):
++    registros, _ = espias
++    monkeypatch.setattr(ns, "correo_configurado", lambda: True)
++
++    def roto(*a):
++        raise ns.EnvioError("SMTP_AUTH", "credenciales")
++
++    monkeypatch.setattr(ns, "_enviar_correo", roto)
++    ns.enviar_comprobante(RESUMEN, "ana@x.com", en_segundo_plano=False)
++    assert registros == [(7, "ana@x.com", "fallido", "SMTP_AUTH")]
