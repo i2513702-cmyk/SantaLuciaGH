@@ -26,7 +26,7 @@ from flask import (
 
 from app.decorators import login_required
 from app.exceptions import AppError, ValidationError
-from app.services import carrito_service, rest_auth_service
+from app.services import carrito_service, notificacion_service, rest_auth_service
 
 bp = Blueprint("checkout", __name__)
 
@@ -143,8 +143,10 @@ def procesar():
 
     # Vincula la venta con el cliente del usuario (alimenta "Top clientes").
     cliente_id = None
+    usuario_db = {}
     try:
-        cliente_id = rest_auth_service.obtener_usuario(session["usuario_id"]).get("cliente_id")
+        usuario_db = rest_auth_service.obtener_usuario(session["usuario_id"]) or {}
+        cliente_id = usuario_db.get("cliente_id")
     except Exception:  # noqa: BLE001  (si falla, la venta se registra igual sin cliente)
         pass
 
@@ -275,6 +277,19 @@ def procesar():
         resumen["fecha_limite_pago"] = limite if "limite" in locals() else None
         resumen["direccion_tienda"] = current_app.config.get("CONTACTO_DIRECCION", "")
         resumen["horario_tienda"] = "Lun a Sab 9:00 - 19:00"
+
+    # Comprobante por correo: el escrito en el formulario manda; si no se
+    # escribió ninguno se usa el correo registrado del cliente.
+    correo_envio = (request.form.get("correo") or "").strip() or notificacion_service.correo_registrado(usuario_db)
+    try:
+        envio = notificacion_service.enviar_comprobante(resumen, correo_envio)
+    except Exception:  # noqa: BLE001  (el comprobante nunca debe romper la compra)
+        current_app.logger.exception("No se pudo programar el envio del comprobante")
+        envio = {"destino": None, "invalido": False, "sin_canal": False}
+    resumen["notificado_a"] = envio["destino"]
+    if envio["invalido"]:
+        flash("El correo ingresado no es válido: no se envió el comprobante por correo.", "warning")
+
     session["ultimo_pedido"] = resumen
 
     flash(
