@@ -63,6 +63,11 @@ def validar_franja(fecha: str, hora_inicio: str, hora_fin: str, ahora: Optional[
         return f"La fecha {_fmt(dia)} no es válida; revisa el año."
     if dia < ahora.date():
         return f"No puedes registrar disponibilidad en una fecha anterior a hoy ({_fmt(dia)})."
+    if dia > ahora.date():
+        return (
+            f"Solo puedes registrar disponibilidad para hoy ({_fmt(ahora.date())}); "
+            f"no se permiten fechas posteriores ({_fmt(dia)})."
+        )
     if hora_fin <= hora_inicio:
         return "La hora de fin debe ser posterior a la hora de inicio."
     if dia == ahora.date() and hora_inicio < ahora.strftime("%H:%M"):
@@ -107,6 +112,7 @@ def mensaje_error_bd(exc: Exception, por_defecto: str) -> str:
     texto = str(exc)
     for marca in (
         "No se puede registrar disponibilidad con una fecha anterior a hoy",
+        "Solo se puede registrar disponibilidad para el día de hoy",
         "ya pasó; en Lima son las",
         "no se puede reactivar",
         "ya no se puede modificar",
