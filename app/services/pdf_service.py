@@ -68,10 +68,7 @@ def generar_comprobante_pdf(resumen: dict) -> bytes:
     historial = []
     historial.append(Paragraph("Santa Lucia", titulo))
     historial.append(Paragraph("Todo para tu hogar y más", subt))
-    historial.append(Paragraph(
-        "COMPROBANTE ELECTRÓNICO (DEMO) — Pago simulado",
-        ParagraphStyle("demo", parent=subt, textColor=colors.HexColor("#0d6efd")),
-    ))
+    historial.append(Paragraph("COMPROBANTE ELECTRÓNICO", subt))
     historial.append(Spacer(1, 4))
 
     cab = Table(
@@ -146,8 +143,7 @@ def generar_comprobante_pdf(resumen: dict) -> bytes:
 
     historial.append(Spacer(1, 16))
     historial.append(Paragraph(
-        "Gracias por tu compra. Este es un comprobante generado por el sistema "
-        "en modo demostración (pago simulado, sin valor fiscal real).",
+        "Gracias por tu compra. Este es un comprobante generado por el sistema.",
         ex,
     ))
 

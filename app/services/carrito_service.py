@@ -609,11 +609,11 @@ def pagar(
     tipo_comprobante: str = "BOLETA",
     cliente_id: int | None = None,
 ) -> dict:
-    """Convierte el carrito en una venta pagada (pago simulado).
+    """Convierte el carrito en una venta y registra su pago.
 
-    Registra: venta (CONFIRMADA) + detalle_venta + comprobante (BOLETA/FACTURA)
-    + pago (PAGADO con códigos de transacción sintéticos). El carrito queda
-    ABANDONADO. Devuelve el resumen del pedido.
+    Registra: venta + detalle_venta + comprobante (BOLETA/FACTURA) + pago
+    (PENDIENTE: lo actualiza el checkout según el método elegido). El carrito
+    queda ABANDONADO. Devuelve el resumen del pedido.
     """
     metodo = _metodo_pago(metodo_pago_id)
     if not metodo:
@@ -666,7 +666,7 @@ def pagar(
             "costo_envio": 0.0,
             "total": total,
             "estado": ESTADO_VENTA_PAGADA,
-            "observaciones": f"Pago simulado ({metodo['nombre']})",
+            "observaciones": f"Pedido web ({metodo['nombre']})",
         }).execute()
     except Exception as exc:  # noqa: BLE001
         raise ValidationError(
@@ -744,14 +744,10 @@ def pagar(
             "usuario_id": usuario_id,
             "canal_pago": "ONLINE",
             "monto": total,
-            "estado": "CONFIRMADO",
+            "estado": "PENDIENTE",
             "pasarela": metodo.get("codigo") or None,
-            "transaction_id": f"SIM-{venta_id}-{str(uuid.uuid4().hex)[:8].upper()}",
-            "order_id": f"SIM-ORD-{venta_id}",
-            "authorization_code": f"{uuid.uuid4().hex[:6].upper()}",
-            "response_code": "0000",
-            "fecha_pago": _ahora(),
-            "observaciones": "Pago simulado por el sistema (demo).",
+            "transaction_id": codigo,
+            "order_id": codigo,
         }).execute()
     except Exception as exc:  # noqa: BLE001
         try:

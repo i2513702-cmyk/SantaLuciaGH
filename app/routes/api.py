@@ -5,12 +5,17 @@ apellidos, teléfono y correo). Nunca expone contraseñas ni datos de otros
 clientes, y exige sesión iniciada: la misma política que el resto del portal.
 """
 
+import logging
 import re
 
 from flask import Blueprint, jsonify, request
 
 from app.decorators import login_required
+from app.exceptions import AppError, ValidationError
+from app.services import identidad_api
 from app.supabase_client import error_postgrest, get_reader
+
+log = logging.getLogger(__name__)
 
 bp = Blueprint("api", __name__, url_prefix="/api")
 
@@ -78,6 +83,43 @@ def _normalizar(cliente: dict) -> dict:
     }
 
 
+def _inferir_tipo(numero: str, codigo_tipo: str) -> str:
+    """Tipo consultable en la API externa (DNI/RUC/CE); '' si no se puede."""
+    if codigo_tipo in ("DNI", "RUC", "CE"):
+        return codigo_tipo
+    if codigo_tipo:  # pasaporte u otro: no hay API de consulta
+        return ""
+    if len(numero) == 8:
+        return "DNI"
+    if len(numero) == 11:
+        return "RUC"
+    return ""
+
+
+def _desde_api(numero: str, tipo: str) -> dict:
+    """Consulta RENIEC/SUNAT (apiperu.dev / json.pe) y lo deja listo para el formulario."""
+    datos = identidad_api.consultar(tipo, numero)
+    if tipo == "RUC":
+        nombres = datos.get("razon_social") or datos.get("nombre_completo") or ""
+        apellidos = ""
+    else:
+        nombres = datos.get("nombres") or ""
+        apellidos = " ".join(
+            p for p in (datos.get("apellido_paterno"), datos.get("apellido_materno")) if p
+        )
+        if not nombres and not apellidos:
+            nombres = datos.get("nombre_completo") or ""
+    return {
+        "id": None,
+        "nombres": nombres,
+        "apellidos": apellidos,
+        "razon_social": datos.get("razon_social") or "",
+        "telefono": "",
+        "correo": "",
+        "numero_documento": numero,
+    }
+
+
 @bp.get("/clientes/buscar/<numero_documento>")
 @login_required
 def buscar_cliente(numero_documento):
@@ -122,10 +164,26 @@ def buscar_cliente(numero_documento):
         }), 502
 
     if not fila:
+        # No esta en la BD: se consulta RENIEC/SUNAT para autocompletar igual.
+        tipo_api = _inferir_tipo(numero, codigo_tipo)
+        if tipo_api:
+            try:
+                cliente = _desde_api(numero, tipo_api)
+                if cliente["nombres"] or cliente["apellidos"]:
+                    return jsonify({
+                        "ok": True,
+                        "encontrado": False,
+                        "origen": "api",
+                        "cliente": cliente,
+                    }), 200
+            except (AppError, ValidationError) as exc:
+                log.warning("Consulta externa %s %s fallo: %s", tipo_api, numero, exc)
+            except Exception:  # noqa: BLE001
+                log.exception("Consulta externa %s %s fallo", tipo_api, numero)
         return jsonify({
             "ok": True,
             "encontrado": False,
-            "detalle": "Cliente no registrado. Completa tus datos manualmente.",
+            "detalle": "No se encontraron datos del documento. Completa tus datos manualmente.",
         }), 404
 
     return jsonify({
