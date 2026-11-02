@@ -333,7 +333,13 @@
         var sel = document.querySelector('input[name="metodo_pago_id"]:checked');
         var codigo = sel ? codigoDeRadio(sel) : '';
         panels.forEach(function (p) {
-            p.classList.toggle('d-none', p.getAttribute('data-instr') !== codigo);
+            var activo = p.getAttribute('data-instr') === codigo;
+            p.classList.toggle('d-none', !activo);
+            // Los campos de paneles ocultos se deshabilitan: así el navegador no
+            // los valida (required) ni los envía, y no se duplican los nombres.
+            p.querySelectorAll('input, select, textarea').forEach(function (el) {
+                el.disabled = !activo;
+            });
         });
     }
     radios.forEach(function (r) { r.addEventListener('change', actualizar); });

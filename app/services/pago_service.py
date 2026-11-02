@@ -1,6 +1,6 @@
 """Servicio de pagos: lectura de la venta/comprobante/pago para el resumen y PDF.
 
-El registro de la venta + comprobante + pago simulado vive en carrito_service.pagar().
+El registro de la venta + comprobante + pago vive en carrito_service.pagar().
 Aquí solo se LEEN datos para mostrar la confirmación y generar el comprobante PDF.
 """
 
