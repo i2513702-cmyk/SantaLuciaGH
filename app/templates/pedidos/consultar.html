@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Consultar pedido - {{ app_name }}{% endblock %}
+{% block content %}
+<section class="panel-head">
+    <div><h1>Consultar pedido</h1><p>Ingresa tu n?mero de pedido y documento o tel?fono.</p></div>
+</section>
+<form method="POST" action="{{ url_for('pedidos.consultar_pedido') }}" class="card no-hover p-3" style="max-width:480px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <div class="mb-2">
+        <label class="form-label">N?mero de pedido</label>
+        <input type="text" name="codigo" class="form-control" required>
+    </div>
+    <div class="mb-2">
+        <label class="form-label">Documento o tel?fono</label>
+        <input type="text" name="documento" class="form-control" required>
+    </div>
+    <button class="btn btn-primary btn-sm" type="submit">Consultar</button>
+</form>
+{% if resultado %}
+<div class="card no-hover mt-3 p-3">
+    <p><strong>Pedido:</strong> {{ resultado.codigo_pedido }}</p>
+    <p><strong>Estado:</strong> {{ resultado.estado_label }}</p>
+    <p><strong>Total:</strong> S/ {{ "%.2f"|format(resultado.total or 0) }}</p>
+</div>
+{% endif %}
+{% endblock %}

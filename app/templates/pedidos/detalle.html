@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Pedido {{ venta.codigo_pedido }} - {{ app_name }}{% endblock %}
+{% block content %}
+<section class="panel-head">
+    <div><h1>Pedido {{ venta.codigo_pedido }}</h1><p>Estado: {{ venta.estado_label }}</p></div>
+    <div class="panel-actions"><a class="btn btn-outline btn-sm" href="{{ url_for('pedidos.mis_pedidos') }}">Volver</a></div>
+</section>
+<div class="card no-hover mb-3"><div class="card-body">
+    <p><strong>M?todo:</strong> {{ venta.metodo_nombre }}</p>
+    <p><strong>Total:</strong> S/ {{ "%.2f"|format(venta.total or 0) }}</p>
+    <p><strong>Estado:</strong> <span class="badge {{ venta.estado_badge }}">{{ venta.estado_label }}</span></p>
+    {% if venta.fecha_limite_pago %}<p><strong>Fecha l?mite de pago:</strong> {{ venta.fecha_limite_pago }}</p>{% endif %}
+    {% if pago.observaciones %}<p><strong>Comprobante:</strong> {{ pago.observaciones }}</p>{% endif %}
+    {% if venta.estado == 'RECHAZADO' %}
+    <form method="POST" action="{{ url_for('pedidos.subir_comprobante', venta_id=venta.id) }}" enctype="multipart/form-data" class="mt-3">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <input type="file" name="comprobante" class="form-control mb-2" accept=".jpg,.jpeg,.png,.webp,.pdf" required>
+        <input type="text" name="numero_operacion" class="form-control mb-2" placeholder="N? de operaci?n">
+        <button class="btn btn-primary btn-sm" type="submit">Subir comprobante</button>
+    </form>
+    {% endif %}
+</div></div>
+<div class="card no-hover"><div class="card-body">
+    <h2 class="h6 fw-bold mb-3">Productos</h2>
+    <table class="table"><thead><tr><th>Producto</th><th>Cant.</th><th>Subtotal</th></tr></thead><tbody>
+        {% for i in items %}<tr><td>{{ i.nombre if i.nombre else i.producto_id }}</td><td>{{ i.cantidad }}</td><td>S/ {{ "%.2f"|format(i.subtotal or 0) }}</td></tr>{% endfor %}
+    </tbody></table>
+</div></div>
+{% endblock %}

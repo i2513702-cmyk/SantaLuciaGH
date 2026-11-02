@@ -26,12 +26,27 @@
         <div class="card no-hover"><div class="card-body">
             <h2 class="h6 fw-bold mb-3"><i class="bi bi-credit-card"></i> Pagos</h2>
             {% for p in pagos %}
-                <div class="d-flex justify-content-between align-items-center border-bottom py-2">
-                    <span>{{ (p.pasarela or 'Pago')|capitalize }} · <small class="text-secondary">{{ (p.fecha_pago or p.fecha_creacion or '')[:16].replace('T',' ') }}</small></span>
-                    <span>{{ estado_badge(p.estado) }} <strong class="ms-2">S/ {{ "%.2f"|format(p.monto or 0) }}</strong></span>
+                <div class="border-bottom py-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span>{{ (p.pasarela or 'Pago')|capitalize }} ?? <small class="text-secondary">{{ (p.fecha_pago or p.fecha_creacion or '')[:16].replace('T',' ') }}</small></span>
+                        <span>{{ estado_badge(p.estado) }} <strong class="ms-2">S/ {{ "%.2f"|format(p.monto or 0) }}</strong></span>
+                    </div>
+                    {% if p.observaciones %}<div class="small text-secondary mt-1">{{ p.observaciones }}</div>{% endif %}
+                    {% if p.estado == 'PENDIENTE_VERIFICACION' %}
+                        <div class="d-flex gap-2 mt-2">
+                            <form method="POST" action="{{ url_for('ventas.aprobar_pago', venta_id=venta.id) }}" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button class="btn btn-sm btn-success" type="submit">Aprobar pago</button>
+                            </form>
+                            <form method="POST" action="{{ url_for('ventas.rechazar_pago', venta_id=venta.id) }}" class="d-inline d-flex gap-2">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="text" name="motivo" class="form-control form-control-sm" placeholder="Motivo de rechazo" style="max-width:220px;">
+                                <button class="btn btn-sm btn-outline-danger" type="submit">Rechazar</button>
+                            </form>
+                        </div>
+                    {% endif %}
                 </div>
             {% endfor %}
-        </div></div>
         {% endif %}
     </div>
     <div class="col-lg-4">

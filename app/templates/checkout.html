@@ -158,7 +158,7 @@
             </div>
         </div>
 
-        <form method="POST" action="{{ url_for('checkout.procesar') }}" id="formPago">
+        <form method="POST" action="{{ url_for('checkout.procesar') }}" id="formPago" enctype="multipart/form-data">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="usar_cliente" value="0">
             <div class="card shadow-sm">
@@ -173,27 +173,81 @@
                     </div>
                     <label class="form-label">Método de pago</label>
                     {% for mp in metodos_pago %}
-                        <div class="form-check">
+                        <div class="form-check mb-2">
                             <input class="form-check-input" type="radio" name="metodo_pago_id"
                                    id="mp{{ mp.id }}" value="{{ mp.id }}"
+                                   data-metodo="{{ mp.codigo }}"
                                    {% if loop.first %}checked{% endif %}>
-                            <label class="form-check-label d-flex justify-content-between w-100" for="mp{{ mp.id }}">
-                                <span>{{ mp.nombre }}</span>
-                                {% if mp.requiere_pasarela %}<span class="badge text-bg-secondary">Pasarela</span>{% endif %}
+                            <label class="form-check-label" for="mp{{ mp.id }}">
+                                {{ mp.nombre }}
                             </label>
                         </div>
                     {% endfor %}
+
+                    <!-- Instrucciones por metodo -->
+                    <div id="instrucciones-pago" class="mt-3">
+                        <div class="alert alert-light border" data-instr="EFECTIVO">
+                            Pagas en tienda al recoger tu pedido. Presenta tu número de pedido.
+                        </div>
+                        <div class="alert alert-light border d-none" data-instr="YAPE">
+                            <p class="mb-2 fw-semibold">Paga con Yape</p>
+                            <img src="{{ url_for('static', filename=config.PAGO_YAPE_QR) }}" alt="QR Yape" style="max-width:220px;" class="d-block mx-auto mb-2">
+                            {% if config.PAGO_YAPE_NUMERO %}<p class="mb-1">Número: <strong>{{ config.PAGO_YAPE_NUMERO }}</strong></p>{% endif %}
+                            <p class="mb-1">Titular: <strong>{{ config.PAGO_TITULAR }}</strong></p>
+                            <p class="mb-2">Monto exacto: <strong>{{ total }}</strong></p>
+                            <div class="mb-2">
+                                <label class="form-label">Captura del pago</label>
+                                <input type="file" name="comprobante" class="form-control" accept=".jpg,.jpeg,.png,.webp,.pdf">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">N° de operación (opcional)</label>
+                                <input type="text" name="numero_operacion" class="form-control">
+                            </div>
+                        </div>
+                        <div class="alert alert-light border d-none" data-instr="TRANSFERENCIA">
+                            <p class="mb-2 fw-semibold">Transferencia bancaria</p>
+                            <p class="mb-1">Banco: <strong>{{ config.PAGO_BANCO }}</strong></p>
+                            <p class="mb-1">Cuenta (Soles): <strong>{{ config.PAGO_CUENTA }}</strong> <button type="button" class="btn btn-sm btn-outline-secondary btn-copiar" data-copy="{{ config.PAGO_CUENTA }}">Copiar</button></p>
+                            <p class="mb-1">CCI: <strong>{{ config.PAGO_CCI }}</strong> <button type="button" class="btn btn-sm btn-outline-secondary btn-copiar" data-copy="{{ config.PAGO_CCI }}">Copiar</button></p>
+                            <p class="mb-1">Titular: <strong>{{ config.PAGO_TITULAR }}</strong></p>
+                            <p class="mb-1">RUC: <strong>{{ config.PAGO_RUC }}</strong></p>
+                            <p class="mb-2">Monto exacto: <strong>{{ total }}</strong></p>
+                            <div class="mb-2">
+                                <label class="form-label">Comprobante</label>
+                                <input type="file" name="comprobante" class="form-control" accept=".jpg,.jpeg,.png,.webp,.pdf">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">N° de operación (obligatorio)</label>
+                                <input type="text" name="numero_operacion" class="form-control" required>
+                            </div>
+                        </div>
+                        <div class="alert alert-light border d-none" data-instr="DEPOSITO">
+                            <p class="mb-2 fw-semibold">Depósito bancario</p>
+                            <p class="mb-1">Banco: <strong>{{ config.PAGO_BANCO }}</strong></p>
+                            <p class="mb-1">Cuenta (Soles): <strong>{{ config.PAGO_CUENTA }}</strong></p>
+                            <p class="mb-1">Titular: <strong>{{ config.PAGO_TITULAR }}</strong></p>
+                            <p class="mb-2">Monto exacto: <strong>{{ total }}</strong></p>
+                            <div class="mb-2">
+                                <label class="form-label">Foto del voucher</label>
+                                <input type="file" name="comprobante" class="form-control" accept=".jpg,.jpeg,.png,.webp,.pdf">
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">N° de operación (obligatorio)</label>
+                                <input type="text" name="numero_operacion" class="form-control" required>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-muted small mt-2" id="ayuda-pago">Tu pedido se confirmará cuando verifiquemos tu pago.</p>
                 </div>
                 <div class="card-footer d-grid">
-                    <button type="submit" id="btnPagar" class="btn btn-primary btn-lg" data-etiqueta="💳 Pagar {{ total }}">💳 Pagar {{ total }} </button>
-                    <small class="text-muted text-center mt-2">Se mostrará en tu historial de compras.</small>
+                    <button type="submit" id="btnPagar" class="btn btn-primary btn-lg">Confirmar pedido</button>
+                    <small class="text-muted text-center mt-2"><a href="{{ url_for('pedidos.mis_pedidos') }}">Ver mis pedidos</a></small>
                 </div>
             </div>
         </form>
     </div>
 </div>
 {% endblock %}
-
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/autocompletado-cliente.js') }}"></script>
 <script>
@@ -224,7 +278,94 @@
         boton.disabled = false;
         boton.classList.remove('disabled');
         boton.removeAttribute('aria-busy');
-        boton.innerHTML = boton.dataset.etiqueta;
+        boton.innerHTML = 'Confirmar pedido';
+    });
+})();
+</script>
+
+<script>
+(function () {
+    var form = document.getElementById('formPago');
+    if (!form) return;
+    form.addEventListener('submit', function (e) {
+        // Validacion comprobante para factura
+        var tipoComp = (form.querySelector('select[name="tipo_comprobante"]') || {}).value || 'BOLETA';
+        if (tipoComp === 'FACTURA') {
+            var tipoDoc = form.querySelector('select[name="tipo_documento_id"]');
+            var doc = (form.querySelector('input[name="numero_documento"]') || {}).value || '';
+            var esRuc = tipoDoc && (tipoDoc.options[tipoDoc.selectedIndex].text || '').toUpperCase().indexOf('RUC') !== -1;
+            if (!esRuc || doc.length !== 11 || !/^\d{11}$/.test(doc)) {
+                e.preventDefault();
+                alert('Para factura necesitas un RUC de 11 digitos.');
+                return;
+            }
+        }
+
+        // Validacion de comprobante para metodos manuales
+        var sel = form.querySelector('input[name="metodo_pago_id"]:checked');
+        var codigo = sel ? (sel.getAttribute('data-metodo') || '').toUpperCase() : '';
+        if (codigo !== 'EFECTIVO') {
+            var file = form.querySelector('input[name="comprobante"]');
+            if (!file || !file.files || file.files.length === 0) {
+                e.preventDefault();
+                alert('Debes subir el comprobante de pago.');
+                return;
+            }
+            var f = file.files[0];
+            if (f.size > 5 * 1024 * 1024) {
+                e.preventDefault();
+                alert('El comprobante no puede superar 5 MB.');
+                return;
+            }
+        }
+    });
+})();
+</script>
+
+<script>
+(function () {
+    var radios = document.querySelectorAll('input[name="metodo_pago_id"]');
+    var panels = document.querySelectorAll('[data-instr]');
+    function codigoDeRadio(r) {
+        return (r.getAttribute('data-metodo') || '').toUpperCase();
+    }
+    function actualizar() {
+        var sel = document.querySelector('input[name="metodo_pago_id"]:checked');
+        var codigo = sel ? codigoDeRadio(sel) : '';
+        panels.forEach(function (p) {
+            p.classList.toggle('d-none', p.getAttribute('data-instr') !== codigo);
+        });
+    }
+    radios.forEach(function (r) { r.addEventListener('change', actualizar); });
+    actualizar();
+
+    // Texto de ayuda por metodo
+    var ayuda = document.getElementById('ayuda-pago');
+    function textoAyuda(codigo) {
+        if (codigo === 'EFECTIVO') return 'Tu pedido quedara reservado hasta el ' + (window.FECHA_LIMITE || '') + '. Paga en tienda al recoger. Puedes ver el estado en Mis pedidos.';
+        return 'Tu pedido se confirmara cuando verifiquemos tu comprobante. Puedes ver el estado en Mis pedidos.';
+    }
+    var radios2 = document.querySelectorAll('input[name="metodo_pago_id"]');
+    radios2.forEach(function (r) {
+        r.addEventListener('change', function () {
+            if (ayuda) ayuda.textContent = textoAyuda((r.getAttribute('data-metodo') || '').toUpperCase());
+        });
+    });
+    if (ayuda) {
+        var sel = document.querySelector('input[name="metodo_pago_id"]:checked');
+        ayuda.textContent = textoAyuda(sel ? (sel.getAttribute('data-metodo') || '').toUpperCase() : '');
+    }
+
+    document.querySelectorAll('.btn-copiar').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var txt = btn.getAttribute('data-copy') || '';
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(txt).then(function () {
+                    btn.textContent = 'Copiado';
+                    setTimeout(function () { btn.textContent = 'Copiar'; }, 1500);
+                });
+            }
+        });
     });
 })();
 </script>

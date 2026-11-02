@@ -62,6 +62,16 @@
             </div>
         </div>
 
+        {% if resumen.es_efectivo %}
+        <div class="alert alert-warning mt-3">
+            <strong>Pago en tienda al recoger.</strong><br>
+            Fecha limite de pago: {{ resumen.fecha_limite_pago }}<br>
+            Direccion: {{ resumen.direccion_tienda }}<br>
+            Horario: {{ resumen.horario_tienda }}<br>
+            Presenta tu numero de pedido al recoger.
+        </div>
+        {% endif %}
+
         <div class="d-flex gap-2 mt-4">
             <a class="btn btn-primary" href="{{ url_for('checkout.pdf') }}"> Descargar PDF</a>
             <a class="btn btn-outline-primary" href="{{ url_for('main.tienda') }}">Seguir comprando</a>

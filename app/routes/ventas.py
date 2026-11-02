@@ -2,7 +2,7 @@
 
 from datetime import date, timedelta
 
-from flask import Blueprint, abort, render_template, request
+from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 
 from app.decorators import ventas_required
 from app.services.kpi_service import LIMA, _desde_ts, _hasta_ts
@@ -124,3 +124,92 @@ def detalle(venta_id):
         abort(500, description=str(exc))
     return render_template("ventas/detalle.html", venta=venta, items=items, pagos=pagos,
                            cliente=cliente, usuario=usuario, nombre_cliente=_cliente(cliente) if cliente else None)
+
+
+@bp.post("/ventas/<int:venta_id>/pago/aprobar")
+@ventas_required
+def aprobar_pago(venta_id):
+    from app.supabase_client import get_admin_client, get_reader
+    try:
+        pagos = get_reader().table("pagos").select("id").eq("venta_id", venta_id).execute().data or []
+        for pg in pagos:
+            get_admin_client().table("pagos").update({"estado": "CONFIRMADO"}).eq("id", pg["id"]).execute()
+        get_admin_client().table("ventas").update({"estado": "PAGADA"}).eq("id", venta_id).execute()
+        flash("Pago aprobado.", "success")
+    except Exception as exc:  # noqa: BLE001
+        flash("No se pudo aprobar el pago.", "error")
+    return redirect(url_for("ventas.detalle", venta_id=venta_id))
+
+
+@bp.post("/ventas/<int:venta_id>/pago/rechazar")
+@ventas_required
+def rechazar_pago(venta_id):
+    from app.supabase_client import get_admin_client, get_reader
+    motivo = (request.form.get("motivo") or "").strip()
+    try:
+        pagos = get_reader().table("pagos").select("id").eq("venta_id", venta_id).execute().data or []
+        for pg in pagos:
+            get_admin_client().table("pagos").update({
+                "estado": "RECHAZADO",
+                "observaciones": motivo or "Rechazado por el administrador",
+            }).eq("id", pg["id"]).execute()
+        get_admin_client().table("ventas").update({"estado": "RECHAZADO"}).eq("id", venta_id).execute()
+        flash("Pago rechazado.", "warning")
+    except Exception as exc:  # noqa: BLE001
+        flash("No se pudo rechazar el pago.", "error")
+    return redirect(url_for("ventas.detalle", venta_id=venta_id))
+
+
+@bp.post("/ventas/<int:venta_id>/marcar-pagado")
+@ventas_required
+def marcar_pagado(venta_id):
+    from app.supabase_client import get_admin_client, get_reader
+    try:
+        items = get_reader().table("detalle_venta").select("producto_id,cantidad").eq("venta_id", venta_id).execute().data or []
+        for it in items:
+            pid = it.get("producto_id")
+            cant = float(it.get("cantidad") or 0)
+            if not pid or cant <= 0:
+                continue
+            filas = get_reader().table("inventario").select("id,stock_actual,stock_reservado").eq("producto_id", pid).execute().data or []
+            if filas:
+                f = filas[0]
+                actual = float(f.get("stock_actual") or 0)
+                reservado = float(f.get("stock_reservado") or 0)
+                get_admin_client().table("inventario").update({
+                    "stock_actual": max(actual - cant, 0),
+                    "stock_reservado": max(reservado - cant, 0),
+                }).eq("id", f["id"]).execute()
+        get_admin_client().table("ventas").update({"estado": "PAGADA"}).eq("id", venta_id).execute()
+        get_admin_client().table("pagos").update({"estado": "CONFIRMADO"}).eq("venta_id", venta_id).execute()
+        flash("Pedido marcado como pagado.", "success")
+    except Exception as exc:  # noqa: BLE001
+        flash("No se pudo marcar como pagado.", "error")
+    return redirect(url_for("ventas.detalle", venta_id=venta_id))
+
+
+@bp.post("/ventas/<int:venta_id>/cancelar")
+@ventas_required
+def cancelar_pedido(venta_id):
+    from app.supabase_client import get_admin_client, get_reader
+    motivo = (request.form.get("motivo") or "").strip()
+    try:
+        items = get_reader().table("detalle_venta").select("producto_id,cantidad").eq("venta_id", venta_id).execute().data or []
+        for it in items:
+            pid = it.get("producto_id")
+            cant = float(it.get("cantidad") or 0)
+            if not pid or cant <= 0:
+                continue
+            filas = get_reader().table("inventario").select("id,stock_reservado").eq("producto_id", pid).execute().data or []
+            if filas:
+                f = filas[0]
+                reservado = float(f.get("stock_reservado") or 0)
+                get_admin_client().table("inventario").update({
+                    "stock_reservado": max(reservado - cant, 0),
+                }).eq("id", f["id"]).execute()
+        get_admin_client().table("ventas").update({"estado": "CANCELADA"}).eq("id", venta_id).execute()
+        get_admin_client().table("pagos").update({"estado": "RECHAZADO", "observaciones": motivo or "Cancelado"}).eq("venta_id", venta_id).execute()
+        flash("Pedido cancelado.", "warning")
+    except Exception as exc:  # noqa: BLE001
+        flash("No se pudo cancelar el pedido.", "error")
+    return redirect(url_for("ventas.detalle", venta_id=venta_id))
