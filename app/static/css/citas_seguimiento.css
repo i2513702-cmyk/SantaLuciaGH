@@ -1,0 +1,338 @@
+/* Seguimiento de citas del cliente */
+.citas-resumen {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.resumen-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+}
+
+.resumen-item i {
+    font-size: 1.4rem;
+}
+
+.resumen-item div {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.15;
+}
+
+.resumen-item strong {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--text);
+}
+
+.resumen-item div span {
+    font-size: .78rem;
+    color: var(--muted);
+    font-weight: 500;
+}
+
+.citas-seguimiento {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.cita-seg-card {
+    padding: 0;
+}
+
+.cita-seg-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 18px 20px 0;
+}
+
+.cita-seg-code {
+    display: inline-block;
+    margin-bottom: 2px;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--primary-dark);
+}
+
+.cita-seg-head h3 {
+    margin: 0 0 2px;
+    font-size: 1.05rem;
+    font-weight: 700;
+}
+
+.cita-seg-equipo {
+    margin: 0;
+    font-size: .88rem;
+    color: var(--text-secondary);
+}
+
+.cita-seg-estado {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    text-align: right;
+}
+
+.cita-progress {
+    height: 5px;
+    margin: 12px 20px 0;
+    background: var(--surface-alt);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.cita-progress span {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: var(--primary);
+}
+
+.cita-progress--cancel span {
+    background: #dc2626;
+}
+
+.cita-seg-mensaje {
+    margin: 12px 20px 0;
+    padding: 10px 12px;
+    font-size: .88rem;
+    color: var(--text-secondary);
+    background: var(--surface-alt);
+    border-left: 3px solid var(--primary);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+
+.cita-timeline {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    margin: 18px 20px;
+    padding: 0;
+    list-style: none;
+}
+
+.cita-paso {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 0 8px;
+    text-align: center;
+}
+
+.cita-paso::before {
+    content: "";
+    position: absolute;
+    top: 12px;
+    left: -50%;
+    width: 100%;
+    height: 2px;
+    background: var(--border);
+}
+
+.cita-paso:first-child::before {
+    display: none;
+}
+
+.cita-paso.hecho::before,
+.cita-paso.activo::before {
+    background: var(--primary);
+}
+
+.cita-paso-dot {
+    position: relative;
+    z-index: 1;
+    width: 26px;
+    height: 26px;
+    flex: 0 0 26px;
+    display: grid;
+    place-items: center;
+    border: 2px solid var(--border);
+    border-radius: 50%;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: .72rem;
+}
+
+.cita-paso.hecho .cita-paso-dot {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+}
+
+.cita-paso.activo .cita-paso-dot {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: var(--surface);
+}
+
+.cita-paso-texto {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    font-size: .74rem;
+    color: var(--muted);
+    line-height: 1.3;
+}
+
+.cita-paso-texto strong {
+    font-size: .78rem;
+    color: var(--text);
+    font-weight: 600;
+}
+
+.cita-paso.pendiente .cita-paso-texto strong {
+    color: var(--text-secondary);
+}
+
+.cita-paso-fecha {
+    font-weight: 600;
+    color: var(--primary-dark) !important;
+}
+
+.cita-seg-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    padding: 12px 20px;
+    font-size: .82rem;
+    color: var(--text-secondary);
+    background: var(--surface-alt);
+    border-top: 1px solid var(--border);
+}
+
+.cita-seg-meta span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.cita-seg-meta i {
+    color: var(--primary-dark);
+}
+
+.cita-seg-detalle {
+    padding: 12px 20px 0;
+    font-size: .86rem;
+    color: var(--text-secondary);
+}
+
+.cita-seg-detalle p {
+    margin: 0 0 4px;
+}
+
+.cita-cancelada {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 14px 20px;
+    padding: 12px 14px;
+    font-size: .86rem;
+    color: #991b1b;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: var(--radius-sm);
+}
+
+.cita-cancelada i {
+    font-size: 1rem;
+    line-height: 1.4;
+}
+
+.cita-reparacion {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin: 14px 20px 18px;
+    padding: 12px 14px;
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+
+.cita-reparacion > div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.cita-reparacion-title {
+    font-size: .88rem;
+    font-weight: 700;
+    color: var(--primary-dark);
+}
+
+@media (max-width: 992px) {
+    .citas-resumen {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .cita-seg-head {
+        padding: 14px 14px 0;
+    }
+
+    .cita-seg-estado {
+        align-items: flex-start;
+        text-align: left;
+    }
+
+    .cita-progress,
+    .cita-seg-mensaje,
+    .cita-cancelada,
+    .cita-reparacion {
+        margin-left: 14px;
+        margin-right: 14px;
+    }
+
+    .cita-seg-meta,
+    .cita-seg-detalle {
+        padding-left: 14px;
+        padding-right: 14px;
+    }
+
+    .cita-timeline {
+        grid-template-columns: 1fr;
+        margin: 14px;
+    }
+
+    .cita-paso {
+        flex-direction: row;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 0 0 14px;
+        text-align: left;
+    }
+
+    .cita-paso:last-child {
+        padding-bottom: 0;
+    }
+
+    .cita-paso::before {
+        top: 26px;
+        left: 12px;
+        width: 2px;
+        height: calc(100% - 26px);
+    }
+}
+
+@media (max-width: 480px) {
+    .citas-resumen {
+        grid-template-columns: 1fr;
+    }
+}

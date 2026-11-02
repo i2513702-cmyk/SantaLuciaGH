@@ -74,6 +74,9 @@
                                     {{ icono('nav-agendar', 'calendar-plus', 18) }}<span>Agendar cita</span>
                                 </a>
                             </li>
+                            {% if rol == 'CLIENTE' %}
+                                {{ item('citas.mis_citas', 'Mis citas', 'nav-mis-citas', 'calendar2-check') }}
+                            {% endif %}
                             <li class="nav-item"><a class="nav-link d-flex align-items-center gap-2" href="{{ url_for('main.home') }}#nosotros">{{ icono('nav-nosotros', 'info-circle', 18) }}<span>Nosotros</span></a></li>
                             {% endif %}
                             {% if rol_panel == 'worker' %}
@@ -114,6 +117,13 @@
                                             {{ icono('perfil', 'person', 16) }}<span>Mi perfil</span>
                                         </a>
                                     </li>
+                                    {% if rol == 'CLIENTE' %}
+                                    <li>
+                                        <a class="dropdown-item" href="{{ url_for('citas.mis_citas') }}">
+                                            {{ icono('mis-citas', 'calendar2-check', 16) }}<span>Mis citas</span>
+                                        </a>
+                                    </li>
+                                    {% endif %}
                                     <li>
                                         <a class="dropdown-item" href="{{ url_for('auth.cambiar_clave') }}">
                                             {{ icono('seguridad', 'shield-lock', 16) }}<span>Cambiar contraseña</span>

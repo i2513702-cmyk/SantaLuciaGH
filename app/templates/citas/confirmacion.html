@@ -40,7 +40,10 @@
 </section>
 
 <div class="cita-actions">
-    <a class="btn btn-primary" href="{{ url_for('main.home') }}">Volver al inicio</a>
+    {% if rol == 'CLIENTE' %}
+        <a class="btn btn-primary" href="{{ url_for('citas.mis_citas') }}">Seguir mi cita</a>
+    {% endif %}
+    <a class="btn btn-outline" href="{{ url_for('main.home') }}">Volver al inicio</a>
     <a class="btn btn-outline" href="{{ url_for('citas.agendar_form') }}">Agendar otra cita</a>
 </div>
 {% endblock %}

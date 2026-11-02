@@ -21,6 +21,7 @@ from app.services.cita_service import (
     agendar,
     datos_usuario,
     horarios_disponibles,
+    listar_citas_cliente,
 )
 from app.supabase_client import get_reader
 
@@ -139,6 +140,31 @@ def agendar_cita():
 
     flash("¡Tu cita de servicio técnico está agendada!", "success")
     return redirect(url_for("citas.confirmar", reserva_id=resultado["reserva_id"]))
+
+
+@bp.get("/citas/mis-citas")
+@login_required
+def mis_citas():
+    """Seguimiento de las citas del cliente que tiene la sesión iniciada.
+
+    Solo se consultan las reservas vinculadas a su `cliente_id`, así que cada
+    usuario ve exclusivamente sus propias citas.
+    """
+    from app.services import rest_auth_service
+
+    perfil = {}
+    try:
+        perfil = rest_auth_service.obtener_perfil(session.get("usuario_id")) or {}
+    except Exception:  # noqa: BLE001
+        perfil = {}
+
+    cliente_id = perfil.get("cliente_id")
+    datos = listar_citas_cliente(cliente_id)
+    return render_template(
+        "citas/mis_citas.html",
+        cliente_vinculado=bool(cliente_id),
+        **datos,
+    )
 
 
 @bp.get("/citas/confirmacion/<int:reserva_id>")

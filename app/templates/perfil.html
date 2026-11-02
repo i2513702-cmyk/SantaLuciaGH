@@ -42,6 +42,7 @@
     </div>
     <div class="profile-actions">
         {% if mostrar_historial %}
+            <a class="btn btn-primary" href="{{ url_for('citas.mis_citas') }}">Mis citas</a>
             <a class="btn btn-outline" href="{{ url_for('main.tienda') }}">Seguir comprando</a>
         {% else %}
             <a class="btn btn-outline" href="{{ url_for('admin.dashboard') }}">Ir al panel</a>
