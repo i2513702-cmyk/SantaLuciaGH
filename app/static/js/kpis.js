@@ -31,33 +31,33 @@
         return (serie || []).some(function (p) { return p.valor !== null && p.valor !== undefined; });
     }
 
-    /* ---------- grafico de linea (SVG) ---------- */
-    function lineaSVG(serie, meta, unidad) {
+    /* ---------- grafico de linea (SVG, estilo minimalista) ----------
+       Sin cuadricula ni eje vertical: una linea base, la meta punteada, la linea
+       de datos y un unico punto destacado (el ultimo) con su valor. Los demas
+       puntos solo aparecen como zona sensible para el tooltip nativo. */
+    function lineaSVG(serie, meta, unidad, ancho) {
         if (!conDatos(serie)) {
             return vacio('Sin datos en el periodo seleccionado.');
         }
-        var W = 660, H = 190, PL = 46, PR = 14, PT = 16, PB = 28;
+        var W = Math.max(300, Math.round(ancho || 660)), H = 170, PL = 8, PR = 8, PT = 24, PB = 26;
         var puntos = serie;
         var maximo = 0;
         puntos.forEach(function (p) {
             if (p.valor !== null && p.valor > maximo) maximo = p.valor;
         });
         if (meta !== null && meta !== undefined && meta > maximo) maximo = meta;
-        maximo = maximo * 1.15 || 1;
+        maximo = maximo * 1.2 || 1;
         var ancho = W - PL - PR, alto = H - PT - PB;
         var paso = puntos.length > 1 ? ancho / (puntos.length - 1) : 0;
         var x = function (i) { return PL + (puntos.length > 1 ? i * paso : ancho / 2); };
         var y = function (v) { return PT + alto - (v / maximo) * alto; };
 
-        var s = '<svg class="chart-svg" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img">';
-        [0, 0.5, 1].forEach(function (f) {
-            var v = maximo * f, yy = y(v);
-            s += '<line class="grid" x1="' + PL + '" y1="' + yy.toFixed(1) + '" x2="' + (W - PR) + '" y2="' + yy.toFixed(1) + '"/>';
-            s += '<text class="axis" x="' + (PL - 8) + '" y="' + (yy + 4).toFixed(1) + '" text-anchor="end">' + n(v, unidad === 'horas' ? 0 : 0) + '</text>';
-        });
+        var s = '<svg class="chart-svg" viewBox="0 0 ' + W + ' ' + H + '" role="img">';
+        s += '<line class="base" x1="' + PL + '" y1="' + y(0).toFixed(1) + '" x2="' + (W - PR) + '" y2="' + y(0).toFixed(1) + '"/>';
         if (meta !== null && meta !== undefined) {
-            s += '<line class="meta-line" x1="' + PL + '" y1="' + y(meta).toFixed(1) + '" x2="' + (W - PR) + '" y2="' + y(meta).toFixed(1) + '"/>';
-            s += '<text class="axis meta-axis" x="' + (W - PR) + '" y="' + (y(meta) - 5).toFixed(1) + '" text-anchor="end">meta ' + n(meta, unidad === 'horas' ? 0 : 0) + '</text>';
+            var ym = y(meta).toFixed(1);
+            s += '<line class="meta-line" x1="' + PL + '" y1="' + ym + '" x2="' + (W - PR) + '" y2="' + ym + '"/>';
+            s += '<text class="axis meta-axis" x="' + PL + '" y="' + (ym - 6) + '">meta ' + n(meta, 0) + '</text>';
         }
         var tramo = [];
         function cerrar() {
@@ -66,21 +66,29 @@
             }
             tramo = [];
         }
+        var ultimo = -1;
         puntos.forEach(function (p, i) {
             if (p.valor === null || p.valor === undefined) { cerrar(); return; }
             tramo.push(x(i).toFixed(1) + ',' + y(p.valor).toFixed(1));
+            ultimo = i;
         });
         cerrar();
         puntos.forEach(function (p, i) {
             if (p.valor === null || p.valor === undefined) return;
-            var clase = 'punto ' + (p.cumple ? 'ok' : 'critico');
-            s += '<circle class="' + clase + '" cx="' + x(i).toFixed(1) + '" cy="' + y(p.valor).toFixed(1) + '" r="4">'
-                + '<title>' + esc(p.etiqueta + ': ' + valor({ valor: p.valor, unidad: unidad })) + '</title>'
-                + '</circle>';
+            s += '<circle class="hit" cx="' + x(i).toFixed(1) + '" cy="' + y(p.valor).toFixed(1) + '" r="11">'
+                + '<title>' + esc(p.etiqueta + ': ' + valor({ valor: p.valor, unidad: unidad })) + '</title></circle>';
         });
+        if (ultimo >= 0) {
+            var pu = puntos[ultimo];
+            s += '<circle class="punto ' + (pu.cumple ? 'ok' : 'critico') + '" cx="' + x(ultimo).toFixed(1)
+                + '" cy="' + y(pu.valor).toFixed(1) + '" r="4"/>';
+            s += '<text class="ultimo-valor" x="' + x(ultimo).toFixed(1) + '" y="' + (y(pu.valor) - 10).toFixed(1)
+                + '" text-anchor="' + (ultimo === 0 ? 'start' : 'end') + '">' + esc(valor({ valor: pu.valor, unidad: unidad })) + '</text>';
+        }
         puntos.forEach(function (p, i) {
             if (puntos.length > 7 && i % 2) return;
-            s += '<text class="axis" x="' + x(i).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle">' + esc(p.etiqueta) + '</text>';
+            var ancla = i === 0 && puntos.length > 1 ? 'start' : (i === puntos.length - 1 && puntos.length > 1 ? 'end' : 'middle');
+            s += '<text class="axis" x="' + x(i).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="' + ancla + '">' + esc(p.etiqueta) + '</text>';
         });
         s += '</svg>';
         return s;
@@ -97,10 +105,10 @@
         var d = pts.map(function (p, i) {
             if (p.valor === null) return null;
             var x = (i / (pts.length - 1)) * 100;
-            var y = 26 - ((p.valor - min) / rango) * 22 - 2;
+            var y = 24 - ((p.valor - min) / rango) * 20 - 2;
             return (x).toFixed(1) + ',' + y.toFixed(1);
         }).filter(Boolean).join(' ');
-        return '<svg class="spark" viewBox="0 0 100 26" preserveAspectRatio="none" aria-hidden="true">'
+        return '<svg class="spark" viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true">'
             + '<polyline points="' + d + '"/></svg>';
     }
 
@@ -143,11 +151,12 @@
         if (!pasos.length || !pasos[0].valor) return vacio('Sin visitas registradas en el periodo.');
         var base = pasos[0].valor;
         var s = '';
-        pasos.forEach(function (p) {
+        pasos.forEach(function (p, i) {
             var w = Math.max((p.valor / base) * 100, 1.5);
+            var pct = i === 0 ? '' : ' <small>' + n((p.valor / base) * 100, 0) + ' %</small>';
             s += '<div class="funnel-step"><span class="funnel-label">' + esc(p.etiqueta) + '</span>'
-                + '<span class="funnel-track"><span class="funnel-fill ' + esc(p.clase) + '" style="width:' + w.toFixed(1) + '%">'
-                + p.valor + '</span></span></div>';
+                + '<span class="funnel-track"><span class="funnel-fill paso-' + (i + 1) + '" style="width:' + w.toFixed(1) + '%"></span></span>'
+                + '<span class="funnel-val">' + p.valor + pct + '</span></div>';
         });
         return s;
     }
@@ -212,8 +221,10 @@
             };
         });
         var detalle = k.detalle || {};
-        if (q('[data-rol="serie"]', caja)) {
-            q('[data-rol="serie"]', caja).innerHTML = lineaSVG(serie, k.meta, k.unidad);
+        var zonaSerie = q('[data-rol="serie"]', caja);
+        if (zonaSerie) {
+            // El SVG se dibuja al ancho real de la caja: asi el texto conserva su tamano.
+            zonaSerie.innerHTML = lineaSVG(serie, k.meta, k.unidad, zonaSerie.clientWidth);
         }
         if (q('[data-rol="distribucion"]', caja)) {
             q('[data-rol="distribucion"]', caja).innerHTML = hbars((detalle.distribucion || []).map(function (t) {
@@ -300,7 +311,9 @@
         });
     }
 
+    var ultimosDatos = null;
     function pintar(datos) {
+        ultimosDatos = datos;
         var k = datos.kpi;
         (k.kpis || []).forEach(function (x) { pintarTarjeta(x); pintarGraficos(x); });
         pintarResumen(k.resumen);
@@ -366,6 +379,15 @@
             hastaEl.value = btn.getAttribute('data-hasta');
             cargar(desdeEl.value, hastaEl.value);
         });
+    });
+
+    /* ---------- redibujar al cambiar el ancho de la ventana ---------- */
+    var temporizador = null;
+    window.addEventListener('resize', function () {
+        clearTimeout(temporizador);
+        temporizador = setTimeout(function () {
+            if (ultimosDatos) ((ultimosDatos.kpi || {}).kpis || []).forEach(pintarGraficos);
+        }, 150);
     });
 
     /* ---------- arranque ---------- */
