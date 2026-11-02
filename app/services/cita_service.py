@@ -9,6 +9,7 @@ from datetime import date as date_cls
 from datetime import datetime, timedelta, timezone
 
 from app.config import Config
+from app.services import agenda_service
 from app.supabase_client import get_admin_client, get_reader
 
 log = logging.getLogger(__name__)
@@ -31,7 +32,8 @@ class CitaError(Exception):
 
 
 def _fecha_hoy():
-    return date_cls.today()
+    """Fecha de hoy en Lima (el servidor corre en UTC: `date.today()` adelanta el día de noche)."""
+    return agenda_service.hoy_lima()
 
 
 def _ahora() -> str:
@@ -82,6 +84,9 @@ def validar(datos: dict) -> None:
     hora = datos.get("hora_inicio", "").strip()
     if hora not in HORARIOS:
         raise CitaError("Selecciona un horario disponible.")
+
+    if fecha_ok == _fecha_hoy() and hora <= agenda_service.ahora_lima().strftime("%H:%M"):
+        raise CitaError("La hora seleccionada ya pasó. Elige una hora posterior a la actual.")
 
     if hora not in horarios_disponibles(fecha):
         raise CitaError(
@@ -135,11 +140,12 @@ def horarios_disponibles(fecha: str) -> list:
     El cupo de cada hora es la cantidad de técnicos que la cubren con una franja
     disponible de `agenda_tecnicos`; a eso se le restan las citas ya agendadas
     en esa hora (las canceladas o con inasistencia no ocupan cupo).
+    Solo cuentan las sesiones vigentes (estado ACTIVA, disponibles y sin terminar).
     Si la fecha no tiene ninguna franja cargada (lun-sáb) se asume el horario
     base 09:00-18:00 con un cupo igual a la cantidad de técnicos. Para hoy solo
-    se ofrecen las horas que aún no pasaron.
+    se ofrecen las horas que aún no pasaron (hora de Lima).
     """
-    lima = datetime.now(timezone(timedelta(hours=-5)))
+    lima = agenda_service.ahora_lima()
     try:
         dia = date_cls.fromisoformat(fecha)
     except (TypeError, ValueError):
@@ -150,7 +156,7 @@ def horarios_disponibles(fecha: str) -> list:
         lector = get_reader()
         franjas = (
             lector.table("agenda_tecnicos")
-            .select("tecnico_id,hora_inicio,hora_fin,disponible")
+            .select("tecnico_id,fecha,hora_inicio,hora_fin,disponible,estado")
             .eq("fecha", fecha)
             .execute()
             .data
@@ -175,7 +181,9 @@ def horarios_disponibles(fecha: str) -> list:
         ocupadas[hora] = ocupadas.get(hora, 0) + 1
 
     if franjas:
-        franjas = [f for f in franjas if f.get("disponible")]
+        # Solo sesiones vigentes: activas, marcadas como disponibles y que aún no terminaron
+        # (se valida con la hora actual aunque el job de cierre todavía no haya corrido).
+        franjas = [f for f in franjas if agenda_service.franja_vigente(f, lima)]
 
         def cupo(hora: str) -> int:
             return len({f.get("tecnico_id") for f in franjas if _cubre_franja(f, hora)})
@@ -880,6 +888,22 @@ def agendar(datos: dict) -> dict:
         raise CitaError(
             "No se pudo guardar la cita en este momento. Verifica la conexión y vuelve a intentar."
         ) from exc
+
+
+def nombre_equipo(equipo: dict) -> str:
+    """Tipo + marca + modelo de un electrodoméstico.
+
+    Si el cliente eligió "OTRO" y escribió su propio tipo o marca (columnas
+    `tipo_otro` / `marca_otro`), se muestra lo que escribió en vez de "OTRO".
+    """
+    equipo = equipo or {}
+    tipo = ((equipo.get("tipos_electrodomestico") or {}).get("nombre") or "").strip()
+    marca = ((equipo.get("marcas") or {}).get("nombre") or "").strip()
+    if tipo.upper() == "OTRO" and (equipo.get("tipo_otro") or "").strip():
+        tipo = equipo["tipo_otro"].strip()
+    if marca.upper() == "OTRO" and (equipo.get("marca_otro") or "").strip():
+        marca = equipo["marca_otro"].strip()
+    return " ".join(filter(None, [tipo, marca, (equipo.get("modelo") or "").strip()]))
 
 
 def marcar_primera_atencion(reserva_id) -> bool:

@@ -24,11 +24,12 @@ from flask import (
 
 from app.decorators import roles_required, tecnico_required
 from app.exceptions import ValidationError
-from app.services import storage_service
+from app.services import agenda_service, storage_service
 from app.services.cita_service import (
     SEPARADOR_DIRECCION,
     _cubre_franja,
     marcar_primera_atencion,
+    nombre_equipo,
 )
 from app.services.pdf_service import generar_orden_servicio_pdf
 from app.supabase_client import error_postgrest, get_admin_client, get_reader
@@ -128,8 +129,8 @@ def _clase_estado_cita(estado: str) -> str:
 
 
 def _hoy_lima() -> date:
-    """Fecha de hoy en Lima (la base guarda las citas en hora local)."""
-    return datetime.now(timezone(timedelta(hours=-5))).date()
+    """Fecha de hoy en Lima (America/Lima). El servidor corre en UTC."""
+    return agenda_service.hoy_lima()
 
 
 def _ahora_iso() -> str:
@@ -220,7 +221,7 @@ def _citas_tecnico(tecnico_id, incluir_libres=False):
         "id,fecha_reserva,hora_inicio,hora_fin,estado,tipo_atencion,motivo,"
         "observaciones,calle,distrito,tecnico_id,"
         "clientes(id,nombres,apellidos,telefono,numero_documento,razon_social),"
-        "electrodomesticos(id,modelo,numero_serie,marcas(nombre),tipos_electrodomestico(nombre))"
+        "electrodomesticos(id,modelo,numero_serie,tipo_otro,marca_otro,marcas(nombre),tipos_electrodomestico(nombre))"
     )
     hoy = _hoy_lima().isoformat()
     filas = []
@@ -286,11 +287,7 @@ def _citas_tecnico(tecnico_id, incluir_libres=False):
             "cliente_telefono": cliente.get("telefono"),
             "cliente_documento": cliente.get("numero_documento"),
             "equipo_id": (equipo or {}).get("id"),
-            "equipo": " ".join(filter(None, [
-                (equipo.get("tipos_electrodomestico") or {}).get("nombre"),
-                (equipo.get("marcas") or {}).get("nombre"),
-                equipo.get("modelo"),
-            ])),
+            "equipo": nombre_equipo(equipo),
             "modelo": equipo.get("modelo"),
             "numero_serie": equipo.get("numero_serie"),
         })
@@ -304,29 +301,45 @@ def _citas_tecnico(tecnico_id, incluir_libres=False):
 
 
 def _disponibilidad_tecnico(tecnico_id):
-    """Franjas de disponibilidad del técnico en agenda_tecnicos."""
+    """Sesiones de disponibilidad del técnico (agenda_tecnicos) con su estado real.
+
+    `estado` es ACTIVA / INACTIVA / VENCIDA; una sesión cuya fecha/hora de fin ya pasó
+    figura como VENCIDA aunque el job de cierre todavía no la haya actualizado.
+    Primero van las vigentes (la más próxima arriba) y después el historial vencido.
+    """
     try:
         resp = (
             get_reader()
             .table("agenda_tecnicos")
-            .select("id,fecha,hora_inicio,hora_fin,disponible")
+            .select("id,fecha,hora_inicio,hora_fin,disponible,estado")
             .eq("tecnico_id", tecnico_id)
             .order("fecha", desc=True)
             .order("hora_inicio")
-            .limit(80)
+            .limit(300)
             .execute()
         )
         filas = resp.data or []
     except Exception:  # noqa: BLE001
         log.exception("No se pudo cargar la disponibilidad del técnico")
         return []
-    return [{
-        "id": r.get("id"),
-        "fecha": (r.get("fecha") or "")[:10],
-        "hora_inicio": r.get("hora_inicio"),
-        "hora_fin": r.get("hora_fin"),
-        "disponible": r.get("disponible") if r.get("disponible") is not None else True,
-    } for r in filas]
+    ahora = agenda_service.ahora_lima()
+    sesiones = []
+    for r in filas:
+        fecha = (r.get("fecha") or "")[:10]
+        disponible = r.get("disponible") if r.get("disponible") is not None else True
+        estado = agenda_service.estado_efectivo(fecha, r.get("hora_fin") or "", disponible, r.get("estado"), ahora)
+        sesiones.append({
+            "id": r.get("id"),
+            "fecha": fecha,
+            "hora_inicio": (r.get("hora_inicio") or "")[:5],
+            "hora_fin": (r.get("hora_fin") or "")[:5],
+            "disponible": disponible,
+            "estado": estado,
+            "vencida": estado == agenda_service.ESTADO_VENCIDA,
+        })
+    vigentes = sorted((x for x in sesiones if not x["vencida"]), key=lambda x: (x["fecha"], x["hora_inicio"]))
+    vencidas = sorted((x for x in sesiones if x["vencida"]), key=lambda x: (x["fecha"], x["hora_inicio"]), reverse=True)
+    return vigentes + vencidas
 
 
 @bp.route("/worker")
@@ -575,6 +588,7 @@ def citas_listado():
 @bp.route("/worker/disponibilidad-modulo")
 @roles_required("worker")
 def disponibilidad_modulo():
+    agenda_service.cerrar_vencidas()  # red de seguridad del job de pg_cron (no lanza errores)
     tecnico = _tecnico_actual()
     tecnico_id = _tecnico_id() or (tecnico or {}).get("id")
     disponibilidad = _disponibilidad_tecnico(tecnico_id) if tecnico_id else []
@@ -590,7 +604,18 @@ def disponibilidad_modulo():
         pagina_d = paginas_d
     inicio_d = (pagina_d - 1) * por_d
     disponibilidad_pagina = disponibilidad[inicio_d:inicio_d + por_d] if total_d else []
-    return render_template("worker/disponibilidad_modulo.html", disponibilidad=disponibilidad_pagina, pagina=pagina_d, paginas=paginas_d, total=total_d, tecnico=tecnico, es_tecnico=tecnico is not None)
+    ahora = agenda_service.ahora_lima()
+    return render_template(
+        "worker/disponibilidad_modulo.html",
+        disponibilidad=disponibilidad_pagina,
+        pagina=pagina_d,
+        paginas=paginas_d,
+        total=total_d,
+        tecnico=tecnico,
+        es_tecnico=tecnico is not None,
+        hoy=ahora.date().isoformat(),
+        hora_actual=ahora.strftime("%H:%M"),
+    )
 
 
 RESUMEN_POR_PAGINA = 10
@@ -729,149 +754,200 @@ def resumen_detalle(clave):
 @roles_required("worker")
 @tecnico_required
 def agenda_agregar():
-    """Agrega una o varias franjas de disponibilidad para el técnico logueado."""
+    """Agrega sesiones de disponibilidad (una por fecha) para el técnico logueado."""
     tecnico = _tecnico_actual()
     if not tecnico:
         flash("Tu cuenta no está vinculada a un técnico.", "error")
-        return redirect(url_for("worker.dashboard"))
+        return _volver_disponibilidad()
     tecnico_id = tecnico["id"]
 
-    fechas = request.form.getlist("fechas")
+    fechas = [f.strip() for f in request.form.getlist("fechas") if (f or "").strip()]
     if not fechas:
-        f = (request.form.get("fecha") or "").strip()
-        if f:
-            fechas = [f]
+        una = (request.form.get("fecha") or "").strip()
+        fechas = [una] if una else []
     hora_inicio = (request.form.get("hora_inicio") or "").strip()
     hora_fin = (request.form.get("hora_fin") or "").strip()
-    disponible = request.form.get("disponible") != "false"
+    # El formulario manda un "false" oculto + el checkbox ("true") cuando está marcado.
+    valores = request.form.getlist("disponible")
+    disponible = ("true" in valores) or not valores
 
-    try:
-        if not fechas:
-            raise ValueError("indicar fecha")
-        if len(hora_inicio) != 5 or len(hora_fin) != 5:
-            raise ValueError("formato hora")
-        datetime.strptime(hora_inicio, "%H:%M")
-        datetime.strptime(hora_fin, "%H:%M")
-        if hora_inicio >= hora_fin:
-            raise ValueError("rango hora")
-        hoy = _hoy_lima()
-        for f in fechas:
-            f2 = (f or "").strip()
-            if not f2:
-                continue
-            fecha_ok = datetime.strptime(f2, "%Y-%m-%d").date()
-            if fecha_ok < hoy or fecha_ok.year < 2020:
-                raise ValueError("fecha pasada")
-    except ValueError:
-        flash("Datos inválidos. Revisa fecha y horas.", "error")
-        return redirect(url_for("worker.dashboard"))
-    except Exception:
-        log.exception("Error validando agenda_agregar")
-        flash("No se pudo agregar la franja.", "error")
-        return redirect(url_for("worker.dashboard"))
+    if not fechas:
+        flash("Indica la fecha de la sesión.", "error")
+        return _volver_disponibilidad()
+    ahora = agenda_service.ahora_lima()
+    for f in fechas:  # se valida todo antes de guardar nada
+        error = agenda_service.validar_franja(f, hora_inicio, hora_fin, ahora)
+        if error:
+            flash(error, "error")
+            return _volver_disponibilidad()
 
+    agregadas = 0
     try:
         db = get_admin_client()
-        # evitar traslapes
-        for f2 in fechas:
-            f2s = (f2 or "").strip()
-            if not f2s:
-                continue
-            existentes = (
-                get_reader()
-                .table("agenda_tecnicos")
-                .select("id,hora_inicio,hora_fin")
-                .eq("tecnico_id", tecnico_id)
-                .eq("fecha", f2s)
-                .execute()
-                .data
-                or []
-            )
-            for ex in existentes:
-                hi = (ex.get("hora_inicio") or "")[:5]
-                hf = (ex.get("hora_fin") or "")[:5]
-                if not hi or not hf:
-                    continue
-                # traslape si no (hf <= inicio or fin <= hi)
-                if not (hf <= hora_inicio or hora_fin <= hi):
-                    flash("Ya existe una franja traslapada para esa fecha.", "error")
-                    return redirect(url_for("worker.dashboard"))
+        for f in fechas:
+            if _hay_traslape(tecnico_id, f, hora_inicio, hora_fin):
+                flash(f"Ya existe una sesión que se cruza con ese horario el {f}.", "error")
+                break
             db.table("agenda_tecnicos").insert({
                 "tecnico_id": tecnico_id,
-                "fecha": f2s,
+                "fecha": f,
                 "hora_inicio": hora_inicio,
                 "hora_fin": hora_fin,
                 "disponible": bool(disponible),
             }).execute()
-        flash("Disponibilidad agregada.", "success")
-    except Exception:
+            agregadas += 1
+    except Exception as exc:  # noqa: BLE001
         log.exception("No se pudo agregar franja de agenda")
-        flash("No se pudo agregar la franja.", "error")
-    return redirect(url_for("worker.dashboard"))
+        flash(agenda_service.mensaje_error_bd(exc, "No se pudo agregar la disponibilidad."), "error")
+        return _volver_disponibilidad()
+    if agregadas:
+        flash("Disponibilidad agregada." if agregadas == 1 else f"Se agregaron {agregadas} sesiones.", "success")
+    return _volver_disponibilidad()
+
+
+def _volver_disponibilidad():
+    return redirect(url_for("worker.disponibilidad_modulo"))
+
+
+def _hay_traslape(tecnico_id, fecha: str, hora_inicio: str, hora_fin: str, excluir_id=None) -> bool:
+    """True si el técnico ya tiene otra sesión vigente que se cruza con ese horario."""
+    existentes = (
+        get_reader()
+        .table("agenda_tecnicos")
+        .select("id,hora_inicio,hora_fin,estado")
+        .eq("tecnico_id", tecnico_id)
+        .eq("fecha", fecha)
+        .execute()
+        .data
+        or []
+    )
+    for ex in existentes:
+        if excluir_id is not None and ex.get("id") == excluir_id:
+            continue
+        if ex.get("estado") == agenda_service.ESTADO_VENCIDA:
+            continue
+        hi = (ex.get("hora_inicio") or "")[:5]
+        hf = (ex.get("hora_fin") or "")[:5]
+        if hi and hf and not (hf <= hora_inicio or hora_fin <= hi):
+            return True
+    return False
+
+
+def _leer_franja(franja_id, tecnico_id):
+    filas = (
+        get_reader()
+        .table("agenda_tecnicos")
+        .select("id,tecnico_id,fecha,hora_inicio,hora_fin,disponible,estado")
+        .eq("id", franja_id)
+        .eq("tecnico_id", tecnico_id)
+        .limit(1)
+        .execute()
+        .data
+        or []
+    )
+    return filas[0] if filas else None
+
+
+def _franja_vencida(f: dict) -> bool:
+    return agenda_service.estado_efectivo(
+        (f.get("fecha") or "")[:10], f.get("hora_fin") or "", f.get("disponible"), f.get("estado")
+    ) == agenda_service.ESTADO_VENCIDA
+
+
+def _citas_activas_en_franja(tecnico_id, f: dict) -> list:
+    """Citas abiertas del técnico (hora de inicio) que caen dentro de la sesión indicada."""
+    reservas = (
+        get_reader()
+        .table("reservas")
+        .select("id,hora_inicio,estado")
+        .eq("tecnico_id", tecnico_id)
+        .eq("fecha_reserva", (f.get("fecha") or "")[:10])
+        .in_("estado", ["CONFIRMADA", "ASIGNADA", "EN_ATENCION"])
+        .execute()
+        .data
+        or []
+    )
+    hi_f = (f.get("hora_inicio") or "")[:5]
+    hf_f = (f.get("hora_fin") or "")[:5]
+    return [(r.get("hora_inicio") or "")[:5] for r in reservas if hi_f <= (r.get("hora_inicio") or "")[:5] < hf_f]
+
+
+@bp.post("/worker/agenda/<int:franja_id>/editar")
+@roles_required("worker")
+@tecnico_required
+def agenda_editar(franja_id):
+    """Cambia fecha y horas de una sesión vigente (nunca a una fecha/hora pasada)."""
+    tecnico = _tecnico_actual()
+    if not tecnico:
+        flash("Tu cuenta no está vinculada a un técnico.", "error")
+        return _volver_disponibilidad()
+    fecha = (request.form.get("fecha") or "").strip()
+    hora_inicio = (request.form.get("hora_inicio") or "").strip()
+    hora_fin = (request.form.get("hora_fin") or "").strip()
+    try:
+        franja = _leer_franja(franja_id, tecnico["id"])
+        if not franja:
+            flash("Sesión no encontrada.", "warning")
+            return _volver_disponibilidad()
+        if _franja_vencida(franja):
+            flash("La sesión ya venció y no se puede editar; crea una nueva.", "warning")
+            return _volver_disponibilidad()
+        error = agenda_service.validar_franja(fecha, hora_inicio, hora_fin)
+        if error:
+            flash(error, "error")
+            return _volver_disponibilidad()
+        if _hay_traslape(tecnico["id"], fecha, hora_inicio, hora_fin, excluir_id=franja_id):
+            flash("Ya tienes otra sesión que se cruza con ese horario.", "error")
+            return _volver_disponibilidad()
+        # No dejar fuera una cita ya asignada que estaba dentro de la sesión original.
+        for hora_cita in _citas_activas_en_franja(tecnico["id"], franja):
+            sigue_dentro = fecha == (franja.get("fecha") or "")[:10] and hora_inicio <= hora_cita < hora_fin
+            if not sigue_dentro:
+                flash(
+                    f"Tienes una cita a las {hora_cita} dentro de esta sesión; el nuevo horario la dejaría fuera.",
+                    "error",
+                )
+                return _volver_disponibilidad()
+        get_admin_client().table("agenda_tecnicos").update({
+            "fecha": fecha, "hora_inicio": hora_inicio, "hora_fin": hora_fin,
+        }).eq("id", franja_id).eq("tecnico_id", tecnico["id"]).execute()
+        flash("Sesión actualizada.", "success")
+    except Exception as exc:  # noqa: BLE001
+        log.exception("No se pudo editar la franja %s", franja_id)
+        flash(agenda_service.mensaje_error_bd(exc, "No se pudo actualizar la sesión."), "error")
+    return _volver_disponibilidad()
 
 
 @bp.post("/worker/agenda/<int:franja_id>/quitar")
 @roles_required("worker")
 @tecnico_required
 def agenda_quitar(franja_id):
-    """Elimina una franja de disponibilidad del técnico logueado."""
+    """Elimina una sesión vigente del técnico logueado (las vencidas se conservan como historial)."""
     tecnico = _tecnico_actual()
     if not tecnico:
         flash("Tu cuenta no está vinculada a un técnico.", "error")
-        return redirect(url_for("worker.dashboard"))
+        return _volver_disponibilidad()
     try:
-        # verificar que no tenga cita CONFIRMADA/EN_ATENCION en rango
-        franja = (
-            get_reader()
-            .table("agenda_tecnicos")
-            .select("id,tecnico_id,fecha,hora_inicio,hora_fin")
-            .eq("id", franja_id)
-            .eq("tecnico_id", tecnico["id"])
-            .limit(1)
-            .execute()
-            .data
-            or []
-        )
-        if not franja:
-            flash("Franja no encontrada.", "warning")
-            return redirect(url_for("worker.dashboard"))
-        f = franja[0]
-        # buscar reservas del técnico ese día en estados activos que solapen
-        try:
-            reservas = (
-                get_reader()
-                .table("reservas")
-                .select("id,hora_inicio,hora_fin,estado")
-                .eq("tecnico_id", tecnico["id"])
-                .eq("fecha_reserva", f.get("fecha"))
-                .in_("estado", ["CONFIRMADA", "EN_ATENCION"])
-                .execute()
-                .data
-                or []
-            )
-            hi_f = (f.get("hora_inicio") or "")[:5]
-            hf_f = (f.get("hora_fin") or "")[:5]
-            for r in reservas:
-                hi_r = (r.get("hora_inicio") or "")[:5]
-                hf_r = (r.get("hora_fin") or "")[:5]
-                if not hi_r or not hf_r:
-                    continue
-                if not (hf_f <= hi_r or hf_r <= hi_f):
-                    flash("No se puede eliminar una franja que tiene una cita CONFIRMADA o EN_ATENCION.", "error")
-                    return redirect(url_for("worker.dashboard"))
-        except Exception:
-            log.exception("Error verificando citas al quitar franja")
-
+        f = _leer_franja(franja_id, tecnico["id"])
+        if not f:
+            flash("Sesión no encontrada.", "warning")
+            return _volver_disponibilidad()
+        if _franja_vencida(f):
+            flash("Las sesiones vencidas se conservan como historial y no se eliminan.", "warning")
+            return _volver_disponibilidad()
+        # No quitar una sesión que tiene una cita CONFIRMADA/ASIGNADA/EN_ATENCION dentro.
+        if _citas_activas_en_franja(tecnico["id"], f):
+            flash("No se puede eliminar una sesión que tiene una cita CONFIRMADA o EN_ATENCION.", "error")
+            return _volver_disponibilidad()
         resp_del = get_admin_client().table("agenda_tecnicos").delete().eq("id", franja_id).eq("tecnico_id", tecnico["id"]).execute()
-        # si no borra nada
         if not getattr(resp_del, "data", None):
-            flash("Franja no encontrada.", "warning")
-            return redirect(url_for("worker.dashboard"))
-        flash("Franja de disponibilidad eliminada.", "success")
-    except Exception:
+            flash("Sesión no encontrada.", "warning")
+            return _volver_disponibilidad()
+        flash("Sesión de disponibilidad eliminada.", "success")
+    except Exception:  # noqa: BLE001
         log.exception("No se pudo eliminar la franja")
-        flash("No se pudo eliminar la franja.", "error")
-    return redirect(url_for("worker.dashboard"))
+        flash("No se pudo eliminar la sesión.", "error")
+    return _volver_disponibilidad()
 
 
 @bp.post("/worker/agenda/<int:franja_id>/toggle")
@@ -881,29 +957,23 @@ def agenda_toggle(franja_id):
     tecnico = _tecnico_actual()
     if not tecnico:
         flash("Tu cuenta no está vinculada a un técnico.", "error")
-        return redirect(url_for("worker.dashboard"))
+        return _volver_disponibilidad()
     try:
-        franja = (
-            get_reader()
-            .table("agenda_tecnicos")
-            .select("id,disponible")
-            .eq("id", franja_id)
-            .eq("tecnico_id", tecnico["id"])
-            .limit(1)
-            .execute()
-            .data
-            or []
-        )
-        if not franja:
-            flash("Franja no encontrada.", "warning")
-            return redirect(url_for("worker.dashboard"))
-        nuevo = not bool(franja[0].get("disponible"))
+        f = _leer_franja(franja_id, tecnico["id"])
+        if not f:
+            flash("Sesión no encontrada.", "warning")
+            return _volver_disponibilidad()
+        if _franja_vencida(f):
+            flash("La sesión ya venció y no se puede activar ni desactivar.", "warning")
+            return _volver_disponibilidad()
+        nuevo = not bool(f.get("disponible"))
         get_admin_client().table("agenda_tecnicos").update({"disponible": nuevo}).eq("id", franja_id).eq("tecnico_id", tecnico["id"]).execute()
         flash("Disponibilidad actualizada.", "success")
-    except Exception:
+    except Exception as exc:  # noqa: BLE001
         log.exception("No se pudo actualizar la franja")
-        flash("No se pudo actualizar la franja.", "error")
-    return redirect(url_for("worker.dashboard"))
+        flash(agenda_service.mensaje_error_bd(exc, "No se pudo actualizar la sesión."), "error")
+    return _volver_disponibilidad()
+
 
 # ---------------------------------------------------------------------------
 # Citas: tomar una cita libre, avanzar su estado y abrir la reparación
@@ -950,7 +1020,9 @@ def cita_tomar(cita_id):
         flash("Solo se pueden tomar citas pendientes.", "warning")
         return _volver_panel()
     fecha = (cita.get("fecha_reserva") or "")[:10]
-    if fecha < _hoy_lima().isoformat():
+    ahora = agenda_service.ahora_lima()
+    hora_cita = (cita.get("hora_inicio") or "")[:5]
+    if fecha < ahora.date().isoformat() or (fecha == ahora.date().isoformat() and hora_cita < ahora.strftime("%H:%M")):
         flash("La cita ya venció; pídele al administrador que la reprograme o la cierre.", "warning")
         return _volver_panel()
 
@@ -959,15 +1031,15 @@ def cita_tomar(cita_id):
         franjas = (
             get_reader()
             .table("agenda_tecnicos")
-            .select("hora_inicio,hora_fin,disponible")
+            .select("fecha,hora_inicio,hora_fin,disponible,estado")
             .eq("tecnico_id", tecnico_id)
             .eq("fecha", fecha)
             .execute()
         ).data or []
     except Exception:  # noqa: BLE001
         franjas = []
-    hora = (cita.get("hora_inicio") or "")[:5]
-    if franjas and not any(f.get("disponible") and _cubre_franja(f, hora) for f in franjas):
+    hora = hora_cita
+    if franjas and not any(agenda_service.franja_vigente(f, ahora) and _cubre_franja(f, hora) for f in franjas):
         flash("Esa hora está fuera de tu disponibilidad registrada para ese día.", "warning")
         return _volver_panel()
 
@@ -1144,7 +1216,7 @@ def _datos_equipo_cliente(electrodomestico_id) -> tuple:
             get_reader()
             .table("electrodomesticos")
             .select(
-                "id,modelo,numero_serie,marcas(nombre),tipos_electrodomestico(nombre),"
+                "id,modelo,numero_serie,tipo_otro,marca_otro,marcas(nombre),tipos_electrodomestico(nombre),"
                 "clientes(nombres,apellidos,razon_social,telefono,numero_documento)"
             )
             .eq("id", electrodomestico_id)
@@ -1161,11 +1233,7 @@ def _datos_equipo_cliente(electrodomestico_id) -> tuple:
     equipo = {
         "modelo": e.get("modelo"),
         "numero_serie": e.get("numero_serie"),
-        "descripcion": " ".join(filter(None, [
-            (e.get("tipos_electrodomestico") or {}).get("nombre"),
-            (e.get("marcas") or {}).get("nombre"),
-            e.get("modelo"),
-        ])),
+        "descripcion": nombre_equipo(e),
     }
     return equipo, cliente
 

@@ -15,7 +15,7 @@ from flask import (
 
 from app.decorators import ROLES_DB, roles_required
 from app.exceptions import AppError, NotFoundError, ValidationError
-from app.services import cita_service, producto_service, storage_service
+from app.services import agenda_service, cita_service, producto_service, storage_service
 from app.supabase_client import get_reader
 
 bp = Blueprint("admin", __name__)
@@ -751,7 +751,7 @@ def citas_listado():
             .select(
                 "id,fecha_reserva,hora_inicio,hora_fin,estado,tipo_atencion,motivo,"
                 "clientes(nombres,apellidos,telefono,numero_documento,razon_social),"
-                "electrodomesticos(modelo,numero_serie,marcas(nombre),tipos_electrodomestico(nombre)),"
+                "electrodomesticos(modelo,numero_serie,tipo_otro,marca_otro,marcas(nombre),tipos_electrodomestico(nombre)),"
                 "tecnicos(id,empleados(nombres,apellidos))",
                 count="exact",
             )
@@ -789,7 +789,7 @@ def citas_listado():
             "estado": ESTADO_CITA_LABEL.get(estado, estado),
             "estado_raw": estado,
             "badge_class": _clase_estado_cita(estado),
-            "vencida": (r.get("fecha_reserva") or "")[:10] < date.today().isoformat()
+            "vencida": (r.get("fecha_reserva") or "")[:10] < agenda_service.hoy_lima().isoformat()
             and estado in ("PENDIENTE", "CONFIRMADA", "ASIGNADA", "EN_ATENCION"),
             "tipo_atencion": r.get("tipo_atencion"),
             "motivo": r.get("motivo"),
@@ -797,11 +797,7 @@ def citas_listado():
             or " ".join(filter(None, [cliente.get("nombres"), cliente.get("apellidos")])),
             "cliente_documento": cliente.get("numero_documento"),
             "cliente_telefono": cliente.get("telefono"),
-            "equipo": " ".join(filter(None, [
-                (equipo.get("tipos_electrodomestico") or {}).get("nombre"),
-                (equipo.get("marcas") or {}).get("nombre"),
-                equipo.get("modelo"),
-            ])),
+            "equipo": cita_service.nombre_equipo(equipo),
             "tecnico_id": (tecnico or {}).get("id"),
             "tecnico_nombre": " ".join(filter(None, [
                 ((tecnico.get("empleados")) or {}).get("nombres"),

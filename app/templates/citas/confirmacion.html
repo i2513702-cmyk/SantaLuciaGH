@@ -23,8 +23,10 @@
                 <th>Equipo</th>
                 {% set eq = reserva.electrodomesticos or {} %}
                 <td>
-                    {{ eq.tipos_electrodomestico.nombre if eq.tipos_electrodomestico else '—' }}
-                    {% if eq.marcas %}<span class="badge badge-muted">{{ eq.marcas.nombre }}</span>{% endif %}
+                    {% set tipo = eq.tipos_electrodomestico.nombre if eq.tipos_electrodomestico else '' %}
+                    {% set marca = eq.marcas.nombre if eq.marcas else '' %}
+                    {{ (eq.tipo_otro if (tipo|upper == 'OTRO' and eq.tipo_otro) else tipo) or '—' }}
+                    {% if marca %}<span class="badge badge-muted">{{ eq.marca_otro if (marca|upper == 'OTRO' and eq.marca_otro) else marca }}</span>{% endif %}
                     {% if eq.modelo %} • {{ eq.modelo }}{% endif %}
                     {% if eq.numero_serie %} (S/N {{ eq.numero_serie }}){% endif %}
                 </td>
