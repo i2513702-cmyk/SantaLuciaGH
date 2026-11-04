@@ -428,18 +428,11 @@ def crear_usuario(
     if not password or len(password) < 8:
         raise ValidationError("La contraseña debe tener al menos 8 caracteres")
 
-    validar_documento_registro(tipo_documento_id, numero_documento)
-
     nombre_usuario = (nombre_usuario or "").strip()
     if not REGEX_NOMBRE_USUARIO.match(nombre_usuario):
         raise ValidationError(
-            "El nombre de usuario debe tener entre 3 y 16 caracteres y solo permite letras, números, guion (-) y guion bajo (_)."
+            "El nombre de usuario debe tener entre 3 y 30 caracteres y solo permite letras, números, guion (-) y guion bajo (_)."
         )
-
-    telefono = (telefono or "").strip()
-    if telefono:
-        if len(telefono) > 9 or not telefono.isdigit():
-            raise ValidationError("El número de teléfono no puede superar los 9 dígitos numéricos.")
 
     if _leer_usuario("nombre_usuario", nombre_usuario):
         raise ValidationError(f"El nombre de usuario '{nombre_usuario}' ya existe.")
@@ -764,7 +757,7 @@ def _crear_cliente(
         return None
 
 
-REGEX_NOMBRE_USUARIO = re.compile(r"^[a-zA-Z0-9_-]{3,16}$")
+REGEX_NOMBRE_USUARIO = re.compile(r"^[a-zA-Z0-9_-]{3,30}$")
 
 
 def validar_documento_registro(tipo_documento_id: int, numero_documento: str) -> None:

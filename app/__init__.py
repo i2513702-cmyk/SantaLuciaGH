@@ -2,7 +2,7 @@
 
 import os
 
-from flask import Flask, render_template, url_for
+from flask import Flask, jsonify, render_template, request, url_for
 
 from app.config import config_map
 from app.decorators import bloquear_compras_sin_rol
@@ -53,6 +53,11 @@ def create_app() -> Flask:
     app.register_blueprint(api.bp)
     app.register_blueprint(identidad.bp)
     app.register_blueprint(libro_reclamaciones.bp)
+
+    # --- API REST v1 (E01–E78) ---
+    from app.api import bp as api_v1_bp
+
+    app.register_blueprint(api_v1_bp)
 
     # --- Comandos CLI ---
     from app.cli import register_cli
@@ -158,6 +163,10 @@ def create_app() -> Flask:
 
         from app.security import csrf_valido
 
+        # La API REST usa JWT y no formularios HTML: queda fuera del CSRF web.
+        if request.path.startswith("/api/v1/"):
+            return None
+
         if request.method != "POST":
             return None
 
@@ -172,12 +181,55 @@ def create_app() -> Flask:
         return redirect(destino)
 
     # --- Manejadores de errores ---
+    def _error_api(codigo: str, mensaje: str, status: int):
+        if request.path.startswith("/api/v1/"):
+            return (
+                jsonify(
+                    {
+                        "codigo": codigo,
+                        "mensaje": mensaje,
+                        "error": mensaje,
+                        "status_code": status,
+                    }
+                ),
+                status,
+            )
+        return None
+
     @app.errorhandler(403)
     def forbidden(_):
+        respuesta = _error_api("SIN_PERMISO", "No tienes permiso para realizar esta acción.", 403)
+        if respuesta:
+            return respuesta
         return render_template("errors/403.html"), 403
 
     @app.errorhandler(404)
     def not_found(_):
+        respuesta = _error_api("NO_ENCONTRADO", "El recurso solicitado no existe.", 404)
+        if respuesta:
+            return respuesta
         return render_template("errors/404.html"), 404
+
+    @app.errorhandler(405)
+    def method_not_allowed(_):
+        respuesta = _error_api(
+            "METODO_NO_PERMITIDO",
+            "El método HTTP no está permitido para esta ruta.",
+            405,
+        )
+        if respuesta:
+            return respuesta
+        return render_template("errors/404.html"), 405
+
+    @app.errorhandler(413)
+    def payload_too_large(_):
+        respuesta = _error_api(
+            "ARCHIVO_MUY_GRANDE",
+            "La solicitud supera el tamaño máximo permitido.",
+            413,
+        )
+        if respuesta:
+            return respuesta
+        return render_template("errors/404.html"), 413
 
     return app
