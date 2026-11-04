@@ -87,7 +87,7 @@
                                 <li class="nav-item">
                                     <a class="nav-link nav-cart position-relative d-flex align-items-center gap-2" href="{{ url_for('carrito.ver') }}" aria-label="Carrito">
                                         {{ icono('nav-carrito', 'cart3', 20) }}<span class="d-lg-none">Carrito</span>
-                                        {% if carrito_n %}<span class="badge rounded-pill">{{ carrito_n }}</span>{% endif %}
+                                        {% if carrito_n %}<span class="badge rounded-pill" id="carrito-badge">{{ carrito_n }}</span>{% else %}<span class="badge rounded-pill" id="carrito-badge" style="display:none"></span>{% endif %}
                                     </a>
                                 </li>
                             {% endif %}
@@ -231,6 +231,7 @@
     <script src="{{ url_for('static', filename='vendor/bootstrap/bootstrap.bundle.min.js') }}"></script>
     <script src="{{ url_for('static', filename='js/avatars.js') }}"></script>
     <script src="{{ url_for('static', filename='js/carrusel.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/carrito-api.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

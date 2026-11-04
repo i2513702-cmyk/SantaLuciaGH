@@ -91,7 +91,7 @@
         </ul>
 
         {% if puede_comprar %}
-            <form method="POST" action="{{ url_for('carrito.agregar', producto_id=producto.id) }}" class="pd-actions">
+            <form method="POST" action="{{ url_for('carrito.agregar', producto_id=producto.id) }}" class="pd-actions" data-carrito-api="agregar" data-producto-id="{{ producto.id }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <button type="submit" class="btn btn-primary btn-lg">
                     <i class="bi bi-cart-plus"></i> Agregar al carrito

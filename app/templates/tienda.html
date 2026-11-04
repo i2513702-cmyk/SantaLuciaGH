@@ -80,7 +80,7 @@
                             <span class="fs-5 fw-bold">{{ p.precio_ahora }}</span>
                         </div>
                         {% if puede_comprar %}
-                        <form method="POST" action="{{ url_for('carrito.agregar', producto_id=p.id) }}">
+                        <form method="POST" action="{{ url_for('carrito.agregar', producto_id=p.id) }}" data-carrito-api="agregar" data-producto-id="{{ p.id }}">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                             <button type="submit" class="btn btn-primary w-100">Agregar al carrito</button>
                         </form>

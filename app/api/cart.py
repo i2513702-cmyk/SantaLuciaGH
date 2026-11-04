@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from flask import jsonify, request
+from flask import jsonify, request, session
 
 from app.api import bp
 from app.api.common import (
     ApiError,
-    api_auth,
+    api_auth_comprador,
     api_route,
     cuerpo,
     datetime_iso,
@@ -31,9 +31,24 @@ IGV = 0.18
 
 
 def _sesion() -> str:
+    """Clave del carrito UNIFICADA con la web.
+
+    Antes era ``api:<id>`` (un carrito distinto al de la web). Ahora usa la
+    misma clave que ``tracking_service.clave_sesion()``: ``user:<id>`` si hay
+    usuario (JWT o cookie) y ``anon:<token>`` si es invitado. Así el botón
+    "Agregar al carrito" (API) y la página /carrito (web) ven el mismo
+    carrito en BD, y el contador de la cabecera es correcto.
+    """
     from app.api.common import contexto_actual
 
-    return f"api:{contexto_actual().get('id')}"
+    if session.get("usuario_id"):
+        return f"user:{session['usuario_id']}"
+    ctx_id = contexto_actual().get("id")
+    if ctx_id:
+        return f"user:{ctx_id}"
+    from app.services.tracking_service import clave_sesion
+
+    return clave_sesion()
 
 
 def _carrito_id() -> int:
@@ -105,10 +120,17 @@ def _payload(carrito_id: int) -> dict:
         "id": carrito_id,
         "expira_en": expira,
         "items": items,
+        "n_items": sum(int(i.get("cantidad") or 0) for i in items),
         "subtotal_base": base,
         "igv": igv,
         "total": total,
     }
+
+
+def _sincronizar_sesion(carrito_id: int, payload: dict) -> None:
+    """Deja la cookie de sesión web en sync con el carrito creado por API."""
+    session["carrito_id"] = carrito_id
+    session["carrito_n"] = int(payload.get("n_items") or 0)
 
 
 def _detalle(carrito_id: int, item_id: int) -> dict:
@@ -131,14 +153,14 @@ def _validar_stock(producto_id: int, cantidad: int) -> None:
 
 @bp.get("/cart")
 @api_route
-@api_auth("CLIENTE")
+@api_auth_comprador
 def cart_get():
     return jsonify(_payload(_carrito_id()))
 
 
 @bp.post("/cart/items")
 @api_route
-@api_auth("CLIENTE")
+@api_auth_comprador
 def cart_add():
     data = cuerpo()
     producto_id = entero(data.get("producto_id"))
@@ -158,12 +180,14 @@ def cart_add():
     except Exception as exc:  # noqa: BLE001
         mensaje = getattr(exc, "message", None) or str(exc) or "No se pudo agregar el producto."
         raise ApiError(mensaje, 400, "DATOS_INVALIDOS") from exc
-    return jsonify(_payload(carrito_id)), 201
+    payload = _payload(carrito_id)
+    _sincronizar_sesion(carrito_id, payload)
+    return jsonify(payload), 201
 
 
 @bp.patch("/cart/items/<int:item_id>")
 @api_route
-@api_auth("CLIENTE")
+@api_auth_comprador
 def cart_update(item_id: int):
     data = cuerpo()
     carrito_id = _carrito_id()
@@ -195,23 +219,29 @@ def cart_update(item_id: int):
     except Exception as exc:  # noqa: BLE001
         mensaje = getattr(exc, "message", None) or str(exc) or "No se pudo actualizar el carrito."
         raise ApiError(mensaje, 400, "DATOS_INVALIDOS") from exc
-    return jsonify(_payload(carrito_id))
+    payload = _payload(carrito_id)
+    _sincronizar_sesion(carrito_id, payload)
+    return jsonify(payload)
 
 
 @bp.delete("/cart/items/<int:item_id>")
 @api_route
-@api_auth("CLIENTE")
+@api_auth_comprador
 def cart_remove(item_id: int):
     carrito_id = _carrito_id()
     detalle = _detalle(carrito_id, item_id)
     carrito_service.set_cantidad(carrito_id, int(detalle.get("producto_id")), 0)
-    return jsonify(_payload(carrito_id))
+    payload = _payload(carrito_id)
+    _sincronizar_sesion(carrito_id, payload)
+    return jsonify(payload)
 
 
 @bp.delete("/cart")
 @api_route
-@api_auth("CLIENTE")
+@api_auth_comprador
 def cart_clear():
     carrito_id = _carrito_id()
     carrito_service.vaciar(carrito_id)
+    session["carrito_id"] = carrito_id
+    session["carrito_n"] = 0
     return "", 204

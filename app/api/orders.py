@@ -237,10 +237,10 @@ def _metodos_publicos() -> list[dict]:
 @api_route
 @api_auth("CLIENTE")
 def orders_summary():
-    from app.api.cart import _payload
+    from app.api.cart import _payload, _sesion
     from app.services import carrito_service
 
-    carrito_id, _nuevo, _expirado = carrito_service.obtener_carrito_vigente(f"api:{contexto_actual().get('id')}")
+    carrito_id, _nuevo, _expirado = carrito_service.obtener_carrito_vigente(_sesion())
     carrito = _payload(carrito_id)
     from app.api.common import cliente_de_usuario
 
@@ -315,7 +315,9 @@ def orders_create():
     cliente_id = ctx.get("cliente_id")
     if not cliente_id:
         raise ApiError("Tu cuenta no tiene un cliente asociado.", 400, "DATOS_INVALIDOS")
-    carrito_id, _nuevo, _expirado = carrito_service.obtener_carrito_vigente(f"api:{ctx.get('id')}")
+    from app.api.cart import _sesion
+
+    carrito_id, _nuevo, _expirado = carrito_service.obtener_carrito_vigente(_sesion())
     try:
         resultado = carrito_service.pagar(
             carrito_id,

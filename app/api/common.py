@@ -316,19 +316,42 @@ def _contexto_usuario(usuario: dict) -> dict:
 
 
 def api_auth(*roles: str):
-    """Exige un access token válido y, opcionalmente, uno de los roles dados."""
+    """Exige un access token válido y, opcionalmente, uno de los roles dados.
+
+    Mantiene el JWT como vía principal. Como respaldo acepta la cookie de
+    sesión del portal web (``session["usuario_id"]``): así el frontend
+    server-rendered puede llamar a /api/v1 con ``credentials: "same-origin"``
+    sin tener que guardar el JWT en localStorage, sin cambiar roles ni
+    permisos. Un Bearer inválido/vencido sigue siendo 401 aunque haya cookie.
+    """
 
     permitidos = {r.upper() for r in roles if r}
 
-    def decorator(fn):
-        @wraps(fn)
-        def wrapper(*args, **kwargs):
-            payload = decodificar_token(_token_autorizacion(), "access")
+    def _autenticar() -> dict:
+        # 1) JWT Bearer (vía principal, sin cambios).
+        token = _token_autorizacion()
+        if token:
+            payload = decodificar_token(token, "access")
             if not payload:
                 raise ApiError("Token ausente, inválido o vencido.", 401, "NO_AUTENTICADO")
             usuario = read_one("usuarios", id=payload.get("sub"))
             if not usuario:
                 raise ApiError("El usuario ya no existe.", 401, "NO_AUTENTICADO")
+            return usuario
+        # 2) Cookie de sesión del portal (respaldo, misma tabla/roles).
+        from flask import session as _session
+
+        usuario_id = _session.get("usuario_id")
+        if usuario_id:
+            usuario = read_one("usuarios", id=usuario_id)
+            if usuario:
+                return usuario
+        raise ApiError("Token ausente, inválido o vencido.", 401, "NO_AUTENTICADO")
+
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            usuario = _autenticar()
             if usuario.get("activo") is False:
                 raise ApiError("La cuenta está inactiva.", 403, "CUENTA_INACTIVA")
             rol = (usuario.get("rol") or "").upper()
@@ -340,6 +363,31 @@ def api_auth(*roles: str):
         return wrapper
 
     return decorator
+
+
+def api_auth_comprador(fn):
+    """Carrito de compras: CLIENTE (JWT o cookie) o invitado anónimo.
+
+    Réplica la política web (``puede_comprar`` + ``bloquear_compras_sin_rol``):
+    el personal interno (no CLIENTE) recibe 403, los anónimos pueden
+    comprar con su carrito ``anon:<token>`` de la cookie. No relaja ningún
+    otro endpoint: solo se usa en /cart*.
+    """
+
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        from flask import session as _session
+
+        hay_token = bool(_token_autorizacion())
+        hay_sesion = bool(_session.get("usuario_id"))
+        if hay_token or hay_sesion:
+            # Usuario identificado: debe ser CLIENTE (403 si es personal).
+            return api_auth("CLIENTE")(fn)(*args, **kwargs)
+        # Invitado: sin usuario en g, el carrito usa la clave anon: de la cookie.
+        g.api_user = {}
+        return fn(*args, **kwargs)
+
+    return wrapper
 
 
 def usuario_actual() -> dict:
