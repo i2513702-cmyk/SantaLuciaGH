@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Error 500 — {{ app_name }}{% endblock %}
+{% block content %}
+<section class="panel-head"><h1>Error interno (500)</h1>
+<p>El servidor no pudo completar la solicitud. Revisa que el archivo <code>.env</code> exista con las claves de Supabase y que el servidor esté corriendo con <code>python app.py</code>.</p>
+<p>Prueba los endpoints en <a href="/api/health">/api/health</a> y <a href="/api/v1/">/api/v1/</a> — deben verse en DevTools &gt; Network &gt; Fetch/XHR.</p>
+</section>
+{% endblock %}

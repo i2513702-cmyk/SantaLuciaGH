@@ -30,8 +30,48 @@ def create_app() -> Flask:
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     # --- Inicializar extensiones ---
-    cors.init_app(app)
+    # CORS explícito para /api/*: permite fetch/XHR desde el mismo origen y
+    # también desde file:// (origen null) en pruebas locales. Sin esto, los
+    # navegadores bloquean la respuesta y nada aparece en Fetch/XHR.
+    cors.init_app(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
     bcrypt.init_app(app)
+
+    # --- Endpoints de salud / descubrimiento (visibles en Fetch/XHR) ---
+    from app.supabase_client import is_configured as _supabase_configurado
+
+    @app.get("/api/health")
+    def _api_health():
+        return jsonify({
+            "ok": True,
+            "servicio": "SantaLuciaGH",
+            "supabase_configurado": _supabase_configurado(),
+            "endpoints": [
+                "/api/health",
+                "/api/v1/",
+                "/api/v1/public/home",
+                "/api/v1/products",
+                "/api/v1/auth/me",
+                "/api/v1/cart",
+                "/api/clientes/buscar/<numero_documento>",
+                "/supabase/status",
+            ],
+        }), 200
+
+    @app.get("/api/v1/")
+    def _api_v1_index():
+        return jsonify({
+            "ok": True,
+            "servicio": "SantaLuciaGH API v1",
+            "supabase_configurado": _supabase_configurado(),
+            "ejemplos": [
+                "GET /api/v1/public/home",
+                "GET /api/v1/products",
+                "GET /api/v1/catalog/categories",
+                "POST /api/v1/auth/login",
+                "GET /api/v1/auth/me",
+            ],
+            "nota": "Si supabase_configurado es false, crea .env desde .env.example con tus claves reales de Supabase.",
+        }), 200
 
     # --- Blueprints ---
     from app.routes import admin, api, auth, carrito, checkout, citas, identidad, kpi, libro_reclamaciones, main, pedidos, reportes, seguridad, ventas, worker
@@ -231,5 +271,28 @@ def create_app() -> Flask:
         if respuesta:
             return respuesta
         return render_template("errors/404.html"), 413
+
+    @app.errorhandler(500)
+    def internal_error(_):
+        # En /api/* siempre JSON (nunca HTML): así fetch().json() no rompe
+        # y la petición SÍ se ve en DevTools > Network > Fetch/XHR.
+        if request.path.startswith("/api/"):
+            from app.supabase_client import is_configured as _cfg
+
+            detalle = "Error interno del servidor."
+            if not _cfg():
+                detalle = (
+                    "Supabase no está configurado: falta el archivo .env. "
+                    "Copia .env.example a .env y pon SUPABASE_URL, SUPABASE_KEY "
+                    "y SUPABASE_SERVICE_KEY reales, luego reinicia python app.py"
+                )
+            return jsonify({
+                "codigo": "ERROR_INTERNO",
+                "mensaje": detalle,
+                "error": detalle,
+                "status_code": 500,
+                "ok": False,
+            }), 500
+        return render_template("errors/500.html"), 500
 
     return app

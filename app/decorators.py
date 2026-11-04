@@ -97,11 +97,24 @@ def _denegar():
 
 
 def login_required(view):
-    """Requiere iniciar sesión. Si no, redirige al login (y vuelve al destino)."""
+    """Requiere iniciar sesión. Si no, redirige al login (y vuelve al destino).
 
+    En rutas /api/* devuelve JSON 401 en vez de redirigir a HTML: así el
+    fetch/XHR recibe JSON y la petición se ve correctamente en DevTools.
+    """
     @wraps(view)
     def wrapped(*args, **kwargs):
         if "usuario_id" not in session:
+            if request.path.startswith("/api/"):
+                from flask import jsonify
+
+                return jsonify({
+                    "ok": False,
+                    "codigo": "NO_AUTENTICADO",
+                    "mensaje": "Inicia sesión para usar este endpoint.",
+                    "error": "Inicia sesión para usar este endpoint.",
+                    "status_code": 401,
+                }), 401
             return redirect(url_for("auth.login", next=request.path))
         return view(*args, **kwargs)
 

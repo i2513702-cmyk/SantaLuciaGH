@@ -102,7 +102,10 @@ def _mapear_producto(p: dict) -> dict:
 
 def _leer_productos_activos(limite=None) -> list:
     """Lee el catálogo activo, incluyendo la imagen del producto si existe."""
-    reader = get_reader()
+    try:
+        reader = get_reader()
+    except Exception:  # noqa: BLE001 - sin .env no debe romper la página
+        return []
     for cols in (_COLS_CATALOGO, _COLS_CATALOGO_SIN_IMG):
         try:
             q = reader.table("productos").select(cols).eq("activo", True).order("nombre")
@@ -116,7 +119,10 @@ def _leer_productos_activos(limite=None) -> list:
 
 def _leer_producto_por_id(producto_id: int):
     """Devuelve una fila de `productos` por id (o None si no existe)."""
-    reader = get_reader()
+    try:
+        reader = get_reader()
+    except Exception:  # noqa: BLE001
+        return None
     for cols in (_COLS_CATALOGO, _COLS_CATALOGO_SIN_IMG):
         try:
             filas = (
@@ -135,7 +141,10 @@ def _leer_producto_por_id(producto_id: int):
 
 def _cargar_home_data() -> dict:
     """Carga datos públicos para la landing y la tienda."""
-    reader = get_reader()
+    try:
+        reader = get_reader()
+    except Exception:  # noqa: BLE001 - sin .env: home vacía, no 500
+        return {"marcas": [], "categorias": [], "productos_destacados": []}
 
     def _q(tabla, cols="*", filtros=None, orden=None, lim=None):
         try:
