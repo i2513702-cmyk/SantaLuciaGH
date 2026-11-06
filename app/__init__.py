@@ -161,6 +161,9 @@ def create_app() -> Flask:
         if request.method != "POST":
             return None
 
+        if request.path.startswith("/api/"):
+            return None
+
         token = request.form.get("csrf_token", "") or request.headers.get("X-CSRF-Token", "")
         if csrf_valido(token):
             return None
